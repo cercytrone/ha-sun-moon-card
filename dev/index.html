@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sun &amp; Moon Card – Entwicklungs- und Testumgebung</title>
+    <link rel="stylesheet" href="./dev.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="toolbar-title">
+        <strong>Sun &amp; Moon Card</strong>
+        <span>Entwicklungs- und Testumgebung (Mock-Home-Assistant)</span>
+      </div>
+      <div class="controls" id="controls"></div>
+    </header>
+
+    <main id="app"></main>
+
+    <footer class="footer">
+      Diese Seite dient der Entwicklung und Qualitätssicherung. Sie verwendet einen simulierten
+      <code>hass</code>-Zustand – die astronomischen Berechnungen sind jedoch dieselben wie in
+      Home Assistant.
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

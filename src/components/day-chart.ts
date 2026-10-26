@@ -1,0 +1,558 @@
+/**
+ * components/day-chart.ts
+ *
+ * Tagesverlauf der Sonne als SVG-Chart.
+ *
+ * Dargestellt wird der Höhenverlauf der Sonne über den gesamten lokalen Tag.
+ * Die Fläche unter der Kurve ist vertikal nach Sonnenhöhe eingefärbt:
+ *
+ *   > 0°     Tageslicht
+ *   0…−6°    bürgerliche Dämmerung
+ *   −6…−12°  nautische Dämmerung
+ *   −12…−18° astronomische Dämmerung
+ *   < −18°   Nacht
+ *
+ * Die Einfärbung erfolgt über einen einzigen linearen Farbverlauf mit harten
+ * Farbübergängen an den Schwellen. Dadurch bleiben alle Sonderfälle
+ * (Polartag, Polarnacht, fehlende Dämmerung) korrekt darstellbar, ohne dass
+ * einzelne Flächen berechnet werden müssen.
+ *
+ * Die Funktion ist zustandslos: Aus einem Datenmodell wird ein SVG-Fragment
+ * erzeugt. Es werden keine zusätzlichen Custom Elements benötigt, und die
+ * Anzahl der DOM-Knoten bleibt gering.
+ */
+
+import { svg, type TemplateResult } from 'lit';
+
+import {
+  ELEVATION_ASTRONOMICAL,
+  ELEVATION_CIVIL,
+  ELEVATION_NAUTICAL,
+  type DayProfile,
+  type SolarEvents,
+} from '../astronomy.js';
+import type { PhasePalette } from '../const.js';
+import type { FormatContext } from '../format.js';
+import type { StringKey } from '../localize.js';
+import { clamp, round, smoothPath, areaPath } from '../utils.js';
+
+/** Ein darzustellendes Ereignis auf der Zeitachse. */
+interface EventMarker {
+  key: string;
+  time: Date;
+  label: string;
+  shortLabel: string;
+  kind: 'sunrise' | 'sunset' | 'dawn' | 'dusk';
+  /** Höhe, auf der die Markierung sitzt. */
+  altitude: number;
+  /** Dünnere Ausführung für zusätzliche Dämmerungsebenen. */
+  secondary: boolean;
+}
+
+export interface DayChartOptions {
+  /** Tagesverlauf (Höhenprofil). */
+  profile: DayProfile;
+  /** Anzuzeigende Ereigniszeiten (berechnet oder aus Home Assistant). */
+  events: SolarEvents;
+  /** Aktueller Zeitpunkt. */
+  now: Date;
+  /** Breite des Charts in Pixeln. */
+  width: number;
+  /** Höhe des Charts in Pixeln. */
+  height: number;
+  /** Farbpalette. */
+  palette: PhasePalette;
+  /** Formatierungskontext (Zeitzone, Sprache). */
+  format: FormatContext;
+  /** Aktuellen Sonnen- bzw. Mondmarker anzeigen. */
+  showSun: boolean;
+  showMoon: boolean;
+  /** Dämmerungsmarkierungen anzeigen. */
+  showTwilight: boolean;
+  /** Welche Dämmerungsebenen dargestellt werden. */
+  twilightLevel: 'civil' | 'nautical' | 'astronomical' | 'all';
+  /** Animationen (Glow des Sonnenmarkers). */
+  animations: boolean;
+  /** Kompakte Darstellung. */
+  compact: boolean;
+  /** Stabile IDs für SVG-Definitionen. */
+  uid: string;
+  /** Zusätzliche astronomische Ebenen (−6°/−12°/−18°-Linien). */
+  showAstronomicalLayers: boolean;
+  /** Aktuelle Sonnenhöhe (Position des „jetzt“-Markers). */
+  currentAltitude: number;
+}
+
+/** Skaliert die Abtastwerte des Profils auf die vorhandene Breite. */
+function pickSamples(
+  samples: { time: number; altitude: number }[],
+  maxPoints: number,
+): { time: number; altitude: number }[] {
+  if (samples.length <= maxPoints) return samples;
+  const step = samples.length / maxPoints;
+  const result: { time: number; altitude: number }[] = [];
+  for (let i = 0; i < maxPoints; i++) {
+    result.push(samples[Math.floor(i * step)]);
+  }
+  const last = samples[samples.length - 1];
+  if (result[result.length - 1] !== last) result.push(last);
+  return result;
+}
+
+/**
+ * Bestimmt den darstellbaren Höhenbereich.
+ *
+ * Sehr tiefe Nachtwerte werden abgeschnitten – die Kurve läuft dann unten aus
+ * dem Chart heraus –, damit die Bereiche um den Horizont genügend Platz
+ * erhalten. Bei Polartag und Polarnacht wird der Bereich automatisch an den
+ * tatsächlichen Verlauf angepasst.
+ */
+function elevationDomain(profile: DayProfile): [number, number] {
+  const max = profile.maxAltitude;
+  const min = profile.minAltitude;
+  const reference = Math.min(min, -18);
+  const padTop = Math.max(3, (max - reference) * 0.1);
+  const top = clamp(max + padTop, -18, 90.5);
+  const bottom = clamp(Math.max(-28, min - 2), -90, top - 6);
+  return [bottom, top];
+}
+
+/** Erzeugt die Farbstopps des vertikalen Phasenverlaufs. */
+function bandGradientStops(
+  palette: PhasePalette,
+  yOf: (altitude: number) => number,
+  plotTop: number,
+  plotHeight: number,
+): Array<{ offset: number; color: string }> {
+  const thresholds = [0, ELEVATION_CIVIL, ELEVATION_NAUTICAL, ELEVATION_ASTRONOMICAL];
+  const colors = [
+    palette.day,
+    palette.civil,
+    palette.nautical,
+    palette.astronomical,
+    palette.night,
+  ];
+
+  const stops: Array<{ offset: number; color: string }> = [];
+  const softness = 0.006;
+  let previousOffset = 0;
+
+  for (let i = 0; i < thresholds.length; i++) {
+    const raw = (yOf(thresholds[i]) - plotTop) / plotHeight;
+    const offset = clamp(raw, 0, 1);
+
+    if (offset <= 0) {
+      // Schwelle liegt oberhalb des Diagramms: nur die dunklere Farbe sichtbar
+      stops.push({ offset: 0, color: colors[i + 1] });
+      previousOffset = 0;
+      continue;
+    }
+    if (offset >= 1) {
+      stops.push({ offset: clamp(previousOffset, 0, 1), color: colors[i] });
+      stops.push({ offset: 1, color: colors[i] });
+      previousOffset = 1;
+      break;
+    }
+    stops.push({ offset: clamp(previousOffset, 0, 1), color: colors[i] });
+    stops.push({ offset: clamp(offset - softness, 0, 1), color: colors[i] });
+    stops.push({ offset: clamp(offset + softness, 0, 1), color: colors[i + 1] });
+    previousOffset = offset + softness;
+  }
+
+  if (previousOffset < 1) {
+    const lastColor = colors[colors.length - 1];
+    stops.push({ offset: clamp(previousOffset, 0, 1), color: lastColor });
+    stops.push({ offset: 1, color: lastColor });
+  }
+
+  // Monoton steigende Offsets sicherstellen (SVG-Vorgabe)
+  const normalized: Array<{ offset: number; color: string }> = [];
+  let last = -1;
+  for (const stop of [...stops].sort((a, b) => a.offset - b.offset)) {
+    const offset = clamp(Math.max(stop.offset, last), 0, 1);
+    normalized.push({ offset, color: stop.color });
+    last = offset;
+  }
+  return normalized;
+}
+
+/** Zeichnet das Tagesverlaufs-Chart. */
+export function renderDayChart(options: DayChartOptions): TemplateResult {
+  const {
+    profile,
+    events,
+    now,
+    width,
+    height,
+    palette,
+    format,
+    showSun,
+    showMoon,
+    showTwilight,
+    twilightLevel,
+    animations,
+    uid,
+    showAstronomicalLayers,
+    currentAltitude,
+  } = options;
+
+  const safeWidth = Math.max(120, width);
+  const safeHeight = Math.max(56, height);
+
+  const padLeft = 4;
+  const padRight = 4;
+  const padTop = 6;
+  const showLabelStrip = safeHeight >= 112;
+  const stripHeight = showLabelStrip ? clamp(round(safeHeight * 0.13, 1), 13, 20) : 0;
+  const plotLeft = padLeft;
+  const plotWidth = Math.max(10, safeWidth - padLeft - padRight);
+  const plotTop = padTop;
+  const plotHeight = Math.max(10, safeHeight - padTop - stripHeight);
+  const plotBottom = plotTop + plotHeight;
+
+  const [domainBottom, domainTop] = elevationDomain(profile);
+  const domainSpan = Math.max(1, domainTop - domainBottom);
+
+  const t0 = profile.dayStart.getTime();
+  const t1 = profile.dayEnd.getTime();
+  const timeSpan = Math.max(1, t1 - t0);
+
+  const xOf = (time: number): number => plotLeft + ((time - t0) / timeSpan) * plotWidth;
+  const yOf = (altitude: number): number =>
+    plotBottom - ((clamp(altitude, -95, 95) - domainBottom) / domainSpan) * plotHeight;
+
+  // --- Kurve ---------------------------------------------------------------
+  const maxPoints = clamp(Math.round(plotWidth / 1.6), 60, 361);
+  const points = pickSamples(profile.samples, maxPoints).map((sample) => ({
+    x: xOf(sample.time),
+    y: yOf(sample.altitude),
+  }));
+
+  const gradientStops = bandGradientStops(palette, yOf, plotTop, plotHeight);
+  const areaId = `${uid}-area`;
+  const lineId = `${uid}-line`;
+  const clipId = `${uid}-clip`;
+  const glowId = `${uid}-glow`;
+
+  const area = areaPath(points, plotBottom + 1, true);
+  const curve = smoothPath(points);
+
+  // --- Ereignismarken ------------------------------------------------------
+  const t = format.t;
+  const markers: EventMarker[] = [];
+  const push = (marker: Omit<EventMarker, 'secondary'> & { secondary?: boolean }) => {
+    if (marker.time && !Number.isNaN(marker.time.getTime())) {
+      markers.push({ secondary: false, ...marker });
+    }
+  };
+
+  if (events.sunrise) {
+    push({
+      key: 'sunrise',
+      time: events.sunrise,
+      label: t('sunrise'),
+      shortLabel: t('sunriseShort'),
+      kind: 'sunrise',
+      altitude: 0,
+    });
+  }
+  if (events.sunset) {
+    push({
+      key: 'sunset',
+      time: events.sunset,
+      label: t('sunset'),
+      shortLabel: t('sunsetShort'),
+      kind: 'sunset',
+      altitude: 0,
+    });
+  }
+  if (showTwilight) {
+    if (events.civilDawn) {
+      push({
+        key: 'civilDawn',
+        time: events.civilDawn,
+        label: t('civilDawn'),
+        shortLabel: t('civilDawnShort'),
+        kind: 'dawn',
+        altitude: ELEVATION_CIVIL,
+      });
+    }
+    if (events.civilDusk) {
+      push({
+        key: 'civilDusk',
+        time: events.civilDusk,
+        label: t('civilDusk'),
+        shortLabel: t('civilDuskShort'),
+        kind: 'dusk',
+        altitude: ELEVATION_CIVIL,
+      });
+    }
+    if (twilightLevel === 'all' || showAstronomicalLayers) {
+      const extras: Array<[keyof SolarEvents, 'dawn' | 'dusk', StringKey, number]> = [
+        ['nauticalDawn', 'dawn', 'nauticalDawn', ELEVATION_NAUTICAL],
+        ['nauticalDusk', 'dusk', 'nauticalDusk', ELEVATION_NAUTICAL],
+        ['astronomicalDawn', 'dawn', 'astronomicalDawn', ELEVATION_ASTRONOMICAL],
+        ['astronomicalDusk', 'dusk', 'astronomicalDusk', ELEVATION_ASTRONOMICAL],
+      ];
+      for (const [key, kind, labelKey, altitude] of extras) {
+        const value = events[key];
+        if (value) {
+          push({
+            key,
+            time: value,
+            label: t(labelKey),
+            shortLabel: t(labelKey),
+            kind,
+            altitude,
+            secondary: true,
+          });
+        }
+      }
+    }
+  }
+  markers.sort((a, b) => a.time.getTime() - b.time.getTime());
+
+  // --- Beschriftungen ------------------------------------------------------
+  const labelFontSize = clamp(round(safeHeight * 0.062, 1), 7.5, 10.5);
+  const labelHeight = clamp(round(labelFontSize + 5, 1), 11, stripHeight || 15);
+
+  interface PlacedLabel {
+    x: number;
+    width: number;
+    text: string;
+    secondary: boolean;
+  }
+
+  const primaries = markers.filter((marker) => !marker.secondary);
+  const secondaries = markers.filter((marker) => marker.secondary);
+  const maxLabels = plotWidth < 240 ? 3 : plotWidth < 340 ? 4 : 6;
+  const ordered = [...primaries, ...secondaries]
+    .slice(0, Math.max(2, maxLabels))
+    .sort((a, b) => a.time.getTime() - b.time.getTime());
+  const useShort = ordered.length > 3 || plotWidth < 300;
+
+  const labels: PlacedLabel[] = [];
+  let lastRight = -Infinity;
+  for (const marker of ordered) {
+    const text = useShort ? marker.shortLabel : marker.label;
+    const estimatedWidth = text.length * labelFontSize * 0.56 + 8;
+    let x = xOf(marker.time.getTime());
+    x = clamp(x, plotLeft + estimatedWidth / 2, plotLeft + plotWidth - estimatedWidth / 2);
+    if (x - estimatedWidth / 2 < lastRight + 3) {
+      x = lastRight + 3 + estimatedWidth / 2;
+    }
+    if (x + estimatedWidth / 2 > plotLeft + plotWidth + 0.5) continue;
+    lastRight = x + estimatedWidth / 2;
+    labels.push({ x, width: estimatedWidth, text, secondary: marker.secondary });
+  }
+
+  // --- „Jetzt“-Marker ------------------------------------------------------
+  const nowX = clamp(xOf(now.getTime()), plotLeft, plotLeft + plotWidth);
+  const nowY = clamp(yOf(currentAltitude), plotTop, plotBottom);
+  const isDay = currentAltitude > 0;
+  const markerColor = isDay ? palette.lineDay : palette.lineNight;
+  const markerRadius = clamp(round(safeHeight * 0.045, 1), 3.5, 6);
+  const markerClass = animations ? 'smc-pulse' : '';
+  const markerFilter = animations ? `url(#${glowId})` : '';
+
+  // --- Horizont- und Dämmerungslinien --------------------------------------
+  const horizonY = yOf(0);
+  const horizonVisible = domainBottom < 0 && domainTop > 0;
+  const layerLines = showAstronomicalLayers
+    ? [
+        { altitude: ELEVATION_CIVIL, label: '−6°' },
+        { altitude: ELEVATION_NAUTICAL, label: '−12°' },
+        { altitude: ELEVATION_ASTRONOMICAL, label: '−18°' },
+      ].filter((line) => line.altitude > domainBottom && line.altitude < domainTop)
+    : [];
+
+  // --- Hilfslinien im 3-Stunden-Raster -------------------------------------
+  const gridCount = plotWidth < 220 ? 4 : plotWidth < 420 ? 6 : 8;
+  const gridLines: number[] = [];
+  for (let i = 1; i < gridCount; i++) {
+    gridLines.push(plotLeft + (plotWidth * i) / gridCount);
+  }
+
+  return svg`
+    <svg
+      class="day-chart"
+      width="100%"
+      height="100%"
+      viewBox="0 0 ${round(safeWidth, 1)} ${round(safeHeight, 1)}"
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label="${t('title')}"
+    >
+      <defs>
+        <linearGradient id="${areaId}" gradientUnits="userSpaceOnUse"
+          x1="0" y1="${round(plotTop, 1)}" x2="0" y2="${round(plotBottom, 1)}">
+          ${gradientStops.map(
+            (stop) =>
+              svg`<stop offset="${round(stop.offset * 100, 3)}%" stop-color="${stop.color}" />`,
+          )}
+        </linearGradient>
+        <linearGradient id="${lineId}" gradientUnits="userSpaceOnUse"
+          x1="0" y1="${round(plotTop, 1)}" x2="0" y2="${round(plotBottom, 1)}">
+          ${gradientStops.map(
+            (stop) =>
+              svg`<stop offset="${round(stop.offset * 100, 3)}%" stop-color="${
+                stop.color === palette.day ? palette.lineDay : palette.lineNight
+              }" />`,
+          )}
+        </linearGradient>
+        <clipPath id="${clipId}">
+          <rect x="${round(plotLeft - 1, 1)}" y="${round(plotTop - 2, 1)}"
+            width="${round(plotWidth + 2, 1)}" height="${round(plotHeight + 4, 1)}" />
+        </clipPath>
+        ${
+          animations
+            ? svg`<filter id="${glowId}" x="-80%" y="-80%" width="260%" height="260%">
+                <feGaussianBlur stdDeviation="${round(markerRadius * 0.7, 2)}" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>`
+            : svg``
+        }
+      </defs>
+
+      <g clip-path="url(#${clipId})">
+        ${gridLines.map(
+          (x) =>
+            svg`<line x1="${round(x, 1)}" y1="${round(plotTop, 1)}" x2="${round(x, 1)}" y2="${round(plotBottom, 1)}"
+              stroke="var(--smc-grid-line, rgba(255,255,255,0.10))" stroke-width="0.6" />`,
+        )}
+        <path d="${area}" fill="url(#${areaId})" opacity="0.9" />
+        <path
+          d="${curve}"
+          fill="none"
+          stroke="url(#${lineId})"
+          stroke-width="${clamp(round(safeHeight * 0.017, 2), 1.4, 2.4)}"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          opacity="0.95"
+        />
+        ${
+          horizonVisible
+            ? svg`<line
+                x1="${round(plotLeft, 1)}" y1="${round(horizonY, 1)}"
+                x2="${round(plotLeft + plotWidth, 1)}" y2="${round(horizonY, 1)}"
+                stroke="var(--smc-horizon-line, rgba(255,255,255,0.5))"
+                stroke-width="1"
+                stroke-dasharray="3 3"
+                opacity="0.6"
+              />`
+            : svg``
+        }
+        ${layerLines.map(
+          (line) =>
+            svg`<line
+              x1="${round(plotLeft, 1)}" y1="${round(yOf(line.altitude), 1)}"
+              x2="${round(plotLeft + plotWidth, 1)}" y2="${round(yOf(line.altitude), 1)}"
+              stroke="var(--smc-horizon-line, rgba(255,255,255,0.3))"
+              stroke-width="0.6"
+              stroke-dasharray="2 4"
+              opacity="0.45"
+            />`,
+        )}
+      </g>
+
+      <g class="event-markers">
+        ${markers.map((marker) => {
+          const x = clamp(xOf(marker.time.getTime()), plotLeft, plotLeft + plotWidth);
+          const y = clamp(yOf(marker.altitude), plotTop, plotBottom);
+          const primary = !marker.secondary;
+          const dotRadius = primary ? clamp(round(safeHeight * 0.022, 1), 1.8, 3) : 1.4;
+          const strong = 'var(--smc-marker-strong, rgba(255,255,255,0.9))';
+          const soft = 'var(--smc-marker-soft, rgba(255,255,255,0.55))';
+          const color = primary ? strong : soft;
+
+          const glyph =
+            marker.kind === 'sunrise' || marker.kind === 'sunset'
+              ? svg`
+                <circle cx="${round(x, 1)}" cy="${round(y, 1)}" r="${dotRadius + 1}"
+                  fill="${marker.kind === 'sunrise' ? palette.lineDay : palette.lineNight}"
+                  opacity="0.95" />
+                <line
+                  x1="${round(x - dotRadius * 2.6, 1)}"
+                  y1="${round(marker.kind === 'sunrise' ? y + dotRadius + 2 : y - dotRadius - 2, 1)}"
+                  x2="${round(x + dotRadius * 2.6, 1)}"
+                  y2="${round(marker.kind === 'sunrise' ? y + dotRadius + 2 : y - dotRadius - 2, 1)}"
+                  stroke="${strong}" stroke-width="1.1" stroke-linecap="round" opacity="0.8" />
+              `
+              : svg`<circle cx="${round(x, 1)}" cy="${round(y, 1)}" r="${dotRadius}"
+                  fill="${color}" opacity="0.85" />`;
+
+          return svg`<g>
+            <line
+              x1="${round(x, 1)}" y1="${round(plotTop, 1)}"
+              x2="${round(x, 1)}" y2="${round(plotBottom, 1)}"
+              stroke="${color}" stroke-width="${primary ? 1 : 0.7}"
+              stroke-dasharray="2 3" opacity="${primary ? 0.35 : 0.2}" />
+            ${glyph}
+          </g>`;
+        })}
+      </g>
+
+      <g class="now-marker">
+        <line
+          x1="${round(nowX, 1)}" y1="${round(plotTop, 1)}"
+          x2="${round(nowX, 1)}" y2="${round(plotBottom, 1)}"
+          stroke="var(--smc-now-line, rgba(255,255,255,0.8))"
+          stroke-width="${clamp(round(safeHeight * 0.012, 2), 1, 1.8)}"
+          opacity="0.85" />
+        ${
+          showSun || showMoon
+            ? svg`<g class="${markerClass}" filter="${markerFilter}">
+                <circle
+                  cx="${round(nowX, 1)}"
+                  cy="${round(nowY, 1)}"
+                  r="${markerRadius}"
+                  fill="${markerColor}"
+                  stroke="var(--smc-now-stroke, rgba(0,0,0,0.25))"
+                  stroke-width="0.8"
+                />
+              </g>`
+            : svg``
+        }
+      </g>
+
+      ${
+        showLabelStrip
+          ? svg`<line
+              x1="${round(plotLeft, 1)}" y1="${round(plotBottom + 0.5, 1)}"
+              x2="${round(plotLeft + plotWidth, 1)}" y2="${round(plotBottom + 0.5, 1)}"
+              stroke="var(--smc-divider, rgba(128,128,128,0.35))" stroke-width="0.7" />`
+          : svg``
+      }
+
+      ${
+        labels.length
+          ? svg`<g class="event-labels" font-size="${labelFontSize}">
+              ${labels.map((label) => {
+                const top = showLabelStrip ? plotBottom + 2 : plotTop;
+                return svg`<g>
+                  <rect
+                    x="${round(label.x - label.width / 2, 1)}"
+                    y="${round(top, 1)}"
+                    width="${round(label.width, 1)}"
+                    height="${round(labelHeight, 1)}"
+                    rx="${round(labelHeight / 2.6, 1)}"
+                    fill="var(--smc-label-bg, rgba(0,0,0,0.34))"
+                    opacity="${label.secondary ? 0.6 : 0.88}" />
+                  <text
+                    x="${round(label.x, 1)}"
+                    y="${round(top + labelHeight / 2 + labelFontSize * 0.36, 1)}"
+                    text-anchor="middle"
+                    fill="var(--smc-label-color, #ffffff)"
+                    opacity="${label.secondary ? 0.75 : 1}"
+                  >${label.text}</text>
+                </g>`;
+              })}
+            </g>`
+          : svg``
+      }
+    </svg>
+  `;
+}
