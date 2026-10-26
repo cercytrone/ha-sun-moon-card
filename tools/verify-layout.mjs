@@ -228,6 +228,126 @@ async function main() {
     await checkCard(page, url, edge.name);
   }
 
+  console.log('\n— Kontrast der Beschriftungen (WCAG) —');
+  await page.setViewport({ width: 700, height: 460, deviceScaleFactor: 1 });
+  for (const theme of ['dark', 'light']) {
+    for (const height of [220, 320]) {
+      const url = `${baseUrl}/shots.html?loc=berlin&time=2026-10-26T18:30&theme=${theme}&h=${height}&w=620`;
+      await page.goto(url, { waitUntil: 'networkidle0' });
+      await page.waitForFunction(
+        () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+        { timeout: 20000 },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const results = await page.evaluate(() => {
+        // Chromium liefert für color-mix() die Form „color(srgb 0.42 0.45 0.5)“,
+        // ältere Browser „rgb()/rgba()“. Beide Formen werden unterstützt.
+        const parse = (value) => {
+          const functional = /color\(srgb ([^)]+)\)/.exec(value);
+          if (functional) {
+            const parts = functional[1].trim().split(/\s+/).map((part) => Number.parseFloat(part));
+            return {
+              r: parts[0] * 255,
+              g: parts[1] * 255,
+              b: parts[2] * 255,
+              a: parts[3] === undefined ? 1 : parts[3],
+            };
+          }
+          const match = /rgba?\(([^)]+)\)/.exec(value);
+          if (!match) return null;
+          const parts = match[1].split(/[,\s/]+/).filter(Boolean).map((part) => Number.parseFloat(part));
+          return { r: parts[0], g: parts[1], b: parts[2], a: parts[3] === undefined ? 1 : parts[3] };
+        };
+        const over = (top, bottom) => ({
+          r: top.r * top.a + bottom.r * (1 - top.a),
+          g: top.g * top.a + bottom.g * (1 - top.a),
+          b: top.b * top.a + bottom.b * (1 - top.a),
+          a: 1,
+        });
+        const luminance = (color) => {
+          const channel = (value) => {
+            const ratio = value / 255;
+            return ratio <= 0.03928 ? ratio / 12.92 : ((ratio + 0.055) / 1.055) ** 2.4;
+          };
+          return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
+        };
+        const contrast = (a, b) => {
+          const la = luminance(a);
+          const lb = luminance(b);
+          return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+        };
+
+        const root = document.querySelector('sun-moon-card').shadowRoot;
+        const card = root.querySelector('ha-card');
+        const cardBackground = parse(getComputedStyle(card).backgroundColor) ?? { r: 0, g: 0, b: 0, a: 1 };
+
+        const backgroundOf = (element) => {
+          let current = element;
+          let color = cardBackground;
+          const chain = [];
+          while (current && current !== card) {
+            const parsed = parse(getComputedStyle(current).backgroundColor);
+            if (parsed && parsed.a > 0) chain.push(parsed);
+            current = current.parentElement;
+          }
+          for (let index = chain.length - 1; index >= 0; index -= 1) {
+            color = over(chain[index], color);
+          }
+          return color;
+        };
+
+        const selectors = [
+          '.title', '.subtitle', '.phase-chip', '.event-time', '.event-label',
+          '.detail-title', '.detail-value', '.detail-sub', '.message',
+        ];
+        const found = [];
+        for (const selector of selectors) {
+          for (const element of root.querySelectorAll(selector)) {
+            const text = (element.textContent || '').trim();
+            if (!text) continue;
+            const style = getComputedStyle(element);
+            const foreground = parse(style.color);
+            if (!foreground) {
+              found.push({
+                selector,
+                text: text.slice(0, 20),
+                size: Number.parseFloat(style.fontSize),
+                ratio: 0,
+                required: 4.5,
+                unparsed: style.color,
+              });
+              continue;
+            }
+            const background = backgroundOf(element);
+            const size = Number.parseFloat(style.fontSize);
+            const weight = Number.parseInt(style.fontWeight, 10) || 400;
+            const large = size >= 24 || (size >= 18.66 && weight >= 700);
+            found.push({
+              selector,
+              text: text.slice(0, 20),
+              size,
+              ratio: Number(contrast(over(foreground, background), background).toFixed(2)),
+              required: large ? 3 : 4.5,
+            });
+          }
+        }
+        return found;
+      });
+
+      const tooLow = results.filter((entry) => entry.ratio < entry.required);
+      record(
+        `Kontrast ${theme} ${height}px (${results.length} Beschriftungen)`,
+        tooLow.length === 0,
+        tooLow.length
+          ? tooLow
+              .map((entry) => `${entry.selector} „${entry.text}“ ${entry.ratio}:1 < ${entry.required}:1`)
+              .join(', ')
+          : `min ${Math.min(...results.map((entry) => entry.ratio))}:1`,
+      );
+    }
+  }
+
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');
   await page.setViewport({ width: 700, height: 420, deviceScaleFactor: 1 });
   for (const time of ['2026-10-26T06:00', '2026-10-26T12:00', '2026-10-26T18:00', '2026-10-26T23:30']) {
