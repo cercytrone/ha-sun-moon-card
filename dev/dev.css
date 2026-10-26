@@ -1,0 +1,151 @@
+/*
+ * Stile der Entwicklungs- und Testumgebung (nicht Teil der Karte).
+ * Die Farbwerte bilden die Standard-Themes von Home Assistant nach.
+ */
+
+:root {
+  --ha-card-background: #1c1f2b;
+  --card-background-color: #1c1f2b;
+  --primary-background-color: #10131c;
+  --primary-text-color: #e6e8ee;
+  --secondary-text-color: #9aa3b8;
+  --divider-color: rgba(255, 255, 255, 0.12);
+  --primary-color: #ffb648;
+  color-scheme: dark;
+}
+
+body.light {
+  --ha-card-background: #ffffff;
+  --card-background-color: #ffffff;
+  --primary-background-color: #f3f5f9;
+  --primary-text-color: #212121;
+  --secondary-text-color: #6b7488;
+  --divider-color: rgba(0, 0, 0, 0.12);
+  --primary-color: #f39c12;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--primary-background-color);
+  color: var(--primary-text-color);
+  padding-bottom: 48px;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--card-background-color);
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.toolbar-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  margin-right: auto;
+}
+
+.toolbar-title span {
+  font-size: 11.5px;
+  color: var(--secondary-text-color);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.control {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--secondary-text-color);
+}
+
+.control select,
+.control input,
+.control button {
+  font-size: 12.5px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--divider-color);
+  background: var(--card-background-color);
+  color: var(--primary-text-color);
+  font-family: inherit;
+}
+
+main {
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+section h2 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--secondary-text-color);
+  margin: 0 0 10px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.grid.narrow {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 340px));
+}
+
+.cell-label {
+  font-size: 11.5px;
+  color: var(--secondary-text-color);
+  margin-bottom: 5px;
+}
+
+sun-moon-card {
+  display: block;
+  width: 100%;
+}
+
+/* Fallback für <ha-card>, wenn die Seite ohne Home Assistant läuft. */
+ha-card {
+  display: block;
+  border-radius: 12px;
+  background: var(--ha-card-background);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.22),
+    0 1px 2px rgba(0, 0, 0, 0.14);
+}
+
+.footer {
+  padding: 16px;
+  font-size: 11.5px;
+  color: var(--secondary-text-color);
+  border-top: 1px solid var(--divider-color);
+}
+
+code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+}
