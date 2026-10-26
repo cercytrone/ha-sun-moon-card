@@ -21,7 +21,7 @@ jobs:
       - name: Node.js einrichten
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Abhängigkeiten installieren
@@ -34,7 +34,18 @@ jobs:
         run: npm run lint
 
       - name: Tests
-        run: npm run test
+        id: tests
+        run: |
+          set -o pipefail
+          npm run test 2>&1 | tee vitest-output.txt
+
+      - name: Fehlerauszug veröffentlichen
+        if: failure() && steps.tests.outcome == 'failure'
+        run: |
+          echo '::error::Tests fehlgeschlagen – Auszug aus der Ausgabe:'
+          grep -a -E 'FAIL|AssertionError|Error:|expected|Tests  ' vitest-output.txt \
+            | head -25 \
+            | while IFS= read -r line; do echo "::error::${line//'%'/%25}"; done
 
       - name: Build
         run: npm run build
