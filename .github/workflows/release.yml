@@ -55,7 +55,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json dist
-          git commit -m "chore: release v${{ inputs.version }}"
+          # Kein Commit nötig, wenn sich nichts geändert hat (z. B. dieselbe Version).
+          git diff --cached --quiet || git commit -m "chore: release v${{ inputs.version }}"
           git tag "v${{ inputs.version }}"
           git push origin main --follow-tags
 
