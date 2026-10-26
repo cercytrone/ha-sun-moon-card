@@ -163,6 +163,10 @@ Time zones, DST rules and 23/25-hour days are handled through the browser’s `I
 
 ## Development
 
+Requirements: **Node.js 22.19 or newer** (the test stack uses jsdom/undici, which requires it;
+Node 20 left LTS support in April 2026). The card bundle itself runs in any modern browser – the
+Node version only matters for building and testing.
+
 ```bash
 npm ci
 npm run dev          # demo page with many card variants, http://localhost:5173

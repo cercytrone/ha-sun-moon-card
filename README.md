@@ -391,6 +391,10 @@ Dashboard neu laden. Wenn sich die Ressourcen-URL nicht geändert hat, genügt e
 
 ## Entwicklung
 
+Voraussetzung: **Node.js 22.19 oder neuer** (die Testumgebung nutzt jsdom/undici, das diese
+Version verlangt; Node 20 ist seit April 2026 nicht mehr im LTS-Support). Das Karten-Bundle
+selbst läuft in jedem aktuellen Browser – die Node-Version betrifft nur Bau und Tests.
+
 ```bash
 git clone https://github.com/cercytrone/ha-sun-moon-card.git
 cd ha-sun-moon-card
