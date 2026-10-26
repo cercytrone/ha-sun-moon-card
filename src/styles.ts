@@ -16,7 +16,17 @@ export const cardStyles = css`
     display: block;
     --smc-gap: 10px;
     --smc-radius: 12px;
-    --smc-muted-color: var(--secondary-text-color, var(--primary-text-color, #8a93a8));
+    /* Grundfarbe: Sekundärfarbe des Themes; ohne Theme ein Grau, das auf
+       hellem Grund bereits 4,5:1 Kontrast erreicht. */
+    --smc-muted-color: var(--secondary-text-color, var(--primary-text-color, #626b7a));
+    /* Kräftigt die Sekundärfarbe in Richtung der Textfarbe, damit auch
+       hellere Themes die WCAG-Schwelle von 4,5:1 für Beschriftungen
+       erreichen. Browser ohne color-mix() verwenden die Zeile darüber. */
+    --smc-muted-color: color-mix(
+      in srgb,
+      var(--secondary-text-color, #626b7a) 72%,
+      var(--primary-text-color, #212121)
+    );
     --smc-divider: var(--divider-color, rgba(128, 128, 128, 0.25));
     --smc-label-bg: rgba(0, 0, 0, 0.34);
     --smc-label-color: #ffffff;

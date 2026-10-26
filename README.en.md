@@ -39,6 +39,10 @@ images, and no additional Home Assistant integration is required.
   mode, theme mode, animations, visual editor **and** YAML, `setConfig()` / `getCardSize()` /
   `getGridOptions()` / `getConfigElement()`. Missing entities, missing attributes or a missing
   location never break the card – it shows a hint instead.
+- **Accessible:** colours follow the Home Assistant theme variables; measured WCAG contrast of the
+  weakest label is **5.86:1** (light theme) and **6.88:1** (dark theme), i.e. above the 4.5:1
+  threshold for normal text. Symbols are `aria-hidden`, values exist as text, the card is
+  keyboard-focusable.
 
 ## Installation
 
@@ -178,8 +182,9 @@ npm run verify       # typecheck + lint + tests
 ```
 
 Screenshots are generated in real Chromium (`npm run dev` must be running, then
-`npm run screenshots`); the layout QA run (`npm run verify:layout`) checks heights, widths,
-locations, edge cases and console errors. Both tools need `puppeteer-core` and
+`npm run screenshots`); the layout QA run (`npm run verify:layout`) checks 34 cases: heights
+120–800 px, widths from 320 px, seven locations, polar day/night, missing data, the time-axis
+scaling of the chart, WCAG contrast and console errors. Both tools need `puppeteer-core` and
 `@sparticuz/chromium` (`npm install --no-save puppeteer-core @sparticuz/chromium`) or a browser
 supplied via `CHROME_PATH` – they are not part of the project dependencies.
 

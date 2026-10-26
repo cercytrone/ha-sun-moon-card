@@ -355,7 +355,9 @@ entsteht keine ungenutzte Fläche, weil der Tagesverlauf den verbleibenden Platz
 ## Barrierefreiheit, Performance, Datenschutz
 
 - **Kontrast:** eigene Farbpaletten für helle und dunkle Themes; Textfarben folgen den
-  Home-Assistant-Theme-Variablen, damit die Karte in jedem Theme lesbar bleibt.
+  Home-Assistant-Theme-Variablen, damit die Karte in jedem Theme lesbar bleibt. Automatisiert
+  gemessen (WCAG) erreicht die schwächste Beschriftung **5,86:1** im hellen und **6,88:1** im
+  dunklen Theme – mindestens also die Schwelle für normale Schrift (4,5:1).
 - **Tastatur/Assistenz:** die Karte ist per Tastatur erreichbar (Fokusrahmen), Symbole sind als
   `aria-hidden` markiert, Zahlenwerte sind als Text vorhanden; die Zeitenkacheln tragen einen
   `title` mit vollständiger Bezeichnung.
@@ -365,7 +367,7 @@ entsteht keine ungenutzte Fläche, weil der Tagesverlauf den verbleibenden Platz
   DOM-Aktualisierungen.
 - **Datenschutz:** keine Netzwerkzugriffe, kein Telemetrie, keine externen Schriften oder Bilder.
   Alle Grafiken sind SVG, alle Berechnungen lokal.
-- **Größe:** das Bundle (`dist/sun-moon-card.js`) enthält Lit und wiegt rund 94 kB
+- **Größe:** das Bundle (`dist/sun-moon-card.js`) enthält Lit und wiegt rund 95 kB
   (unkomprimiert) – keine weiteren Laufzeitabhängigkeiten.
 
 ---
@@ -410,7 +412,7 @@ npm ci
 | `npm run build` | Bundle nach `dist/sun-moon-card.js` (esbuild, minifiziert, mit Lit) |
 | `npm run verify` | Typen + Lint + Tests in einem Durchlauf |
 | `npm run screenshots` | Screenshots nach `docs/` (siehe unten) |
-| `npm run verify:layout` | Layoutprüfung in echtem Chromium: Höhen, Breiten, Standorte, Sonderfälle, Konsolenfehler |
+| `npm run verify:layout` | Layoutprüfung in echtem Chromium: Höhen 120–800 px, Breiten ab 320 px, sieben Standorte, Polartag/Polarnacht, fehlende Daten, Zeitleisten-Skalierung, WCAG-Kontrast und Konsolenfehler (34 Prüfungen) |
 
 **Aufbau**
 
