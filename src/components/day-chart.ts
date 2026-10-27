@@ -33,7 +33,9 @@ import {
   ELEVATION_ASTRONOMICAL,
   ELEVATION_CIVIL,
   ELEVATION_NAUTICAL,
+  type BodyProfile,
   type DayProfile,
+  type MoonPath,
   type SolarEvents,
 } from '../astronomy.js';
 import type { PhasePalette } from '../const.js';
@@ -78,6 +80,11 @@ export interface DayChartOptions {
    * der „Jetzt"-Linie, damit seine Höhe im Tagesverlauf ablesbar ist.
    */
   moon: { altitude: number; illumination: number; brightLimbAngle: number } | null;
+  /**
+   * Tagesgang des Mondes. Aus ihm wird die zweite Kurve gezeichnet – der
+   * Verlauf, dem man folgen kann, statt nur einen Punkt zu sehen.
+   */
+  moonPath: MoonPath | null;
   /** Dämmerungsmarkierungen anzeigen. */
   showTwilight: boolean;
   /** Welche Dämmerungsebenen dargestellt werden. */
@@ -165,9 +172,17 @@ function domeGeometry(
  * erhalten. Bei Polartag und Polarnacht wird der Bereich automatisch an den
  * tatsächlichen Verlauf angepasst.
  */
-function elevationDomain(profile: DayProfile): [number, number] {
-  const max = profile.maxAltitude;
-  const min = profile.minAltitude;
+/**
+ * Spannweite der Höhenachse.
+ *
+ * Liegt eine Mondkurve an, bestimmt sie den Bereich mit: Der Mond steht oft
+ * höher oder tiefer als die Sonne dieses Tages, und eine halb abgeschnittene
+ * Kurve wäre wertlos. Der untere Rand bleibt bewusst bei −28° gedeckelt –
+ * tiefe Nacht interessiert auch beim Mond nicht.
+ */
+function elevationDomain(profile: DayProfile, moon: BodyProfile | null): [number, number] {
+  const max = moon ? Math.max(profile.maxAltitude, moon.maxAltitude) : profile.maxAltitude;
+  const min = moon ? Math.min(profile.minAltitude, moon.minAltitude) : profile.minAltitude;
   const reference = Math.min(min, -18);
   const padTop = Math.max(3, (max - reference) * 0.1);
   const top = clamp(max + padTop, -18, 90.5);
@@ -298,6 +313,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     showSun,
     showMoon,
     moon,
+    moonPath,
     showTwilight,
     twilightLevel,
     animations,
@@ -321,7 +337,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   const plotHeight = Math.max(10, safeHeight - padTop - stripHeight);
   const plotBottom = plotTop + plotHeight;
 
-  const [domainBottom, domainTop] = elevationDomain(profile);
+  const [domainBottom, domainTop] = elevationDomain(profile, moonPath?.profile ?? null);
   const domainSpan = Math.max(1, domainTop - domainBottom);
 
   const t0 = profile.dayStart.getTime();
@@ -357,6 +373,17 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
 
   const area = areaPath(points, plotBottom + 1, true);
   const curve = smoothPath(points);
+
+  // Zweite Kurve: der Tagesgang des Mondes. Sie liegt über den Flächen und
+  // unter der Sonnenkurve – die Sonne bleibt die Hauptlinie.
+  const moonPoints = moonPath
+    ? pickSamples(moonPath.profile.samples, clamp(Math.round(plotWidth / 2), 40, 240)).map(
+        (sample) => ({ x: xOf(sample.time), y: yOf(sample.altitude) }),
+      )
+    : null;
+  const moonCurve = moonPoints ? smoothPath(moonPoints) : null;
+  const moonLine = 'var(--smc-moon-line, #cbd5e1)';
+  const moonWidth = clamp(round(safeHeight * 0.013, 2), 1.1, 1.9);
   // Himmelsfläche: alles oberhalb der Sonnenkurve.
   const sky = areaPath(points, plotTop - 1, true);
 
@@ -775,6 +802,61 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
           }
         </g>
         </g>
+        ${
+          moonCurve
+            ? svg`<path
+                class="moon-curve"
+                data-body="moon"
+                d="${moonCurve}"
+                fill="none"
+                stroke="${moonLine}"
+                stroke-width="${moonWidth}"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                opacity="0.9"
+              >
+                <title>${format.t('moonCurve')}</title>
+              </path>`
+            : svg``
+        }
+        ${
+          moonPath && moonCurve
+            ? svg`<g class="moon-events">
+                ${(
+                  [
+                    [moonPath.rise, 'moonrise'],
+                    [moonPath.set, 'moonset'],
+                  ] as Array<[number | null, 'moonrise' | 'moonset']>
+                )
+                  .filter((entry): entry is [number, 'moonrise' | 'moonset'] => entry[0] !== null)
+                  .map(([time, key]) => {
+                    const x = clamp(xOf(time), plotLeft, plotLeft + plotWidth);
+                    // Auf- und Untergang liegen dicht am Horizont.
+                    const y = clamp(yOf(0), plotTop, plotBottom);
+                    const tick = clamp(round(safeHeight * 0.05, 1), 4, 8);
+                    return svg`<g>
+                      <title>${format.t(key)} ${formatTime(new Date(time), format)}</title>
+                      <line
+                        x1="${round(x, 1)}"
+                        y1="${round(y - tick, 1)}"
+                        x2="${round(x, 1)}"
+                        y2="${round(y + tick, 1)}"
+                        stroke="${moonLine}"
+                        stroke-width="1"
+                        stroke-linecap="round"
+                        opacity="0.55" />
+                      <circle
+                        cx="${round(x, 1)}"
+                        cy="${round(y, 1)}"
+                        r="${clamp(round(safeHeight * 0.022, 1), 1.8, 3)}"
+                        fill="none"
+                        stroke="${moonLine}"
+                        stroke-width="1.3" />
+                    </g>`;
+                  })}
+              </g>`
+            : svg``
+        }
         <path
           d="${curve}"
           fill="none"

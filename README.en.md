@@ -33,7 +33,12 @@ images, and no additional Home Assistant integration is required.
   towards the horizon, and the area above the curve is tinted by time of day – night at the edges,
   warm light at sunrise and sunset, with a soft glow on the horizon line. The plot is slightly
   rounded and all fills fade out at the edges instead of ending on a hard line; curve, markers and
-  labels stay crisp. A **“now” line carries two markers**: a golden dot for the sun’s current
+  labels stay crisp. A **second curve plots the moon’s course** over the same day: because the moon
+  rises about every 24 h 50 min, its arc sits differently each day – sometimes opposite the sun,
+  sometimes nearly parallel. The elevation axis takes the moon in, so both arcs stay fully visible;
+  that flattens the sun curve on days when the moon reaches much higher or lower. Moonrise and
+  moonset are marked on the moon curve with the time in their tooltip. A **“now” line carries two
+  markers**: a golden dot for the sun’s current
   elevation and a moon disc in its current phase for the moon’s. They step aside when they would
   overlap, and a marker whose body sits outside the plotted elevation range is dimmed at the edge
   with the exact value in its tooltip. `card_style: flat` renders all gradients thinner.

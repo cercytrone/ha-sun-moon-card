@@ -782,6 +782,87 @@ export function buildDayProfile(
   };
 }
 
+/** Höhenprofil eines Himmelskörpers über den lokalen Tag. */
+export interface BodyProfile {
+  /** Abtastwerte: Zeitstempel (ms) und Höhe in Grad. */
+  samples: { time: number; altitude: number }[];
+  /** Höchster Stand im Fenster. */
+  maxAltitude: number;
+  /** Tiefster Stand im Fenster. */
+  minAltitude: number;
+}
+
+/** Tagesgang des Mondes: Kurve samt Auf- und Untergang im Fenster. */
+export interface MoonPath {
+  profile: BodyProfile;
+  /** Zeitpunkt des Mondaufgangs im Fenster (ms) oder `null`. */
+  rise: number | null;
+  /** Zeitpunkt des Monduntergangs im Fenster (ms) oder `null`. */
+  set: number | null;
+}
+
+/**
+ * Berechnet den Höhenverlauf des Mondes über den lokalen Tag.
+ *
+ * Der Mond läuft im Mittel alle 24 h 50 min, sein Bogen liegt deshalb an
+ * jedem Tag anders im Fenster: Er kann steigen, fallen, beides – oder das
+ * Fenster ganz unter- bzw. oberhalb des Horizonts verbringen. Anders als bei
+ * der Sonne ist der Verlauf also nicht an den Tag gebunden; die Kurve darf
+ * an beiden Rändern mitten in einer Bewegung enden.
+ *
+ * Für die Kurve zählt die scheinbare (topozentrische) Höhe – dieselbe, die
+ * auch der Mondmarker und die Detailzeile nennen.
+ */
+export function buildMoonProfile(
+  location: GeoLocation,
+  dayStart: Date,
+  dayEnd: Date,
+  sampleStepMinutes = 10,
+): BodyProfile {
+  const dayFrom = dayStart.getTime();
+  const dayTo = dayEnd.getTime();
+  const stepMs = Math.max(60_000, Math.round(sampleStepMinutes * 60 * 1000));
+  const samples: { time: number; altitude: number }[] = [];
+  for (let t = dayFrom; t < dayTo; t += stepMs) {
+    samples.push({ time: t, altitude: moonPosition(t, location).apparentAltitude });
+  }
+  samples.push({ time: dayTo, altitude: moonPosition(dayTo, location).apparentAltitude });
+
+  let maxAltitude = -Infinity;
+  let minAltitude = Infinity;
+  for (const sample of samples) {
+    if (sample.altitude > maxAltitude) maxAltitude = sample.altitude;
+    if (sample.altitude < minAltitude) minAltitude = sample.altitude;
+  }
+  return { samples, maxAltitude, minAltitude };
+}
+
+/**
+ * Wählt aus den Mondauf- und -untergängen diejenigen, die in das Fenster
+ * `[dayStart, dayEnd)` fallen. Wegen der 24 h 50 min-Periode des Mondes kann
+ * ein lokaler Tag auch gar keinen Auf- oder Untergang enthalten.
+ */
+export function buildMoonPath(
+  location: GeoLocation,
+  dayStart: Date,
+  dayEnd: Date,
+  events: MoonEvents,
+  sampleStepMinutes = 10,
+): MoonPath {
+  const from = dayStart.getTime();
+  const to = dayEnd.getTime();
+  const inside = (date: Date | null): number | null => {
+    if (!date) return null;
+    const time = date.getTime();
+    return time >= from && time < to ? time : null;
+  };
+  return {
+    profile: buildMoonProfile(location, dayStart, dayEnd, sampleStepMinutes),
+    rise: inside(events.previousRise) ?? inside(events.nextRise),
+    set: inside(events.previousSet) ?? inside(events.nextSet),
+  };
+}
+
 export interface MoonEvents {
   /** Letzter Mondaufgang vor dem Referenzzeitpunkt. */
   previousRise: Date | null;

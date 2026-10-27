@@ -381,6 +381,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                       uid: `${this._uid}-chart`,
                       showAstronomicalLayers: config.show_astronomical_details,
                       currentAltitude: model.sun.altitude,
+                      moonPath: model.moonPath,
                       moon: config.show_moon
                         ? {
                             altitude: model.moon.position.apparentAltitude,

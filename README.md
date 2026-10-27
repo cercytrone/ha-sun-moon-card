@@ -52,6 +52,11 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 - Markierte Übergänge: bürgerliche Morgen-/Abenddämmerung, Sonnenaufgang, Sonnenuntergang
 - optionale nautische (−12°) und astronomische (−18°) Dämmerungslinien und -flächen
 - Farbige Phasenbereiche für Nacht, Dämmerung und Tag (eigene Palette für helles und dunkles Theme)
+- **Zweite Kurve für den Mond**: derselbe Verlauf, für den Mond gerechnet. Weil der Mond im Mittel
+  alle 24 h 50 min aufgeht, liegt sein Bogen an jedem Tag anders – mal gegenläufig zur Sonne, mal
+  fast parallel. Die Höhenachse nimmt ihn mit auf, beide Bögen bleiben also vollständig sichtbar;
+  dadurch wird die Sonnenkurve flacher, wenn der Mond an diesem Tag viel höher oder tiefer steht
+- Mondauf- und -untergang als Marken auf der Mondkurve, mit Uhrzeit im Tooltip
 - Aktuelle Sonnenposition als Marker auf der Kurve und Fläche darunter
 - „Jetzt“-Linie mit Uhrzeitbeschriftung, Achsenbeschriftungen in lokaler Zeit
 - Weicher Horizontbogen; die Kurve ist auch unterhalb des Horizonts (Nachtverlauf) korrekt

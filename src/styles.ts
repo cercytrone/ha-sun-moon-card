@@ -87,6 +87,9 @@ export const cardStyles = css`
     --smc-moon-lit: #f3f6fc;
     --smc-moon-dark: rgba(108, 122, 164, 0.38);
     --smc-moon-outline: rgba(255, 255, 255, 0.18);
+    /* Kühler Ton, damit sich die Mondkurve klar von der warmen Sonnenkurve
+       abhebt – auch dort, wo beide dicht beieinander liegen. */
+    --smc-moon-line: rgba(203, 213, 233, 0.85);
 
     /* ---- Akzentfarben der Ereignisse ----
        Kräftig genug für Flächen und Symbole; Text bleibt in der
@@ -119,6 +122,7 @@ export const cardStyles = css`
     --smc-sky-horizon: rgba(60, 72, 100, 0.35);
     --smc-moon-dark: rgba(80, 92, 130, 0.28);
     --smc-moon-outline: rgba(40, 48, 70, 0.12);
+    --smc-moon-line: rgba(74, 88, 124, 0.75);
     --smc-dawn: #4338ca;
     --smc-sunrise: #b45309;
     --smc-sunset: #c2410c;
