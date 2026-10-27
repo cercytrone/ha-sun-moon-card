@@ -196,6 +196,32 @@ describe('Darstellung', () => {
     expect(new Set(colors).size).toBeGreaterThanOrEqual(4);
   });
 
+  it('lässt die Flächen weich auslaufen statt an einer Kante zu enden', async () => {
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+
+    // Die Flächen liegen in maskierten Gruppen, die Beschriftungen nicht.
+    expect(svg.querySelector('g[mask*="-side"]')).not.toBeNull();
+    expect(svg.querySelector('g[mask*="-soft"]')).not.toBeNull();
+
+    // Jede Maske hat einen Verlauf von Schwarz (transparent) nach Weiß
+    // (deckend) – sonst wäre sie wirkungslos.
+    for (const id of ['-soft-fade', '-foot-fade', '-side-fade']) {
+      const gradient = svg.querySelector(`linearGradient[id$="${id}"]`);
+      expect(gradient, id).not.toBeNull();
+      const colors = [...gradient!.querySelectorAll('stop')].map((stop) =>
+        stop.getAttribute('stop-color'),
+      );
+      expect(colors, id).toContain('#000000');
+      expect(colors, id).toContain('#ffffff');
+    }
+
+    // Der Plot ist leicht abgerundet, damit die Fläche nicht als Block endet.
+    const clipRect = svg.querySelector('clipPath rect');
+    expect(clipRect).not.toBeNull();
+    expect(Number(clipRect!.getAttribute('rx'))).toBeGreaterThan(0);
+  });
+
   it('dämpft die Verläufe im flachen Stil', async () => {
     const card = await mountCard({
       type: 'custom:sun-moon-card',

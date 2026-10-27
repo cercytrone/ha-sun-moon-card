@@ -341,6 +341,12 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   const clipId = `${uid}-clip`;
   const glowId = `${uid}-glow`;
   const skyId = `${uid}-sky`;
+  const softMaskId = `${uid}-soft`;
+  const softFadeId = `${uid}-soft-fade`;
+  const footMaskId = `${uid}-foot`;
+  const footFadeId = `${uid}-foot-fade`;
+  const sideMaskId = `${uid}-side`;
+  const sideFadeId = `${uid}-side-fade`;
 
   const area = areaPath(points, plotBottom + 1, true);
   const curve = smoothPath(points);
@@ -350,6 +356,29 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   // Der flache Stil trägt die Verläufe dünner auf.
   const strength = cardStyle === 'flat' ? 0.6 : 1;
   const skyOpacity = round(0.15 * strength, 3);
+
+  /**
+   * Weiche Ränder der Flächen.
+   *
+   * Die Flächen enden sonst an einer geraden Kante (oben unmittelbar unter
+   * der Kopfzeile, unten am Übergang zur Zeitleiste) und wirken dadurch
+   * abgeschnitten. Eine Maske lässt sie über die ersten bzw. letzten
+   * Pixel auslaufen. Kurve, Marken und Beschriftungen bleiben unberührt –
+   * sie tragen die Information und sollen scharf bleiben.
+   */
+  const fadeTop = plotTop - 1;
+  const fadeBottom = plotBottom + 1;
+  const fadeSpan = Math.max(1, fadeBottom - fadeTop);
+  const topFade = clamp(plotHeight * 0.14, 6, 18);
+  const footFade = clamp(plotHeight * 0.08, 4, 12);
+  const sideFade = clamp(plotWidth * 0.02, 6, 14);
+  const cornerRadius = clamp(round(plotHeight * 0.06, 1), 4, 10);
+  // Anteilige Offsets der Masken-Verläufe.
+  const topFadeOffset = round(clamp(topFade / fadeSpan, 0, 0.45), 4);
+  const footFadeOffset = round(1 - clamp(footFade / fadeSpan, 0, 0.45), 4);
+  const fadeLeft = plotLeft - 1;
+  const fadeRight = plotLeft + plotWidth + 1;
+  const sideFadeOffset = round(clamp(sideFade / Math.max(1, fadeRight - fadeLeft), 0, 0.4), 4);
 
   // Horizontglühen: weiches, warmes Licht an Auf- und Untergang. Es liegt
   // auf der Horizontlinie und wird auf den Plot begrenzt.
@@ -613,9 +642,54 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
               </radialGradient>`
             : svg``
         }
+        <linearGradient id="${softFadeId}" gradientUnits="userSpaceOnUse"
+          x1="0" y1="${round(fadeTop, 1)}" x2="0" y2="${round(fadeBottom, 1)}">
+          <stop offset="0" stop-color="#000000" />
+          <stop offset="${topFadeOffset}" stop-color="#ffffff" />
+          <stop offset="${footFadeOffset}" stop-color="#ffffff" />
+          <stop offset="1" stop-color="#000000" />
+        </linearGradient>
+        <mask id="${softMaskId}" maskUnits="userSpaceOnUse"
+          x="${round(plotLeft - 2, 1)}" y="${round(fadeTop, 1)}"
+          width="${round(plotWidth + 4, 1)}" height="${round(fadeSpan, 1)}">
+          <rect
+            x="${round(plotLeft - 2, 1)}" y="${round(fadeTop, 1)}"
+            width="${round(plotWidth + 4, 1)}" height="${round(fadeSpan, 1)}"
+            fill="url(#${softFadeId})" />
+        </mask>
+        <linearGradient id="${footFadeId}" gradientUnits="userSpaceOnUse"
+          x1="0" y1="${round(fadeTop, 1)}" x2="0" y2="${round(fadeBottom, 1)}">
+          <stop offset="0" stop-color="#ffffff" />
+          <stop offset="${footFadeOffset}" stop-color="#ffffff" />
+          <stop offset="1" stop-color="#000000" />
+        </linearGradient>
+        <mask id="${footMaskId}" maskUnits="userSpaceOnUse"
+          x="${round(plotLeft - 2, 1)}" y="${round(fadeTop, 1)}"
+          width="${round(plotWidth + 4, 1)}" height="${round(fadeSpan, 1)}">
+          <rect
+            x="${round(plotLeft - 2, 1)}" y="${round(fadeTop, 1)}"
+            width="${round(plotWidth + 4, 1)}" height="${round(fadeSpan, 1)}"
+            fill="url(#${footFadeId})" />
+        </mask>
+        <linearGradient id="${sideFadeId}" gradientUnits="userSpaceOnUse"
+          x1="${round(fadeLeft, 1)}" y1="0" x2="${round(fadeRight, 1)}" y2="0">
+          <stop offset="0" stop-color="#000000" />
+          <stop offset="${sideFadeOffset}" stop-color="#ffffff" />
+          <stop offset="${round(1 - sideFadeOffset, 4)}" stop-color="#ffffff" />
+          <stop offset="1" stop-color="#000000" />
+        </linearGradient>
+        <mask id="${sideMaskId}" maskUnits="userSpaceOnUse"
+          x="${round(fadeLeft, 1)}" y="${round(fadeTop, 1)}"
+          width="${round(fadeRight - fadeLeft, 1)}" height="${round(fadeSpan, 1)}">
+          <rect
+            x="${round(fadeLeft, 1)}" y="${round(fadeTop, 1)}"
+            width="${round(fadeRight - fadeLeft, 1)}" height="${round(fadeSpan, 1)}"
+            fill="url(#${sideFadeId})" />
+        </mask>
         <clipPath id="${clipId}">
           <rect x="${round(plotLeft - 1, 1)}" y="${round(plotTop - 2, 1)}"
-            width="${round(plotWidth + 2, 1)}" height="${round(plotHeight + 4, 1)}" />
+            width="${round(plotWidth + 2, 1)}" height="${round(plotHeight + 4, 1)}"
+            rx="${cornerRadius}" ry="${cornerRadius}" />
         </clipPath>
         ${
           animations
@@ -636,25 +710,29 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
             svg`<line x1="${round(x, 1)}" y1="${round(plotTop, 1)}" x2="${round(x, 1)}" y2="${round(plotBottom, 1)}"
               stroke="var(--smc-grid-line, rgba(255,255,255,0.10))" stroke-width="0.6" />`,
         )}
-        <path d="${area}" fill="url(#${areaId})" opacity="0.9" />
-        ${
-          skyStops.length >= 2
-            ? svg`<path d="${sky}" fill="url(#${skyId})" opacity="${skyOpacity}" />`
-            : svg``
-        }
-        ${glows.map((glow) => {
-          const cx = clamp(xOf(glow.time.getTime()), plotLeft, plotLeft + plotWidth);
-          const cy = clamp(horizonY, plotTop, plotBottom);
-          return svg`<ellipse
-              cx="${round(cx, 1)}" cy="${round(cy, 1)}"
-              rx="${round(glowRadiusX, 1)}" ry="${round(glowRadiusY, 1)}"
-              fill="url(#${glow.id})" />`;
-        })}
-        ${
-          dome
-            ? svg`<path d="${dome.path}" fill="url(#${domeId})" opacity="0.95" />`
-            : svg``
-        }
+        <g mask="url(#${sideMaskId})">
+        <path d="${area}" fill="url(#${areaId})" opacity="0.9" mask="url(#${footMaskId})" />
+        <g mask="url(#${softMaskId})">
+          ${
+            skyStops.length >= 2
+              ? svg`<path d="${sky}" fill="url(#${skyId})" opacity="${skyOpacity}" />`
+              : svg``
+          }
+          ${glows.map((glow) => {
+            const cx = clamp(xOf(glow.time.getTime()), plotLeft, plotLeft + plotWidth);
+            const cy = clamp(horizonY, plotTop, plotBottom);
+            return svg`<ellipse
+                cx="${round(cx, 1)}" cy="${round(cy, 1)}"
+                rx="${round(glowRadiusX, 1)}" ry="${round(glowRadiusY, 1)}"
+                fill="url(#${glow.id})" />`;
+          })}
+          ${
+            dome
+              ? svg`<path d="${dome.path}" fill="url(#${domeId})" opacity="0.95" />`
+              : svg``
+          }
+        </g>
+        </g>
         <path
           d="${curve}"
           fill="none"

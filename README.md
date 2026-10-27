@@ -63,6 +63,9 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   Tageslicht wird zum Horizont hin wärmer
 - **Himmelsfläche über der Kurve:** gefärbt nach Tageszeit – Nacht an den Rändern, warmes Licht an
   Auf- und Untergang –, dazu ein weiches Horizontglühen auf der Horizontlinie
+- Der Plot ist leicht abgerundet und die Flächen laufen an allen Rändern weich aus, damit der
+  Verlauf nicht an einer Kante abbricht. Kurve, Marken und Beschriftungen bleiben davon
+  unberührt – sie tragen die Information und bleiben scharf
 - `card_style: flat` trägt alle Verläufe dünner auf, `glass` zeigt sie in voller Stärke
 
 **Zweite Ansicht: aktueller Himmel**
