@@ -37,6 +37,7 @@ import {
   type SolarEvents,
 } from '../astronomy.js';
 import type { PhasePalette } from '../const.js';
+import { renderMoonDisc } from './moon-disc.js';
 import { formatDegrees, formatTime, type FormatContext } from '../format.js';
 import type { StringKey } from '../localize.js';
 import { clamp, mixHex, round, smoothPath, areaPath } from '../utils.js';
@@ -72,6 +73,11 @@ export interface DayChartOptions {
   /** Aktuellen Sonnen- bzw. Mondmarker anzeigen. */
   showSun: boolean;
   showMoon: boolean;
+  /**
+   * Aktuelle Stellung des Mondes. Der Mond bekommt einen eigenen Marker auf
+   * der „Jetzt"-Linie, damit seine Höhe im Tagesverlauf ablesbar ist.
+   */
+  moon: { altitude: number; illumination: number; brightLimbAngle: number } | null;
   /** Dämmerungsmarkierungen anzeigen. */
   showTwilight: boolean;
   /** Welche Dämmerungsebenen dargestellt werden. */
@@ -291,6 +297,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     format,
     showSun,
     showMoon,
+    moon,
     showTwilight,
     twilightLevel,
     animations,
@@ -509,10 +516,45 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
 
   // --- „Jetzt“-Marker ------------------------------------------------------
   const nowX = clamp(xOf(now.getTime()), plotLeft, plotLeft + plotWidth);
-  const nowY = clamp(yOf(currentAltitude), plotTop, plotBottom);
-  const isDay = currentAltitude > 0;
-  const markerColor = isDay ? palette.lineDay : palette.lineNight;
+  // Der Sonnenmarker trägt die gesättigte Tagesfarbe, nicht die blasse Farbe
+  // der Kurve – sonst verschwindet er auf der Linie, auf der er sitzt.
+  const markerColor = palette.day;
   const markerRadius = clamp(round(safeHeight * 0.045, 1), 3.5, 6);
+  const markerRing = clamp(round(markerRadius * 0.22, 2), 0.8, 1.4);
+  const moonRadius = clamp(round(markerRadius * 1.1, 1), 3.5, 7);
+
+  /**
+   * Hält einen runden Marker ganz im Plot. Ohne das ragt er am Rand zur
+   * Hälfte heraus – genau dann, wenn Sonne oder Mond außerhalb des
+   * dargestellten Höhenbereichs liegen.
+   */
+  const markerY = (altitude: number, radius: number): number =>
+    plotHeight <= radius * 2
+      ? plotTop + plotHeight / 2
+      : clamp(yOf(altitude), plotTop + radius, plotBottom - radius);
+
+  const nowY = markerY(currentAltitude, markerRadius);
+
+  // Mondmarker: eigene Höhe auf der „Jetzt"-Linie. Liegt er dicht am
+  // Sonnenmarker, weicht er seitlich aus, damit sich beide nicht verdecken.
+  const moonNow =
+    showMoon && moon
+      ? {
+          altitude: moon.altitude,
+          y: markerY(moon.altitude, moonRadius),
+          // Außerhalb des dargestellten Höhenbereichs: gedämpft am Rand.
+          clamped: moon.altitude < domainBottom || moon.altitude > domainTop,
+        }
+      : null;
+  const moonGap = moonNow ? Math.abs(moonNow.y - nowY) : Number.POSITIVE_INFINITY;
+  const moonSideStep = markerRadius + moonRadius + 2;
+  const moonX = moonNow
+    ? moonGap >= markerRadius + moonRadius + 1
+      ? nowX
+      : nowX + moonSideStep + moonRadius <= plotLeft + plotWidth
+        ? nowX + moonSideStep
+        : Math.max(plotLeft + moonRadius, nowX - moonSideStep)
+    : null;
   const markerClass = animations ? 'smc-pulse' : '';
   const markerFilter = animations ? `url(#${glowId})` : '';
 
@@ -827,16 +869,64 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
           stroke-width="${clamp(round(safeHeight * 0.012, 2), 1, 1.8)}"
           opacity="0.85" />
         ${
-          showSun || showMoon
-            ? svg`<g class="${markerClass}" filter="${markerFilter}">
+          showSun
+            ? svg`<g class="now-sun ${markerClass}" filter="${markerFilter}">
+                <title>${format.t('chartSunNow', {
+                  altitude: formatDegrees(currentAltitude, 1, format.locale),
+                })}</title>
                 <circle
                   cx="${round(nowX, 1)}"
                   cy="${round(nowY, 1)}"
                   r="${markerRadius}"
                   fill="${markerColor}"
                   stroke="var(--smc-now-stroke, rgba(0,0,0,0.25))"
-                  stroke-width="0.8"
+                  stroke-width="${markerRing}"
                 />
+              </g>`
+            : svg``
+        }
+        ${
+          moonNow && moonX !== null && moon
+            ? svg`<g class="now-moon">
+                <title>${format.t('chartMoonNow', {
+                  altitude: formatDegrees(moonNow.altitude, 1, format.locale),
+                })}${moonNow.clamped ? ` ${format.t('chartOutside')}` : ''}</title>
+                ${
+                  moonX === nowX
+                    ? svg``
+                    : svg`<line
+                        x1="${round(nowX, 1)}"
+                        y1="${round(moonNow.y, 1)}"
+                        x2="${round(moonX, 1)}"
+                        y2="${round(moonNow.y, 1)}"
+                        stroke="var(--smc-now-line, rgba(255,255,255,0.8))"
+                        stroke-width="0.8"
+                        opacity="0.7" />`
+                }
+                <circle
+                  cx="${round(moonX, 1)}"
+                  cy="${round(moonNow.y, 1)}"
+                  r="${round(moonRadius + 0.6, 1)}"
+                  fill="none"
+                  stroke="var(--smc-now-stroke, rgba(0,0,0,0.25))"
+                  stroke-width="${markerRing}" />
+                <g
+                  transform="translate(${round(moonX - moonRadius, 1)} ${round(
+                    moonNow.y - moonRadius,
+                    1,
+                  )})"
+                  opacity="${moonNow.clamped ? 0.6 : 1}"
+                >
+                  ${renderMoonDisc({
+                    size: round(moonRadius * 2, 1),
+                    illumination: moon.illumination,
+                    brightLimbAngle: moon.brightLimbAngle,
+                    litColor: 'var(--smc-moon-lit, #f2f5fc)',
+                    darkColor: 'var(--smc-moon-dark, rgba(110,124,164,0.45))',
+                    texture: false,
+                    uid: `${uid}-moon-now`,
+                  })}
+                </g>
               </g>`
             : svg``
         }
