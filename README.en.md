@@ -37,6 +37,9 @@ images, and no additional Home Assistant integration is required.
 - **Sky view:** fisheye projection with cardinal directions, horizon and zenith; sun and moon are
   drawn **along their computed diurnal path** (altitude/azimuth), together with the moon disc
   showing the correct terminator for the current phase.
+- **Current position of sun and moon:** elevation above (or below) the horizon plus compass
+  direction – in the detail tiles and as a readout beneath the sky view (“Sun: 42.1° · 180° S”).
+  Below the horizon the card names the depth and, where space allows, keeps the direction.
 - **Times and details:** row with dawn, sunrise, sunset, dusk; optionally culmination with maximum
   altitude, day length with change vs. yesterday, azimuth on a 16-point compass (“Sun: 250° WSW”),
   azimuth at rise/set, “sun X° below the horizon”, moon age, moon distance with perigee/apogee,
@@ -112,7 +115,7 @@ card_height: 320
 |--------|--------|---------|---------|
 | `entity` | entity id | `sun.sun` | Sun entity of the HA sun integration |
 | `moon_entity` | entity id | `sensor.moon` | Optional moon entity (phase name is taken from it) |
-| `card_height` | px (120–800) or `auto` | `340` | Card height; `auto` → 320 px narrow, 360 px wide |
+| `card_height` | px (120–800) or `auto` | `340` | Card height; `auto` → 320 px narrow, 360 px wide. The visual editor keeps the height editable while no `card_height` is set; only `auto` locks slider and number field |
 | `show_sun` | boolean | `true` | Show sun (chart, detail row) |
 | `show_moon` | boolean | `true` | Show moon |
 | `show_twilight` | boolean | `true` | Show twilight phases |

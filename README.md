@@ -83,6 +83,10 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 
 - Zeitenleiste mit Morgendämmerung, Sonnenaufgang, Sonnenuntergang, Abenddämmerung – ergänzt um
   nautische/astronomische Dämmerung, wenn konfiguriert
+- **Aktuelle Stellung von Sonne und Mond**: Höhe über (bzw. unter) dem Horizont und
+  Himmelsrichtung, in den Detailkacheln und als Ablesung unter der Himmelsansicht
+  („Sonne: 42,1° · 180° S“). Unter dem Horizont nennt die Karte die Tiefe und, wenn Platz
+  ist, weiter die Richtung
 - Optional: Kulmination (Sonnenhöchststand), Tageslänge **mit Änderung zum Vortag**, Azimut von
   Sonne und Mond in der 16-teiligen Windrose („Sonne: 250° WSW“), Azimut bei Auf- und Untergang,
   „Sonne X° unter dem Horizont“, Mondalter, Mondentfernung mit Erdferne/Erdnähe, Mondauf-/
@@ -264,6 +268,11 @@ Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
 - **Verhalten** – Sonnen- und Mond-Entität
 - **Standort** – Anzeigename, Breiten- und Längengrad, Schalter „Standort aus Home Assistant
   übernehmen“, Zurücksetzen
+
+Die Kartenhöhe bleibt bedienbar, solange in der YAML kein `card_height` steht: Der Editor zeigt
+dann die gültige Standardhöhe (340 px) an. Erst die Option „Automatische Höhe“ – also
+`card_height: auto` – sperrt Schieberegler und Zahlenfeld, weil die Höhe dann von der Kartenbreite
+abhängt.
 
 Standardwerte werden nicht in die Konfiguration geschrieben – die YAML bleibt dadurch kurz und
 lesbar. Der Editor ist lokalisiert (Deutsch/Englisch) und ohne zusätzliche

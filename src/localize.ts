@@ -96,7 +96,7 @@ const strings = {
     refCivil: 'Bürgerlich',
     refNautical: 'Nautisch',
     refAstronomical: 'Astronomisch',
-    azimuthReadout: '{body}: {degrees}° {direction}',
+    positionReadout: '{body}: {altitude} · {degrees}° {direction}',
 
     // Legende
     legendDaylight: 'Tag',
@@ -133,7 +133,7 @@ const strings = {
     apogee: 'Erdferne',
     nearPerigee: 'nahe Erdnähe',
     nearApogee: 'nahe Erdferne',
-    distanceRange: '{min} – {max} km',
+    distanceRange: '{min} – {max}',
 
     // Fußzeile
     footerTwilightCivil: 'Bürgerliche Dämmerung (−6°)',
@@ -316,7 +316,7 @@ const strings = {
     apogee: 'apogee',
     nearPerigee: 'near perigee',
     nearApogee: 'near apogee',
-    distanceRange: '{min} – {max} km',
+    distanceRange: '{min} – {max}',
     dayLengthDelta: 'Day length {length} ({delta})',
     footerTwilightCivil: 'Civil twilight (−6°)',
     footerTwilightNautical: 'Nautical twilight (−12°)',
@@ -332,7 +332,7 @@ const strings = {
     refCivil: 'Civil',
     refNautical: 'Nautical',
     refAstronomical: 'Astronomical',
-    azimuthReadout: '{body}: {degrees}° {direction}',
+    positionReadout: '{body}: {altitude} · {degrees}° {direction}',
     compassNorth: 'N',
     compassEast: 'E',
     compassSouth: 'S',

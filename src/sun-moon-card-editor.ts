@@ -97,7 +97,11 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
     if (!this._config) return html``;
 
     const height = this._config.card_height;
-    const heightIsAuto = height === 'auto' || height === undefined || height === null;
+    // Nur ein ausdrücklich gesetztes 'auto' (oder ein leerer YAML-Schlüssel)
+    // schaltet die Höhenfelder ab. Fehlt der Schlüssel, gilt der Standardwert
+    // und die Felder bleiben bedienbar – sonst wäre die Höhe bei jeder neuen
+    // Karte ausgegraut.
+    const heightIsAuto = height === 'auto' || height === null;
     const heightNumber = typeof height === 'number' ? height : DEFAULT_CONFIG.card_height;
     const useHaLocation =
       this._config.latitude === undefined || this._config.latitude === null;
