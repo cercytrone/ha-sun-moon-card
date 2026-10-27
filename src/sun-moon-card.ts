@@ -40,6 +40,7 @@ import {
   CARD_TYPE,
   DARK_PALETTE,
   DEFAULT_CONFIG,
+  DETAILS_HEIGHT_DETAILED,
   LIGHT_PALETTE,
   MIN_CARD_HEIGHT,
   computeLayout,
@@ -520,7 +521,11 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     `;
   }
 
-  /** Ablesung unter der Himmelsansicht: Azimut von Sonne und Mond. */
+  /**
+   * Ablesung unter der Himmelsansicht: aktuelle Höhe und Richtung von Sonne
+   * und Mond. Die Höhe steht vorne, damit die Stellung auch ohne Blick auf
+   * die Polarprojektion lesbar ist; negative Werte liegen unter dem Horizont.
+   */
   private _renderSkyReadout(
     model: CardModel,
     context: FormatContext,
@@ -528,18 +533,31 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   ): TemplateResult | typeof nothing {
     const config = this._config!;
     const rows: TemplateResult[] = [];
-    const readout = (label: string, azimuth: number) =>
-      html`<span
-        >${context.t('azimuthReadout', {
+    const readout = (label: string, altitude: number, azimuth: number) => {
+      const altitudeText = formatDegrees(altitude, 1, context.locale);
+      const azimuthText = `${Math.round(azimuth)}° ${compassDirection(azimuth, context.language)}`;
+      return html`<span
+        title=${`${context.t('elevation')} ${altitudeText} · ${context.t('azimuth')} ${azimuthText}`}
+        >${context.t('positionReadout', {
           body: label,
+          altitude: altitudeText,
           degrees: String(Math.round(azimuth)),
           direction: compassDirection(azimuth, context.language),
         })}</span
       >`;
+    };
 
-    if (config.show_sun) rows.push(readout(context.t('sun'), model.sun.azimuth));
+    if (config.show_sun) {
+      rows.push(readout(context.t('sun'), model.sun.altitude, model.sun.azimuth));
+    }
     if (config.show_moon) {
-      rows.push(readout(context.t('moon'), model.moon.position.azimuth));
+      rows.push(
+        readout(
+          context.t('moon'),
+          model.moon.position.apparentAltitude,
+          model.moon.position.azimuth,
+        ),
+      );
     }
     if (rows.length === 0 || width < 150) return nothing;
     return html`<div class="sky-readout">${rows}</div>`;
@@ -799,11 +817,23 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       model.sun.azimuth,
       language,
     )}`;
-    const sunSubText =
+    // Unter dem Horizont nennt die Zeile die Tiefe; die Richtung steht
+    // zusätzlich dabei, solange sie in die Zeile passt.
+    const sunBelowText =
       extras.sunBelowHorizon !== null
         ? `${formatDegrees(extras.sunBelowHorizon, 1, context.locale)} ${context.t('belowHorizon')}`
-        : `${context.t('azimuth')} ${azimuthText}`;
-    const sunSub = this._fitLabel([sunSubText, azimuthText], contentWidth, 9.5);
+        : null;
+    const sunSub = this._fitLabel(
+      [
+        sunBelowText
+          ? `${sunBelowText} · ${azimuthText}`
+          : `${context.t('azimuth')} ${azimuthText}`,
+        sunBelowText ?? azimuthText,
+        azimuthText,
+      ],
+      contentWidth,
+      9.5,
+    );
     // Azimut bei Auf- und Untergang – nur mit astronomischen Details.
     const riseAzimuth =
       extras.sunriseAzimuth !== null
@@ -853,6 +883,38 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       13,
     );
 
+    // Aktuelle Stellung des Mondes: Höhe über bzw. unter dem Horizont und
+    // Himmelsrichtung. Unter dem Horizont nennt die Zeile das eigens, weil
+    // das Vorzeichen leicht zu übersehen ist.
+    const moonAltitude = model.moon.position.apparentAltitude;
+    const moonAltitudeText = formatDegrees(moonAltitude, 1, context.locale);
+    const moonAzimuthText = `${Math.round(model.moon.position.azimuth)}° ${compassDirection(
+      model.moon.position.azimuth,
+      language,
+    )}`;
+    const moonPositionTitle = `${context.t('elevation')} ${moonAltitudeText} · ${context.t(
+      'azimuth',
+    )} ${moonAzimuthText}`;
+    // Abnehmende Fülle: mit Bezeichnung, ohne Bezeichnung, nur die Höhe.
+    // Unter dem Horizont nennt die Zeile das eigens, weil das Vorzeichen
+    // leicht zu übersehen ist.
+    const moonPositionBase =
+      moonAltitude >= 0
+        ? [
+            `${context.t('elevation')} ${moonAltitudeText} · ${moonAzimuthText}`,
+            `${moonAltitudeText} · ${moonAzimuthText}`,
+            moonAltitudeText,
+          ]
+        : [
+            `${formatDegrees(Math.abs(moonAltitude), 1, context.locale)} ${context.t(
+              'belowHorizon',
+            )} · ${moonAzimuthText}`,
+            `${formatDegrees(Math.abs(moonAltitude), 1, context.locale)} ${context.t(
+              'belowHorizon',
+            )}`,
+            moonAltitudeText,
+          ];
+
     // Entfernung mit Einordnung: nahe Erdnähe bzw. nahe Erdferne.
     let moonSub: string | null = null;
     let moonSubTitle = '';
@@ -877,6 +939,16 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         9.5,
       );
     }
+
+    // Stellung und Entfernung teilen sich eine Zeile, solange sie hineinpasst.
+    const moonPositionLine = this._fitLabel(
+      moonSub
+        ? moonPositionBase.flatMap((text) => [`${text} · ${moonSub}`, text])
+        : moonPositionBase,
+      contentWidth,
+      9.5,
+    );
+    const distanceInPosition = moonSub !== null && (moonPositionLine?.includes(moonSub) ?? false);
 
     // Nächster Vollmond – inklusive Hinweis auf einen zweiten Vollmond
     // im Kalendermonat („Blue Moon“).
@@ -905,6 +977,28 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
           9.5,
         )
       : null;
+
+    // Die Kachel hat nur für eine begrenzte Zahl Zusatzzeilen Platz (Titel und
+    // Wert stehen immer). Die Reihenfolge ist nach Wichtigkeit: Stellung,
+    // Auf- und Untergang, nächster Vollmond, Entfernung.
+    const moonLines: { text: string; title: string | null; position?: boolean }[] = [];
+    if (moonPositionLine) {
+      moonLines.push({ text: moonPositionLine, title: moonPositionTitle, position: true });
+    }
+    if (moonTimes) moonLines.push({ text: moonTimes, title: null });
+    if (moonExtra) moonLines.push({ text: moonExtra, title: moonExtraTitle });
+    if (moonSub && !distanceInPosition) {
+      moonLines.push({ text: moonSub, title: moonSubTitle });
+    }
+    const moonLinesShown = moonLines.slice(
+      0,
+      layout.detailsHeight >= DETAILS_HEIGHT_DETAILED ? 3 : 2,
+    );
+    // Reicht der Platz nicht für die Entfernung, steht sie im Tooltip der
+    // Stellungszeile – verloren geht sie damit nicht.
+    const distanceVisible =
+      distanceInPosition || moonLinesShown.some((line) => line.text === moonSub);
+    const moonDistanceHint = moonSub && !distanceVisible ? moonSubTitle || moonSub : null;
 
     return html`
       <div
@@ -941,13 +1035,18 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                 <span class="detail-content">
                   ${moonTitle ? html`<span class="detail-title">${moonTitle}</span>` : nothing}
                   ${moonValue ? html`<span class="detail-value">${moonValue}</span>` : nothing}
-                  ${moonSub
-                    ? html`<span class="detail-sub" title=${moonSubTitle}>${moonSub}</span>`
-                    : nothing}
-                  ${moonExtra
-                    ? html`<span class="detail-sub" title=${moonExtraTitle}>${moonExtra}</span>`
-                    : nothing}
-                  ${moonTimes ? html`<span class="detail-sub">${moonTimes}</span>` : nothing}
+                  ${moonLinesShown.map((line) => {
+                    const title =
+                      [
+                        line.title,
+                        line.position ? moonDistanceHint : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || null;
+                    return html`<span class="detail-sub" title=${title ?? nothing}
+                      >${line.text}</span
+                    >`;
+                  })}
                 </span>
               </div>
             `

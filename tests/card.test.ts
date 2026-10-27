@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockHass } from '../dev/mock-hass.js';
 import '../src/sun-moon-card.js';
 import { SunMoonCard } from '../src/sun-moon-card.js';
+import { DEFAULT_CARD_HEIGHT } from '../src/const.js';
 import type { HomeAssistant, SunMoonCardConfig } from '../src/types.js';
 
 const WIDTH = 620;
@@ -318,6 +319,43 @@ describe('Darstellung', () => {
     expect(text).toMatch(/\d/);
   });
 
+  it('nennt die aktuelle Stellung von Sonne und Mond', async () => {
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 360 });
+    const root = card.shadowRoot!;
+    const sun = root.querySelector('.detail-tile.sun');
+    const moon = root.querySelector('.detail-tile.moon');
+    expect(sun).not.toBeNull();
+    expect(moon).not.toBeNull();
+
+    // Höhe in Grad und Himmelsrichtung: bei der Sonne als Hauptwert und
+    // Azimut, beim Mond in der Stellungszeile unter der Beleuchtung.
+    const height = /-?\d{1,3}(?:[.,]\d)?\s?°/;
+    const direction = /\d{1,3}°\s[NSEWO]{1,3}/;
+    const sunText = sun!.textContent ?? '';
+    expect(sunText).toMatch(height);
+    expect(sunText).toMatch(direction);
+    const moonText = moon!.textContent ?? '';
+    expect(moonText).toMatch(height);
+    expect(moonText).toMatch(direction);
+  });
+
+  it('nennt unter der Himmelsansicht Höhe und Richtung', async () => {
+    // Die Ablesung erscheint nur, wenn die Himmelsansicht als Spalte daneben
+    // steht – dafür braucht die Karte Breite.
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340 },
+      { width: 900 },
+    );
+    const rows = [...card.shadowRoot!.querySelectorAll('.sky-readout span')].map((node) =>
+      (node.textContent ?? '').trim(),
+    );
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toMatch(/-?\d{1,3}(?:[.,]\d)?\s?°/);
+      expect(row).toMatch(/\d{1,3}°\s[NSEWO]{1,3}/);
+    }
+  });
+
   it('folgt der Spracheinstellung', async () => {
     const card = await mountCard(
       { type: 'custom:sun-moon-card', language: 'en', time_format: '12', card_height: 360 },
@@ -405,6 +443,41 @@ describe('Editor', () => {
     number.value = '5000';
     number.dispatchEvent(new Event('change'));
     expect(events.at(-1)?.card_height).toBe(800);
+  });
+
+  it('lässt die Kartenhöhe ohne eingetragenen Wert bedienen', async () => {
+    const editor = await mountEditor(); // card_height fehlt – der Standardfall
+    const slider = editor.shadowRoot!.querySelector<HTMLInputElement>('#height')!;
+    const number = editor.shadowRoot!.querySelector<HTMLInputElement>('#height-number')!;
+    const auto = editor.shadowRoot!.querySelector<HTMLInputElement>('#auto')!;
+
+    expect(slider.disabled).toBe(false);
+    expect(number.disabled).toBe(false);
+    expect(number.value).toBe(String(DEFAULT_CARD_HEIGHT));
+    expect(auto.checked).toBe(false);
+  });
+
+  it('sperrt die Kartenhöhe nur bei ausdrücklichem „auto“', async () => {
+    const editor = await mountEditor({ type: 'custom:sun-moon-card', card_height: 'auto' });
+    const auto = editor.shadowRoot!.querySelector<HTMLInputElement>('#auto')!;
+    expect(editor.shadowRoot!.querySelector<HTMLInputElement>('#height')!.disabled).toBe(true);
+    expect(
+      editor.shadowRoot!.querySelector<HTMLInputElement>('#height-number')!.disabled,
+    ).toBe(true);
+    expect(auto.checked).toBe(true);
+
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    auto.checked = false;
+    auto.dispatchEvent(new Event('change'));
+    await (editor as unknown as { updateComplete: Promise<void> }).updateComplete;
+
+    expect(events.at(-1)?.card_height).not.toBe('auto');
+    expect(
+      editor.shadowRoot!.querySelector<HTMLInputElement>('#height-number')!.disabled,
+    ).toBe(false);
   });
 
   it('speichert Standardwerte nicht in der Konfiguration', async () => {
