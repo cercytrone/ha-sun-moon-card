@@ -803,6 +803,28 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         ? `${formatDegrees(extras.sunBelowHorizon, 1, context.locale)} ${context.t('belowHorizon')}`
         : `${context.t('azimuth')} ${azimuthText}`;
     const sunSub = this._fitLabel([sunSubText, azimuthText], contentWidth, 9.5);
+    // Azimut bei Auf- und Untergang – nur mit astronomischen Details.
+    const riseAzimuth =
+      extras.sunriseAzimuth !== null
+        ? `${Math.round(extras.sunriseAzimuth)}° ${compassDirection(extras.sunriseAzimuth, language)}`
+        : null;
+    const setAzimuth =
+      extras.sunsetAzimuth !== null
+        ? `${Math.round(extras.sunsetAzimuth)}° ${compassDirection(extras.sunsetAzimuth, language)}`
+        : null;
+    const sunEventAzimuth =
+      config.show_astronomical_details && riseAzimuth && setAzimuth
+        ? this._fitLabel(
+            [
+              context.t('sunAzimuthAtEvents', { rise: riseAzimuth, set: setAzimuth }),
+              `${Math.round(extras.sunriseAzimuth as number)}° / ${Math.round(
+                extras.sunsetAzimuth as number,
+              )}°`,
+            ],
+            contentWidth,
+            9.5,
+          )
+        : null;
     // Kulmination und Mittagshöhe – nur mit astronomischen Details.
     const sunExtra = config.show_astronomical_details
       ? this._fitLabel(
@@ -897,6 +919,9 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                   <span class="detail-value">${sunValue}</span>
                   ${sunSub ? html`<span class="detail-sub">${sunSub}</span>` : nothing}
                   ${sunExtra ? html`<span class="detail-sub">${sunExtra}</span>` : nothing}
+                  ${sunEventAzimuth
+                    ? html`<span class="detail-sub">${sunEventAzimuth}</span>`
+                    : nothing}
                 </span>
               </div>
             `

@@ -497,6 +497,12 @@ async function main() {
         dayLength: [...root.querySelectorAll('.meta-chip')].some((chip) =>
           chip.textContent.includes('Tageslänge'),
         ),
+        tileOverflow: [...root.querySelectorAll('.detail-tile')].map(
+          (tile) => tile.scrollHeight - tile.clientHeight,
+        ),
+        textOverflow: [...root.querySelectorAll('.detail-sub, .detail-value, .detail-title')]
+          .filter((node) => node.scrollWidth > node.clientWidth + 1)
+          .map((node) => node.textContent.trim()),
       };
     });
     record(
@@ -516,6 +522,45 @@ async function main() {
       report.details.some((text) => text.includes('km')) &&
         report.details.some((text) => text.includes('Vollmond')),
     );
+    record(
+      'Azimut bei Auf-/Untergang in der Sonnenkachel',
+      report.details.some((text) => text.includes('Auf-/Untergang')),
+    );
+    record(
+      `Detailzeile ohne Überlauf (${Math.max(0, ...report.tileOverflow, 0)} px)`,
+      report.tileOverflow.every((value) => value <= 0),
+    );
+
+    // Auch auf schmalen Karten dürfen die Detailtexte nicht abgeschnitten
+    // werden – hier greifen die Kurzformen.
+    for (const width of [320, 430, 560]) {
+      await page.setViewport({ width: width + 40, height: 520, deviceScaleFactor: 1 });
+      await page.goto(
+        `${baseUrl}/shots.html?preset=details&loc=berlin&time=2026-06-21T13:00&theme=dark&h=380&w=${width}`,
+        { waitUntil: 'networkidle0' },
+      );
+      await page.waitForFunction(
+        () =>
+          Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('.details')),
+        { timeout: 20000 },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const narrow = await page.evaluate(() => {
+        const root = document.querySelector('sun-moon-card').shadowRoot;
+        return {
+          clipped: [...root.querySelectorAll('.detail-sub, .detail-value, .detail-title')]
+            .filter((node) => node.scrollWidth > node.clientWidth + 1)
+            .map((node) => node.textContent.trim()),
+          tiles: [...root.querySelectorAll('.detail-tile')].map(
+            (tile) => tile.scrollHeight - tile.clientHeight,
+          ),
+        };
+      });
+      record(
+        `Detailtexte bei ${width} px vollständig (${narrow.clipped.length ? narrow.clipped.join(' / ') : 'keine Kürzung'})`,
+        narrow.clipped.length === 0 && narrow.tiles.every((value) => value <= 0),
+      );
+    }
   }
 
   // Sterne nur bei dunklem Himmel
