@@ -91,6 +91,9 @@ const strings = {
     // Himmelsansicht
     skyView: 'Himmelsansicht',
     belowHorizon: 'unter dem Horizont',
+    chartSunNow: 'Sonne jetzt: {altitude}',
+    chartMoonNow: 'Mond jetzt: {altitude}',
+    chartOutside: '(außerhalb des dargestellten Bereichs)',
     zenith: 'Zenit',
     horizon: 'Horizont',
     refCivil: 'Bürgerlich',
@@ -327,6 +330,9 @@ const strings = {
 
     skyView: 'Sky view',
     belowHorizon: 'below the horizon',
+    chartSunNow: 'Sun now: {altitude}',
+    chartMoonNow: 'Moon now: {altitude}',
+    chartOutside: '(outside the plotted range)',
     zenith: 'Zenith',
     horizon: 'Horizon',
     refCivil: 'Civil',

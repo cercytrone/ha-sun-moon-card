@@ -58,6 +58,10 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   skaliert und wird nicht abgeschnitten
 - Höhenlinien mit Beschriftung (Horizont, −6°/… je nach Dämmerungsgrenze), Zenit-Chip mit
   Kulminationszeit und maximaler Höhe, farbig gestrichelte Führungslinien zu den Ereignissen
+- **„Jetzt"-Linie mit Sonnen- und Mondmarker**: der goldene Punkt zeigt die aktuelle Sonnenhöhe,
+  die Mondscheibe in ihrer aktuellen Phase die des Mondes. Liegen beide dicht beieinander, weicht
+  der Mond seitlich aus; liegt ein Körper außerhalb des dargestellten Höhenbereichs, steht sein
+  Marker gedämpft am Rand – der Tooltip nennt dann den genauen Wert
 - Legende der Phasenflächen unter dem Verlauf
 - **Farbverläufe statt harter Streifen:** die Phasenbereiche gehen weich ineinander über, das
   Tageslicht wird zum Horizont hin wärmer

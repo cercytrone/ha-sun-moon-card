@@ -339,6 +339,42 @@ describe('Darstellung', () => {
     expect(moonText).toMatch(direction);
   });
 
+  it('markiert die Stellung von Sonne und Mond im Tagesverlauf', async () => {
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+    const sun = svg.querySelector('.now-sun circle');
+    const moon = svg.querySelector('.now-moon svg.moon-disc');
+    expect(sun).not.toBeNull();
+    expect(moon).not.toBeNull();
+
+    // Beide Marker sitzen auf der „Jetzt"-Linie. Der Mond weicht nur so weit
+    // zur Seite, wie er braucht, um den Sonnenmarker nicht zu verdecken.
+    const nowX = Number(svg.querySelector('.now-marker line')!.getAttribute('x1'));
+    expect(Math.abs(Number(sun!.getAttribute('cx')) - nowX)).toBeLessThan(0.5);
+    const translate = svg
+      .querySelector('.now-moon g[transform]')!
+      .getAttribute('transform')!
+      .match(/-?\d+(?:\.\d+)?/g)!
+      .map(Number);
+    const size = Number(moon!.getAttribute('width'));
+    expect(Math.abs(translate[0] + size / 2 - nowX)).toBeLessThan(size);
+
+    // Beide Marker nennen im Tooltip Körper und Höhe.
+    expect(svg.querySelector('.now-sun title')!.textContent).toMatch(/-?\d/);
+    expect(svg.querySelector('.now-moon title')!.textContent).toMatch(/-?\d/);
+  });
+
+  it('zeigt den Mondmarker nur, wenn der Mond eingeschaltet ist', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      show_moon: false,
+      card_height: 340,
+    });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+    expect(svg.querySelector('.now-moon')).toBeNull();
+    expect(svg.querySelector('.now-sun')).not.toBeNull();
+  });
+
   it('nennt unter der Himmelsansicht Höhe und Richtung', async () => {
     // Die Ablesung erscheint nur, wenn die Himmelsansicht als Spalte daneben
     // steht – dafür braucht die Karte Breite.
