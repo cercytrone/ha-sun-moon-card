@@ -59,6 +59,11 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 - Höhenlinien mit Beschriftung (Horizont, −6°/… je nach Dämmerungsgrenze), Zenit-Chip mit
   Kulminationszeit und maximaler Höhe, farbig gestrichelte Führungslinien zu den Ereignissen
 - Legende der Phasenflächen unter dem Verlauf
+- **Farbverläufe statt harter Streifen:** die Phasenbereiche gehen weich ineinander über, das
+  Tageslicht wird zum Horizont hin wärmer
+- **Himmelsfläche über der Kurve:** gefärbt nach Tageszeit – Nacht an den Rändern, warmes Licht an
+  Auf- und Untergang –, dazu ein weiches Horizontglühen auf der Horizontlinie
+- `card_style: flat` trägt alle Verläufe dünner auf, `glass` zeigt sie in voller Stärke
 
 **Zweite Ansicht: aktueller Himmel**
 
@@ -388,9 +393,13 @@ entsteht keine ungenutzte Fläche, weil der Tagesverlauf den verbleibenden Platz
 ## Barrierefreiheit, Performance, Datenschutz
 
 - **Kontrast:** eigene Farbpaletten für helle und dunkle Themes; Textfarben folgen den
-  Home-Assistant-Theme-Variablen, damit die Karte in jedem Theme lesbar bleibt. Automatisiert
-  gemessen (WCAG) erreicht die schwächste Beschriftung **5,86:1** im hellen und **6,88:1** im
-  dunklen Theme – mindestens also die Schwelle für normale Schrift (4,5:1).
+  Home-Assistant-Theme-Variablen, damit die Karte in jedem Theme lesbar bleibt. Gemessen wird
+  nicht gerechnet: die Prüfung fotografiert die Karte in echtem Chromium und bestimmt die Farbe
+  **hinter jeder Beschriftung** aus den Bildpunkten – auch dort, wo der Farbverlauf des Charts
+  unter dem Text liegt. Die schwächste Beschriftung erreicht **6,46:1** im hellen und **6,77:1**
+  im dunklen Theme, also deutlich mehr als die Schwelle für normale Schrift (4,5:1).
+  Beschriftungen im Chart erhalten dafür einen Rand in Kartenhintergrundsfarbe bzw. ein
+  deckkräftiges Kärtchen.
 - **Tastatur/Assistenz:** die Karte ist per Tastatur erreichbar (Fokusrahmen), Symbole sind als
   `aria-hidden` markiert, Zahlenwerte sind als Text vorhanden; die Zeitenkacheln tragen einen
   `title` mit vollständiger Bezeichnung.
@@ -441,11 +450,11 @@ npm ci
 | `npm run dev` | Entwicklungsumgebung mit mehreren Karten, Standort-/Themen-/Zeitvorgaben und Fehlerfällen (`http://localhost:5173`) |
 | `npm run typecheck` | TypeScript-Prüfung ohne Ausgabe |
 | `npm run lint` | ESLint über Quellen, Entwicklungsumgebung, Tests und Werkzeuge |
-| `npm test` | Alle Unit- und Komponententests (Vitest, 316 Prüfungen) |
+| `npm test` | Alle Unit- und Komponententests (Vitest, 324 Prüfungen) |
 | `npm run build` | Bundle nach `dist/sun-moon-card.js` (esbuild, minifiziert, mit Lit) |
 | `npm run verify` | Typen + Lint + Tests in einem Durchlauf |
 | `npm run screenshots` | Screenshots nach `docs/` (siehe unten) |
-| `npm run verify:layout` | Layoutprüfung in echtem Chromium: Höhen 120–800 px, Breiten ab 320 px, sieben Standorte, Polartag/Polarnacht, fehlende Daten, Zeitleisten-Skalierung, WCAG-Kontrast und Konsolenfehler (34 Prüfungen) |
+| `npm run verify:layout` | Layoutprüfung in echtem Chromium: Höhen 120–800 px, Breiten ab 320 px, sieben Standorte, Polartag/Polarnacht, fehlende Daten, Zeitleisten-Skalierung, WCAG-Kontrast (gemessen am Bildpunkt) und Konsolenfehler (58 Prüfungen) |
 
 **Aufbau**
 
@@ -467,7 +476,7 @@ dev/                      Entwicklungsumgebung und Screenshot-Vorlage
 tools/                    Screenshots, Layoutprüfung, Erzeugung der Mondreihen/Referenzwerte
 ```
 
-**Tests:** 316 Prüfungen, davon 166 gegen Referenzwerte aus astral und PyEphem. Die Messwerte in
+**Tests:** 324 Prüfungen, davon 166 gegen Referenzwerte aus astral und PyEphem. Die Messwerte in
 `tests/fixtures/reference.json` wurden mit `tools/reference-values.py` erzeugt (Python mit
 `astral`, `ephem`, `numpy`); die Mondreihen in `src/lunar-series.ts` mit
 `tools/fit-lunar-series.py --emit-ts`.

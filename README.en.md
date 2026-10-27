@@ -29,6 +29,10 @@ images, and no additional Home Assistant integration is required.
 - **Day curve (centrepiece):** SVG chart of the sun’s altitude across the local day (00:00–24:00)
   with civil dawn/dusk, sunrise, sunset, optional nautical (−12°) and astronomical (−18°) twilight,
   coloured phase bands, the current sun position on the curve, a “now” line and local-time labels.
+  The phase bands fade into each other instead of forming hard stripes, daylight turns warmer
+  towards the horizon, and the area above the curve is tinted by time of day – night at the edges,
+  warm light at sunrise and sunset, with a soft glow on the horizon line. `card_style: flat`
+  renders all gradients thinner.
 - **Sky view:** fisheye projection with cardinal directions, horizon and zenith; sun and moon are
   drawn **along their computed diurnal path** (altitude/azimuth), together with the moon disc
   showing the correct terminator for the current phase.
@@ -43,9 +47,11 @@ images, and no additional Home Assistant integration is required.
   `setConfig()` / `getCardSize()` / `getGridOptions()` / `getConfigElement()`. Missing entities,
   missing attributes or a missing location never break the card – it shows a hint instead.
 - **Accessible:** colours follow the Home Assistant theme variables; measured WCAG contrast of the
-  weakest label is **5.86:1** (light theme) and **6.88:1** (dark theme), i.e. above the 4.5:1
-  threshold for normal text. Symbols are `aria-hidden`, values exist as text, the card is
-  keyboard-focusable.
+  weakest label is **6.46:1** (light theme) and **6.77:1** (dark theme), i.e. above the 4.5:1
+  threshold for normal text. The check does not calculate but measures: it photographs the card in
+  real Chromium and takes the colour **behind every label** from the rendered pixels – including
+  labels that sit on the chart gradients. Symbols are `aria-hidden`, values exist as text, the card
+  is keyboard-focusable.
 
 ## Installation
 

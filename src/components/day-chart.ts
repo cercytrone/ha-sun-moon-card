@@ -12,10 +12,15 @@
  *   −12…−18° astronomische Dämmerung
  *   < −18°   Nacht
  *
- * Die Einfärbung erfolgt über einen einzigen linearen Farbverlauf mit harten
- * Farbübergängen an den Schwellen. Dadurch bleiben alle Sonderfälle
+ * Die Einfärbung erfolgt über einen einzigen linearen Farbverlauf, der an den
+ * Schwellen weich ineinander übergeht. Dadurch bleiben alle Sonderfälle
  * (Polartag, Polarnacht, fehlende Dämmerung) korrekt darstellbar, ohne dass
  * einzelne Flächen berechnet werden müssen.
+ *
+ * Über der Kurve liegt ein zweiter, waagerechter Verlauf: Er färbt den
+ * Himmel nach Tageszeit (Nacht an den Rändern, warmes Licht an Auf- und
+ * Untergang), während die Fläche unter der Kurve die Sonnenhöhe zeigt. Das
+ * Horizontglühen an Auf- und Untergang rundet den Eindruck ab.
  *
  * Die Funktion ist zustandslos: Aus einem Datenmodell wird ein SVG-Fragment
  * erzeugt. Es werden keine zusätzlichen Custom Elements benötigt, und die
@@ -34,7 +39,7 @@ import {
 import type { PhasePalette } from '../const.js';
 import { formatDegrees, formatTime, type FormatContext } from '../format.js';
 import type { StringKey } from '../localize.js';
-import { clamp, round, smoothPath, areaPath } from '../utils.js';
+import { clamp, mixHex, round, smoothPath, areaPath } from '../utils.js';
 
 /** Ein darzustellendes Ereignis auf der Zeitachse. */
 interface EventMarker {
@@ -77,6 +82,8 @@ export interface DayChartOptions {
   compact: boolean;
   /** Stabile IDs für SVG-Definitionen. */
   uid: string;
+  /** Kartenstil: `flat` dämpft die Verläufe, `glass` zeigt sie voll. */
+  cardStyle: 'glass' | 'flat';
   /** Zusätzliche astronomische Ebenen (−6°/−12°/−18°-Linien). */
   showAstronomicalLayers: boolean;
   /** Aktuelle Sonnenhöhe (Position des „jetzt“-Markers). */
@@ -162,14 +169,16 @@ function elevationDomain(profile: DayProfile): [number, number] {
   return [bottom, top];
 }
 
-/** Erzeugt die Farbstopps des vertikalen Phasenverlaufs. */
-function bandGradientStops(
-  palette: PhasePalette,
-  yOf: (altitude: number) => number,
-  plotTop: number,
-  plotHeight: number,
-): Array<{ offset: number; color: string }> {
-  const thresholds = [0, ELEVATION_CIVIL, ELEVATION_NAUTICAL, ELEVATION_ASTRONOMICAL];
+/**
+ * Farbe einer Sonnenhöhe.
+ *
+ * Zwischen den Phasen wird über `soft` Grad weich gemischt, damit die
+ * Bereiche nicht als harte Streifen stehen, sondern ineinander übergehen.
+ * Oberhalb von 0° bleibt es bei der Tagesfarbe, unterhalb von −18° bei der
+ * Nachtfarbe – auch bei Polartag und Polarnacht.
+ */
+function phaseColor(altitude: number, palette: PhasePalette, soft = 2.2): string {
+  const edges = [0, ELEVATION_CIVIL, ELEVATION_NAUTICAL, ELEVATION_ASTRONOMICAL];
   const colors = [
     palette.day,
     palette.civil,
@@ -178,47 +187,96 @@ function bandGradientStops(
     palette.night,
   ];
 
+  // Tageslicht wird zum Horizont hin wärmer – wie am wirklichen Himmel.
+  // Das gilt nur oberhalb der Übergangszone um 0°, damit die Phasengrenze
+  // erhalten bleibt.
+  if (altitude > soft / 2) {
+    const warm = clamp(1 - altitude / 12, 0, 1) * 0.5;
+    return mixHex(palette.day, palette.glow, warm);
+  }
+
+  for (let i = 0; i < edges.length; i++) {
+    const upper = edges[i] + soft / 2;
+    const lower = edges[i] - soft / 2;
+    if (altitude >= upper) return colors[i];
+    if (altitude > lower) {
+      // Smoothstep: an den Rändern sanft, in der Mitte zügig.
+      const t = (upper - altitude) / soft;
+      return mixHex(colors[i], colors[i + 1], t * t * (3 - 2 * t));
+    }
+  }
+  return colors[colors.length - 1];
+}
+
+/**
+ * Erzeugt die Farbstopps des vertikalen Phasenverlaufs unter der Kurve.
+ *
+ * Der Verlauf wird abgetastet statt aus einzelnen Kanten zusammengesetzt.
+ * Dadurch bleiben alle Sonderfälle (fehlende Dämmerung, Polartag,
+ * Polarnacht) ohne Sonderbehandlung korrekt.
+ */
+function bandGradientStops(
+  palette: PhasePalette,
+  domainBottom: number,
+  domainSpan: number,
+  steps = 24,
+): Array<{ offset: number; color: string }> {
   const stops: Array<{ offset: number; color: string }> = [];
-  const softness = 0.006;
-  let previousOffset = 0;
-
-  for (let i = 0; i < thresholds.length; i++) {
-    const raw = (yOf(thresholds[i]) - plotTop) / plotHeight;
-    const offset = clamp(raw, 0, 1);
-
-    if (offset <= 0) {
-      // Schwelle liegt oberhalb des Diagramms: nur die dunklere Farbe sichtbar
-      stops.push({ offset: 0, color: colors[i + 1] });
-      previousOffset = 0;
-      continue;
-    }
-    if (offset >= 1) {
-      stops.push({ offset: clamp(previousOffset, 0, 1), color: colors[i] });
-      stops.push({ offset: 1, color: colors[i] });
-      previousOffset = 1;
-      break;
-    }
-    stops.push({ offset: clamp(previousOffset, 0, 1), color: colors[i] });
-    stops.push({ offset: clamp(offset - softness, 0, 1), color: colors[i] });
-    stops.push({ offset: clamp(offset + softness, 0, 1), color: colors[i + 1] });
-    previousOffset = offset + softness;
+  for (let i = 0; i <= steps; i++) {
+    const offset = i / steps;
+    // offset 0 liegt am oberen Rand des Plots (höchste dargestellte Höhe).
+    const altitude = domainBottom + domainSpan * (1 - offset);
+    stops.push({ offset, color: phaseColor(altitude, palette) });
   }
+  return stops;
+}
 
-  if (previousOffset < 1) {
-    const lastColor = colors[colors.length - 1];
-    stops.push({ offset: clamp(previousOffset, 0, 1), color: lastColor });
-    stops.push({ offset: 1, color: lastColor });
-  }
+/**
+ * Erzeugt die Farbstopps des waagerechten Himmelsverlaufs über der Kurve.
+ *
+ * Stützstellen sind die Ereigniszeiten des Tages; die Ränder übernehmen die
+ * Phase des ersten und letzten Abtastwerts. Damit stimmt die Färbung auch
+ * bei Polartag (ganztägig Tag), Polarnacht (ganztägig Nacht) und bei
+ * Dämmerung ohne echte Nacht.
+ */
+function skyGradientStops(
+  profile: DayProfile,
+  events: SolarEvents,
+  palette: PhasePalette,
+  xOf: (time: number) => number,
+  plotLeft: number,
+  plotWidth: number,
+): Array<{ offset: number; color: string }> {
+  const samples = profile.samples;
+  if (samples.length < 2) return [];
 
-  // Monoton steigende Offsets sicherstellen (SVG-Vorgabe)
-  const normalized: Array<{ offset: number; color: string }> = [];
-  let last = -1;
-  for (const stop of [...stops].sort((a, b) => a.offset - b.offset)) {
-    const offset = clamp(Math.max(stop.offset, last), 0, 1);
-    normalized.push({ offset, color: stop.color });
-    last = offset;
-  }
-  return normalized;
+  const anchors: Array<{ time: number; color: string }> = [];
+  const add = (time: Date | null | undefined, color: string): void => {
+    if (time && !Number.isNaN(time.getTime())) anchors.push({ time: time.getTime(), color });
+  };
+
+  add(events.astronomicalDawn, palette.astronomical);
+  add(events.nauticalDawn, palette.nautical);
+  add(events.civilDawn, palette.civil);
+  add(events.sunrise, palette.glow);
+  add(events.solarNoon, palette.day);
+  add(events.sunset, palette.glow);
+  add(events.civilDusk, palette.civil);
+  add(events.nauticalDusk, palette.nautical);
+  add(events.astronomicalDusk, palette.astronomical);
+
+  const stops: Array<{ offset: number; color: string }> = [
+    { offset: 0, color: phaseColor(samples[0].altitude, palette) },
+    ...anchors.map((anchor) => ({
+      offset: clamp((xOf(anchor.time) - plotLeft) / plotWidth, 0, 1),
+      color: anchor.color,
+    })),
+    { offset: 1, color: phaseColor(samples[samples.length - 1].altitude, palette) },
+  ];
+
+  // SVG verlangt monoton steigende Offsets; gleiche Offsets sind zulässig.
+  stops.sort((a, b) => a.offset - b.offset);
+  return stops;
 }
 
 /** Zeichnet das Tagesverlaufs-Chart. */
@@ -236,6 +294,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     showTwilight,
     twilightLevel,
     animations,
+    cardStyle,
     uid,
     showAstronomicalLayers,
     currentAltitude,
@@ -275,14 +334,36 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     y: yOf(sample.altitude),
   }));
 
-  const gradientStops = bandGradientStops(palette, yOf, plotTop, plotHeight);
+  const gradientStops = bandGradientStops(palette, domainBottom, domainSpan);
+  const skyStops = skyGradientStops(profile, events, palette, xOf, plotLeft, plotWidth);
   const areaId = `${uid}-area`;
   const lineId = `${uid}-line`;
   const clipId = `${uid}-clip`;
   const glowId = `${uid}-glow`;
+  const skyId = `${uid}-sky`;
 
   const area = areaPath(points, plotBottom + 1, true);
   const curve = smoothPath(points);
+  // Himmelsfläche: alles oberhalb der Sonnenkurve.
+  const sky = areaPath(points, plotTop - 1, true);
+
+  // Der flache Stil trägt die Verläufe dünner auf.
+  const strength = cardStyle === 'flat' ? 0.6 : 1;
+  const skyOpacity = round(0.15 * strength, 3);
+
+  // Horizontglühen: weiches, warmes Licht an Auf- und Untergang. Es liegt
+  // auf der Horizontlinie und wird auf den Plot begrenzt.
+  const glowRadiusX = Math.max(16, plotWidth * 0.16);
+  const glowRadiusY = clamp(plotHeight * 0.45, 9, 46);
+  const glows: Array<{ id: string; time: Date; color: string }> = [];
+  if (plotHeight >= 34) {
+    if (events.sunrise) {
+      glows.push({ id: `${uid}-glow-rise`, time: events.sunrise, color: palette.glow });
+    }
+    if (events.sunset) {
+      glows.push({ id: `${uid}-glow-set`, time: events.sunset, color: palette.glow });
+    }
+  }
 
   // --- Sonnenkuppel -------------------------------------------------------
   const dome = domeGeometry(points, events, profile.polar, xOf, horizonY);
@@ -503,11 +584,31 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
           )}
         </linearGradient>
         ${
+          skyStops.length >= 2
+            ? svg`<linearGradient id="${skyId}" gradientUnits="userSpaceOnUse"
+                x1="${round(plotLeft, 1)}" y1="0" x2="${round(plotLeft + plotWidth, 1)}" y2="0">
+                ${skyStops.map(
+                  (stop) =>
+                    svg`<stop offset="${round(stop.offset * 100, 3)}%" stop-color="${stop.color}" />`,
+                )}
+              </linearGradient>`
+            : svg``
+        }
+        ${glows.map(
+          // Der Verlauf nutzt die Bounding-Box der Ellipse und wird dadurch
+          // automatisch elliptisch (objectBoundingBox ist die Voreinstellung).
+          (glow) => svg`<radialGradient id="${glow.id}">
+              <stop offset="0%" stop-color="${glow.color}" stop-opacity="${round(0.5 * strength, 3)}" />
+              <stop offset="45%" stop-color="${glow.color}" stop-opacity="${round(0.2 * strength, 3)}" />
+              <stop offset="100%" stop-color="${glow.color}" stop-opacity="0" />
+            </radialGradient>`,
+        )}
+        ${
           dome
             ? svg`<radialGradient id="${domeId}" gradientUnits="userSpaceOnUse"
                 cx="${round(dome.cx, 1)}" cy="${round(dome.cy, 1)}" r="${round(dome.r, 1)}">
-                <stop offset="0%" stop-color="${palette.day}" stop-opacity="0.34" />
-                <stop offset="55%" stop-color="${palette.day}" stop-opacity="0.15" />
+                <stop offset="0%" stop-color="${palette.glow}" stop-opacity="${round(0.3 * strength, 3)}" />
+                <stop offset="45%" stop-color="${palette.day}" stop-opacity="${round(0.18 * strength, 3)}" />
                 <stop offset="100%" stop-color="${palette.day}" stop-opacity="0" />
               </radialGradient>`
             : svg``
@@ -536,6 +637,19 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
               stroke="var(--smc-grid-line, rgba(255,255,255,0.10))" stroke-width="0.6" />`,
         )}
         <path d="${area}" fill="url(#${areaId})" opacity="0.9" />
+        ${
+          skyStops.length >= 2
+            ? svg`<path d="${sky}" fill="url(#${skyId})" opacity="${skyOpacity}" />`
+            : svg``
+        }
+        ${glows.map((glow) => {
+          const cx = clamp(xOf(glow.time.getTime()), plotLeft, plotLeft + plotWidth);
+          const cy = clamp(horizonY, plotTop, plotBottom);
+          return svg`<ellipse
+              cx="${round(cx, 1)}" cy="${round(cy, 1)}"
+              rx="${round(glowRadiusX, 1)}" ry="${round(glowRadiusY, 1)}"
+              fill="url(#${glow.id})" />`;
+        })}
         ${
           dome
             ? svg`<path d="${dome.path}" fill="url(#${domeId})" opacity="0.95" />`
@@ -570,6 +684,10 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
                     fill="var(--smc-muted-color)"
                     font-size="${refLabelFontSize}"
                     opacity="0.85"
+                    stroke="var(--smc-halo, #10131a)"
+                    stroke-width="2.4"
+                    stroke-linejoin="round"
+                    paint-order="stroke fill"
                   >${line.label}</text>`
                 : svg``
             }

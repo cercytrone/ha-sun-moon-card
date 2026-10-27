@@ -231,7 +231,92 @@ async function main() {
     await checkCard(page, url, edge.name);
   }
 
-  console.log('\n— Kontrast der Beschriftungen (WCAG) —');
+  
+/** Relative Helligkeit einer Farbe nach WCAG. */
+function luminance({ r, g, b }) {
+  const channel = (value) => {
+    const ratio = value / 255;
+    return ratio <= 0.03928 ? ratio / 12.92 : ((ratio + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** Kontrast zweier Farben nach WCAG; die Vordergrundfarbe darf Deckkraft haben. */
+function contrastInNode(foreground, background) {
+  const alpha = foreground.a === undefined ? 1 : foreground.a;
+  const mixed = {
+    r: foreground.r * alpha + background.r * (1 - alpha),
+    g: foreground.g * alpha + background.g * (1 - alpha),
+    b: foreground.b * alpha + background.b * (1 - alpha),
+  };
+  const a = luminance(mixed);
+  const b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+/**
+ * Bestimmt die tatsächliche Hintergrundfarbe hinter Beschriftungen.
+ *
+ * Eine Berechnung aus den CSS-Schichten wird dem Chart nicht gerecht: Dort
+ * liegen Farbverläufe, Flächen und Glühen unter dem Text. Deshalb wird die
+ * Karte fotografiert und die Farbe im Feld des Textes gemessen. Der
+ * häufigste Farbwert ist der Hintergrund – liegt er zu nah an der
+ * Textfarbe (sehr große Schrift), wird der nächsthäufige Wert genommen.
+ */
+async function sampleBackgrounds(page, shot, rects) {
+  return page.evaluate(
+    async (data, boxes) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(image, 0, 0);
+
+      const distance = (a, b) =>
+        Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+
+      return boxes.map((box) => {
+        const x = Math.max(0, Math.round(box.rect.x) - 1);
+        const y = Math.max(0, Math.round(box.rect.y) - 1);
+        const width = Math.min(canvas.width - x, Math.round(box.rect.width) + 2);
+        const height = Math.min(canvas.height - y, Math.round(box.rect.height) + 2);
+        if (width <= 0 || height <= 0) return null;
+
+        const pixels = context.getImageData(x, y, width, height).data;
+        const counts = new Map();
+        for (let i = 0; i < pixels.length; i += 4) {
+          const key = ((pixels[i] >> 3) << 10) | ((pixels[i + 1] >> 3) << 5) | (pixels[i + 2] >> 3);
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+        if (ranked.length === 0) return null;
+        const decode = (key) => ({
+          r: ((key >> 10) & 31) * 8 + 4,
+          g: ((key >> 5) & 31) * 8 + 4,
+          b: (key & 31) * 8 + 4,
+        });
+        const total = width * height;
+        let chosen = decode(ranked[0][0]);
+        for (const [key, count] of ranked) {
+          const color = decode(key);
+          // Genug Fläche und klar verschieden von der Textfarbe?
+          if (count / total > 0.2 && distance(color, box.foreground) > 90) {
+            chosen = color;
+            break;
+          }
+        }
+        return chosen;
+      });
+    },
+    shot,
+    rects,
+  );
+}
+
+console.log('\n— Kontrast der Beschriftungen (WCAG) —');
   await page.setViewport({ width: 700, height: 460, deviceScaleFactor: 1 });
   for (const theme of ['dark', 'light']) {
     for (const height of [220, 320]) {
@@ -304,6 +389,9 @@ async function main() {
           '.title', '.subtitle', '.phase-chip', '.event-time', '.event-label',
           '.detail-title', '.detail-value', '.detail-sub', '.message',
           '.meta-chip', '.legend-chip', '.sky-readout', '.footer .part',
+          // Beschriftungen im Chart und in der Himmelsansicht sind SVG-Text
+          // und damit über `fill` gefärbt, nicht über `color`.
+          'svg.day-chart text', 'svg.sky-view text',
         ];
         const found = [];
         for (const selector of selectors) {
@@ -311,7 +399,8 @@ async function main() {
             const text = (element.textContent || '').trim();
             if (!text) continue;
             const style = getComputedStyle(element);
-            const foreground = parse(style.color);
+            const isSvg = element.ownerSVGElement !== null && element.ownerSVGElement !== undefined;
+            const foreground = (isSvg ? parse(style.fill) : null) ?? parse(style.color);
             if (!foreground) {
               found.push({
                 selector,
@@ -319,7 +408,9 @@ async function main() {
                 size: Number.parseFloat(style.fontSize),
                 ratio: 0,
                 required: 4.5,
-                unparsed: style.color,
+                unparsed: isSvg ? style.fill : style.color,
+                rect: element.getBoundingClientRect().toJSON(),
+                foreground: null,
               });
               continue;
             }
@@ -331,23 +422,39 @@ async function main() {
               selector,
               text: text.slice(0, 20),
               size,
+              layers: Number(contrast(over(foreground, background), background).toFixed(2)),
               ratio: Number(contrast(over(foreground, background), background).toFixed(2)),
               required: large ? 3 : 4.5,
+              rect: element.getBoundingClientRect().toJSON(),
+              foreground,
             });
           }
         }
         return found;
       });
 
-      const tooLow = results.filter((entry) => entry.ratio < entry.required);
+      // Echte Messung: Hintergrund aus dem gerenderten Bild.
+      const shot = await page.screenshot({ encoding: 'base64' });
+      const samples = await sampleBackgrounds(page, shot, results);
+      results.forEach((entry, index) => {
+        const background = samples[index];
+        if (!background || !entry.foreground) return;
+        entry.measured = Number(contrastInNode(entry.foreground, background).toFixed(2));
+        entry.behind = `${Math.round(background.r)},${Math.round(background.g)},${Math.round(background.b)}`;
+      });
+      const measured = results.filter((entry) => typeof entry.measured === 'number');
+      const tooLow = measured.filter((entry) => entry.measured < entry.required);
       record(
-        `Kontrast ${theme} ${height}px (${results.length} Beschriftungen)`,
-        tooLow.length === 0,
+        `Kontrast ${theme} ${height}px gemessen (${measured.length} Beschriftungen)`,
+        tooLow.length === 0 && measured.length > 0,
         tooLow.length
           ? tooLow
-              .map((entry) => `${entry.selector} „${entry.text}“ ${entry.ratio}:1 < ${entry.required}:1`)
-              .join(', ')
-          : `min ${Math.min(...results.map((entry) => entry.ratio))}:1`,
+              .map(
+                (entry) =>
+                  `${entry.selector} „${entry.text}“ ${entry.measured}:1 < ${entry.required}:1 (auf ${entry.behind})`,
+              )
+              .join(' | ')
+          : `min ${Math.min(...measured.map((entry) => entry.measured))}:1`,
       );
     }
   }

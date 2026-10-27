@@ -22,6 +22,47 @@ export function round(value: number, digits = 0): number {
   return Math.round(value * factor) / factor;
 }
 
+/**
+ * Zerlegt eine Hexfarbe (`#rgb`, `#rrggbb`) in ihre Rot-, Grün- und
+ * Blauanteile (0…255).
+ *
+ * Andere Formate (`rgb()`, Farbnamen, CSS-Variablen) werden nicht erkannt und
+ * führen zu `null` – die Aufrufer arbeiten dann mit der Ausgangsfarbe weiter.
+ */
+export function parseHexColor(value: string): [number, number, number] | null {
+  const hex = value.trim().replace(/^#/, '');
+  const expanded =
+    hex.length === 3
+      ? hex
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : hex;
+  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) return null;
+  const number = Number.parseInt(expanded, 16);
+  return [(number >> 16) & 255, (number >> 8) & 255, number & 255];
+}
+
+/** Baut aus drei Kanälen eine Hexfarbe. */
+function toHex(rgb: [number, number, number]): string {
+  return `#${rgb.map((part) => Math.round(clamp(part, 0, 255)).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Mischt zwei Hexfarben linear (`t = 0` → `from`, `t = 1` → `to`).
+ *
+ * Damit lassen sich Farbverläufe mit Zwischentönen erzeugen, ohne dass eine
+ * Farbe hart in die nächste übergeht. Bei nicht lesbaren Farben wird `to`
+ * zurückgegeben.
+ */
+export function mixHex(from: string, to: string, t: number): string {
+  const a = parseHexColor(from);
+  const b = parseHexColor(to);
+  if (!a || !b) return to;
+  const factor = clamp(t, 0, 1);
+  return toHex([lerp(a[0], b[0], factor), lerp(a[1], b[1], factor), lerp(a[2], b[2], factor)]);
+}
+
 /** Prüft, ob ein Wert eine endliche Zahl ist. */
 export function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);

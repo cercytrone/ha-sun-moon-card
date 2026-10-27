@@ -80,6 +80,12 @@ export interface PhasePalette {
   /** Farbe des Himmels in der Himmelsansicht. */
   skyTop: string;
   skyBottom: string;
+  /**
+   * Warme Farbe des Horizontglühens an Sonnenauf- und -untergang. Sie liegt
+   * zwischen der Tages- und der Dämmerungsfarbe und erzeugt den weichen
+   * Übergang, den ein reiner Phasenverlauf nicht zeigt.
+   */
+  glow: string;
 }
 
 /** Farbpalette für den Dark Mode (und als Basis für HA-Themes). */
@@ -93,6 +99,7 @@ export const DARK_PALETTE: PhasePalette = {
   lineNight: '#8fa3d8',
   skyTop: '#0d1230',
   skyBottom: '#1b2347',
+  glow: '#ff9f5a',
 };
 
 /** Farbpalette für den Light Mode (etwas heller, aber kontrastreich). */
@@ -106,6 +113,7 @@ export const LIGHT_PALETTE: PhasePalette = {
   lineNight: '#cdd8f0',
   skyTop: '#eef2fb',
   skyBottom: '#cfd9ef',
+  glow: '#ffb26b',
 };
 
 /** Kompassrichtungen für Azimutangaben (de/en). */
