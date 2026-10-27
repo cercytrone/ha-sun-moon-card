@@ -398,6 +398,38 @@ describe('Darstellung', () => {
     expect(svg.querySelector('path.moon-curve')).toBeNull();
   });
 
+  it('füllt im Horizontstil nur den Raum zwischen Kurve und Horizont', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      card_style: 'horizon',
+      card_height: 340,
+    });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+
+    // Die Horizontlinie trägt die Beschriftung „Horizont".
+    const texts = [...svg.querySelectorAll('g > text')];
+    const horizonText = texts.find((node) => (node.textContent ?? '').includes('Horizont'));
+    expect(horizonText).toBeDefined();
+    const horizonY = Number(
+      horizonText!.parentElement!.querySelector('line')!.getAttribute('y1'),
+    );
+
+    // Die Fläche endet auf dieser Linie – nicht am unteren Rand des Plots.
+    const area = [...svg.querySelectorAll('path')].find((path) =>
+      (path.getAttribute('fill') ?? '').includes('-area'),
+    )!;
+    const numbers = (area.getAttribute('d') ?? '').match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    expect(numbers.at(-1)).toBeCloseTo(horizonY, 1);
+
+    // Der Himmelsverlauf über der Kurve entfällt, die Mondkurve tritt zurück.
+    expect(
+      [...svg.querySelectorAll('path')].some((path) =>
+        (path.getAttribute('fill') ?? '').includes('-sky'),
+      ),
+    ).toBe(false);
+    expect(svg.querySelector('path.moon-curve')!.getAttribute('opacity')).toBe('0.5');
+  });
+
   it('nennt unter der Himmelsansicht Höhe und Richtung', async () => {
     // Die Ablesung erscheint nur, wenn die Himmelsansicht als Spalte daneben
     // steht – dafür braucht die Karte Breite.
