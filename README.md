@@ -56,10 +56,15 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 - „Jetzt“-Linie mit Uhrzeitbeschriftung, Achsenbeschriftungen in lokaler Zeit
 - Weicher Horizontbogen; die Kurve ist auch unterhalb des Horizonts (Nachtverlauf) korrekt
   skaliert und wird nicht abgeschnitten
+- Höhenlinien mit Beschriftung (Horizont, −6°/… je nach Dämmerungsgrenze), Zenit-Chip mit
+  Kulminationszeit und maximaler Höhe, farbig gestrichelte Führungslinien zu den Ereignissen
+- Legende der Phasenflächen unter dem Verlauf
 
 **Zweite Ansicht: aktueller Himmel**
 
 - Fischaugen-Projektion des Himmels mit Himmelsrichtungen (N/O/S/W), Horizontlinie und Zenit
+- Höhenringe bei 30° und 60° mit Beschriftung, feiner Sternenhintergrund bei Nacht
+  (datumsabhängig, aber fest – keine Zufallswerte pro Aktualisierung)
 - Sonne und Mond auf ihrer **Tagesbahn** (aus Höhe und Azimut des Tagesverlaufs berechnet),
   nicht als frei erfundene Himmelsposition
 - Mond als **beleuchtete/unbeleuchtete Scheibe**: Phasenfigur mit korrekt gedrehter
@@ -70,14 +75,20 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 
 - Zeitenleiste mit Morgendämmerung, Sonnenaufgang, Sonnenuntergang, Abenddämmerung – ergänzt um
   nautische/astronomische Dämmerung, wenn konfiguriert
-- Optional: Kulmination (Sonnenhöchststand), Tageslänge, Azimut, Mondalter, Mondentfernung,
-  Mondauf-/untergang
+- Optional: Kulmination (Sonnenhöchststand), Tageslänge **mit Änderung zum Vortag**, Azimut von
+  Sonne und Mond in der 16-teiligen Windrose („Sonne: 250° WSW“), Azimut bei Auf- und Untergang,
+  „Sonne X° unter dem Horizont“, Mondalter, Mondentfernung mit Erdferne/Erdnähe, Mondauf-/
+  untergang mit Azimut und Tagesversatz, **nächster Vollmond** mit Datum, Uhrzeit und
+  Tagesabstand
+- Fußzeile mit Zeitzone (ausgeschrieben), eingestellter Dämmerungsgrenze und Berechnungsverfahren
 - Zeiten im 12- oder 24-Stunden-Format, standardmäßig wie in Home Assistant eingestellt
 
 **Konfiguration und Robustheit**
 
 - Frei wählbare Kartenhöhe in Pixeln (oder `auto`), geprüft von 120 bis 800 px
 - Alle Bereiche einzeln abschaltbar (`show_*`), Kompaktmodus, Theme-Modus, Animationen
+- Zwei Kartenstile: `card_style: glass` (halbtransparente Kacheln, Standard) und `flat`
+  (deckende Flächen ohne Weichzeichner – für schwache Geräte)
 - Visual Editor **und** YAML; `setConfig()`, `getCardSize()`, `getGridOptions()`,
   `getConfigElement()`, `getStubConfig()`
 - Keine Abstürze bei fehlender Entität, fehlenden Attributen oder fehlendem Standort – stattdessen
@@ -205,12 +216,14 @@ cards:
 | `type` | `custom:sun-moon-card` | – | Kartentyp (von Home Assistant gesetzt) |
 | `entity` | Entitäts-ID | `sun.sun` | Sonnen-Entität der HA-Sun-Integration |
 | `moon_entity` | Entitäts-ID | `sensor.moon` | Optionale Mond-Entität (Phasenname wird übernommen, wenn vorhanden) |
-| `card_height` | Zahl in px oder `auto` | `260` | Höhe der Karte; Bereich **120–800** (empfohlen 180–420), `auto` wählt 280 px auf schmalen und 300 px auf breiten Karten |
+| `card_height` | Zahl in px oder `auto` | `340` | Höhe der Karte; Bereich **120–800** (empfohlen 180–420), `auto` wählt 320 px auf schmalen und 360 px auf breiten Karten |
 | `show_sun` | `true` / `false` | `true` | Sonne (Chart, Detailzeile) anzeigen |
 | `show_moon` | `true` / `false` | `true` | Mond anzeigen |
 | `show_twilight` | `true` / `false` | `true` | Dämmerungsphasen anzeigen |
-| `show_astronomical_details` | `true` / `false` | `false` | Zusätzliche Details: Kulmination, Tageslänge, Azimut, nautische/astronomische Dämmerung, Mondalter, Mondentfernung |
+| `show_astronomical_details` | `true` / `false` | `false` | Zusätzliche Details: Kulmination mit maximaler Höhe, Tageslänge mit Änderung zum Vortag, Azimut, Azimut bei Auf-/Untergang, „Sonne X° unter dem Horizont“, nautische/astronomische Dämmerung, Mondalter, Mondentfernung mit Erdferne/-nähe, nächster Vollmond |
 | `compact_mode` | `true` / `false` | `false` | Kompakte Darstellung ohne Kopfzeile, Himmelsansicht und Detailzeile |
+| `card_style` | `glass` \| `flat` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte) |
+| `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
 | `animations` | `true` / `false` | `true` | Animationen (pulsierender „Jetzt“-Marker, Übergänge) |
 | `time_format` | `auto` \| `12` \| `24` | `auto` | `auto` übernimmt die Einstellung aus Home Assistant |
@@ -298,6 +311,22 @@ für den Mond. Gemessene maximale Abweichungen:
 | Positionswinkel der hellen Mondseite | **≤ 2°** (gemessen 0,25°) |
 | Mondauf-/Monduntergang | **≤ 60 s** (gemessen 7,2 s) |
 
+**Nächster Vollmond:** Der Zeitpunkt wird gesucht, an dem der Phasenwinkel zwischen Sonne und
+Mond 180° erreicht (Maximum des Beleuchtungsgrades). Abweichung zu PyEphem im Referenzdatensatz:
+**≤ 2,6 min**. „Blue Moon“ erscheint nur, wenn dieser Vollmond tatsächlich der zweite Vollmond
+seines Kalendermonats ist – die Prüfung vergleicht den vorherigen Vollmond im selben Monat, sie
+nutzt keine Monatsnamen.
+
+**Monatsnamen sind Volksgut, keine Astronomie.** Die Karte kann den überlieferten Namen des
+Vollmonds anzeigen (Oktober: „Jägermond“, englisch „Hunter's Moon“). Diese Namen stammen aus der
+angloamerikanischen Almanach-Tradition, sind regional unterschiedlich und astronomisch
+bedeutungslos. Sie werden deshalb in der Anzeige ausdrücklich als **Volksname** gekennzeichnet.
+
+**Kein VSOP87:** Die genannten Verfahren sind die oben beschriebenen Reihen (NOAA/Meeus für die
+Sonne, gekürzte ELP2000/Meeus-Reihe für den Mond). Es wird keine volle VSOP87- oder
+ELP2000-82B-Ephemeride gerechnet; die Genauigkeit entspricht den Werten in der Tabelle, nicht der
+einer Sternwarte.
+
 Zeitzonen, Sommer-/Winterzeit und historische Regeln kommen aus der `Intl`-API des Browsers
 (`IANA`-Datenbank), nicht aus einer eigenen Tabelle. Tage mit Zeitumstellung sind 23 oder 25
 Stunden lang – die Zeitachse und alle Zeitangaben berücksichtigen das; lokale Tage werden über
@@ -335,17 +364,21 @@ Vergrößern nicht wieder, und der Tagesverlauf wächst monoton mit:
 | Kartenhöhe | Inhalt |
 |------------|--------|
 | ab 120 px | nur der Tagesverlauf |
-| ab 144 px | + Zeitenleiste (kompakt) |
-| ab 156 px | + Zeitenleiste mit ausgeschriebenen Beschriftungen |
-| ab 174 px | + Kopfzeile |
-| ab 238 px | + Himmelsansicht als eigene Spalte (ab ca. 520 px Kartenbreite) |
-| ab 314 px | + Detailzeile mit Sonnenstand und Monddaten |
+| ab 180 px | + Zeitenleiste (Dämmerung, Auf-/Untergang) und Fußzeile |
+| ab 192 px | + Legende der Phasenflächen |
+| ab 226 px | + Kopfzeile mit Ort, Datum und Himmelsphase |
+| ab 302 px | + Detailzeile mit Sonnenstand und Monddaten |
+| ab 326 px | + Detailzeile mit den astronomischen Zusatzwerten |
 
-Auf schmalen Karten (< 520 px) wird die Himmelsansicht statt als Spalte als kleines Element in
-der Detailzeile gezeigt; unter 430 px Breite entfällt sie dort zugunsten der Texte. Alle
-Beschriftungen werden an die verfügbare Breite angepasst (kurze Formen wie „Aufgang“ statt
-„Sonnenaufgang“) – abgeschnittene Texte werden durch automatisierte Layoutprüfungen
-ausgeschlossen.
+Die Himmelsansicht erscheint ab **700 px Kartenbreite** als eigene Spalte neben dem Verlauf,
+darunter als kleines Element in der Detailzeile; unter 430 px Breite entfällt sie dort zugunsten
+der Texte. Alle Beschriftungen werden an die verfügbare Breite angepasst (kurze Formen wie
+„Aufgang“ statt „Sonnenaufgang“) – abgeschnittene Texte werden durch automatisierte
+Layoutprüfungen ausgeschlossen.
+
+Jeder Bereich erhält seine Höhe aus dieser Rechnung, der Verlauf nimmt den Rest. Damit ist die
+Karte in sich exakt so hoch wie eingestellt: `2 × Innenabstand + Bereiche + Abstände +
+Verlaufshöhe = Kartenhöhe`.
 
 Es gibt keine versteckte Mindesthöhe: auch bei 120 px wird nichts abgeschnitten, und bei 800 px
 entsteht keine ungenutzte Fläche, weil der Tagesverlauf den verbleibenden Platz einnimmt.
@@ -408,7 +441,7 @@ npm ci
 | `npm run dev` | Entwicklungsumgebung mit mehreren Karten, Standort-/Themen-/Zeitvorgaben und Fehlerfällen (`http://localhost:5173`) |
 | `npm run typecheck` | TypeScript-Prüfung ohne Ausgabe |
 | `npm run lint` | ESLint über Quellen, Entwicklungsumgebung, Tests und Werkzeuge |
-| `npm test` | Alle Unit- und Komponententests (Vitest, 290 Prüfungen) |
+| `npm test` | Alle Unit- und Komponententests (Vitest, 316 Prüfungen) |
 | `npm run build` | Bundle nach `dist/sun-moon-card.js` (esbuild, minifiziert, mit Lit) |
 | `npm run verify` | Typen + Lint + Tests in einem Durchlauf |
 | `npm run screenshots` | Screenshots nach `docs/` (siehe unten) |
@@ -434,7 +467,7 @@ dev/                      Entwicklungsumgebung und Screenshot-Vorlage
 tools/                    Screenshots, Layoutprüfung, Erzeugung der Mondreihen/Referenzwerte
 ```
 
-**Tests:** 290 Prüfungen, davon 152 gegen Referenzwerte aus astral und PyEphem. Die Messwerte in
+**Tests:** 316 Prüfungen, davon 166 gegen Referenzwerte aus astral und PyEphem. Die Messwerte in
 `tests/fixtures/reference.json` wurden mit `tools/reference-values.py` erzeugt (Python mit
 `astral`, `ephem`, `numpy`); die Mondreihen in `src/lunar-series.ts` mit
 `tools/fit-lunar-series.py --emit-ts`.
@@ -479,6 +512,10 @@ Push und Pull Request Typen, Lint, Tests, Build und ob das eingecheckte Bundle a
   werden nicht unterstützt (aktuelle Chrome, Firefox, Safari und Edge funktionieren).
 - Ohne konfigurierten Standort und ohne Koordinaten in Home Assistant zeigt die Karte einen
   Hinweis, aber keine Zeiten – das ist beabsichtigt (keine erfundenen Werte).
+- Die überlieferten **Vollmondnamen** („Jägermond“) sind Volkstradition und regional
+  unterschiedlich; sie werden als solche gekennzeichnet und sind keine astronomische Größe.
+- Der nächste Vollmond wird auf **±5 Minuten** genau bestimmt (gemessen ≤ 2,6 min zu PyEphem).
+  Monatsnamen und „Blue Moon“ beziehen sich auf den Kalendermonat der eingestellten Zeitzone.
 
 ---
 

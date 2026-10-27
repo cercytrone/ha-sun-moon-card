@@ -847,38 +847,60 @@ export interface MoonPhaseEvent {
 }
 
 /**
+ * Vollmond-Funktion: Abweichung des Mondalters vom halben synodischen Monat.
+ *
+ * Der Wert ist 0 im Vollmond und steigt monoton durch null hindurch. Das
+ * Mondalter wird auf (-0.5, 0.5] gefaltet, damit die Faltenstelle beim
+ * **Neumond** liegt – also möglichst weit vom gesuchten Nulldurchgang
+ * entfernt, sodass `findCrossings` keine Scheinlösung liefert.
+ */
+function fullMoonOffset(time: number): number {
+  const raw = moonPhase(time).moonAgeDays / MOON_SYNODIC_MONTH_DAYS - 0.5;
+  return (((raw % 1) + 1) % 1 + 0.5) % 1 - 0.5;
+}
+
+/**
+ * Alle Vollmonde im Zeitraum [from, to].
+ *
+ * Vollmond ist der Zeitpunkt, an dem der Mond der Sonne auf der Ekliptik genau
+ * gegenübersteht (Mondalter = halber synodischer Monat). Diese Definition ist
+ * deutlich besser konditioniert als das Maximum des Beleuchtungsgrads, dessen
+ * Ableitung am Maximum gegen null geht: Ein minimaler Fehler der Mondreihe
+ * verschiebt das Maximum um bis zu einer halben Stunde, den Nulldurchgang
+ * dagegen nur um wenige Minuten.
+ *
+ * @param from Beginn des Suchzeitraums
+ * @param to Ende des Suchzeitraums
+ * @returns Zeitpunkte der Vollmonde (aufsteigend)
+ */
+export function findFullMoons(from: Date | number, to: Date | number): Date[] {
+  const fromMs = typeof from === 'number' ? from : from.getTime();
+  const toMs = typeof to === 'number' ? to : to.getTime();
+  if (!(toMs > fromMs)) return [];
+  return findCrossings(fromMs, toMs, 6 * 60 * 60 * 1000, fullMoonOffset, 0)
+    .filter((crossing) => crossing.rising)
+    .map((crossing) => new Date(crossing.time));
+}
+
+/**
  * Sucht den **nächsten** Vollmond ab dem angegebenen Zeitpunkt.
  *
- * Vollmond ist definiert als der Zeitpunkt, an dem der Mond der Sonne auf der
- * Ekliptik genau gegenübersteht (Phasenzyklus 0.5 / Elongation 180°). Diese
- * Bedingung wird über `findCrossings` gelöst, weil der Phasenzyklus dort
- * monoton durchläuft und damit deutlich besser konditioniert ist als das
- * Maximum des Beleuchtungsgrads (dessen Ableitung am Maximum gegen null geht
- * und das deshalb schon bei kleinsten Reihenfehlern um ~30 Minuten verrutscht).
+ * Gesucht wird der erste Vollmond im Suchzeitraum – nicht der am stärksten
+ * beleuchtete: Die maximale Beleuchtung schwankt von Monat zu Monat (je nach
+ * Erdentfernung), ein globales Maximum würde daher gelegentlich einen späteren
+ * Vollmond liefern.
  *
  * @param from Startzeitpunkt (typisch: jetzt)
  * @param maxDays maximaler Suchzeitraum in Tagen
  */
 export function findNextFullMoon(from: Date | number, maxDays = 32): MoonPhaseEvent | null {
   const startMs = typeof from === 'number' ? from : from.getTime();
-  const endMs = startMs + maxDays * 24 * 60 * 60 * 1000;
-
-  // Mondalter (Tage seit Neumond), auf den halben synodischen Monat
-  // normiert und auf (-0.5, 0.5] gefaltet: 0 = Vollmond. Die Faltenstelle
-  // liegt beim Neumond und damit weit vom gesuchten Nulldurchgang entfernt.
-  const offset = (time: number): number => {
-    const raw = moonPhase(time).moonAgeDays / MOON_SYNODIC_MONTH_DAYS - 0.5;
-    return (((raw % 1) + 1) % 1 + 0.5) % 1 - 0.5;
-  };
-
-  const crossings = findCrossings(startMs, endMs, 6 * 60 * 60 * 1000, offset, 0);
-  const candidate = crossings.find((crossing) => crossing.rising);
+  const moons = findFullMoons(startMs, startMs + maxDays * 24 * 60 * 60 * 1000);
+  const candidate = moons[0];
   if (!candidate) return null;
-
-  const illumination = moonPhase(candidate.time).illumination;
+  const illumination = moonPhase(candidate).illumination;
   // Plausibilitätsprüfung: ein echter Vollmond ist praktisch voll beleuchtet.
-  if (illumination < 0.98) return null;
-  return { time: new Date(candidate.time), illumination };
+  return illumination < 0.98 ? null : { time: candidate, illumination };
 }
 
 /** Entfernungsbereich des Mondes um den angegebenen Zeitpunkt. */

@@ -57,6 +57,34 @@ export function resolveHour12(
   }
 }
 
+/**
+ * Langname der Zeitzone, z. B. „Mitteleuropäische Sommerzeit“.
+ *
+ * Der Name wird über die Internationalization-API aus den Zeitzonendaten des
+ * Browsers gebildet; es werden keine eigenen Tabellen gepflegt. Schlägt die
+ * Abfrage fehl (sehr alte Browser), wird der IANA-Name zurückgegeben.
+ */
+const timeZoneNameCache = new Map<string, string>();
+
+export function timeZoneLongName(timeZone: string, locale: string, at: Date): string {
+  const key = `${locale}|${timeZone}`;
+  const cached = timeZoneNameCache.get(key);
+  if (cached) return cached;
+  let name = timeZone;
+  try {
+    const parts = new Intl.DateTimeFormat(locale, {
+      timeZone,
+      timeZoneName: 'long',
+    }).formatToParts(at);
+    const zonePart = parts.find((part) => part.type === 'timeZoneName');
+    if (zonePart && zonePart.value.trim() !== '') name = zonePart.value;
+  } catch {
+    // Unbekannte Sprach- oder Zeitzonenkennung: IANA-Name beibehalten.
+  }
+  timeZoneNameCache.set(key, name);
+  return name;
+}
+
 const timeFormatterCache = new Map<string, Intl.DateTimeFormat>();
 
 function timeFormatter(locale: string, timeZone: string, hour12: boolean) {
@@ -134,6 +162,49 @@ export function formatDuration(minutes: number, language: Language): string {
   return language === 'de'
     ? `${hours} h ${mins} min`
     : `${hours} h ${mins} min`;
+}
+
+/**
+ * Formatiert eine Zeitdauer mit Vorzeichen, z. B. „+3:48“ oder „−3:48“.
+ *
+ * Verwendet wird das Trennzeichen des Gebietsschemas: Im Deutschen steht der
+ * Doppelpunkt („9:57“), damit die Angabe nicht mit einer Dezimalzahl
+ * verwechselt wird.
+ */
+export function formatSignedDuration(minutes: number, locale = 'de-DE'): string {
+  const sign = minutes < 0 ? '−' : '+';
+  const total = Math.round(Math.abs(minutes));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  const separator = locale.startsWith('de') ? ':' : 'h ';
+  const suffix = locale.startsWith('de') ? '' : 'm';
+  return `${sign}${hours}${separator}${String(mins).padStart(2, '0')}${suffix}`;
+}
+
+/**
+ * Kompakte Tageslänge im Format „9:57“ (Stunden:Minuten).
+ *
+ * Die Angabe ist kürzer als `formatDuration` und passt deshalb auch in
+ * schmale Karten.
+ */
+export function formatDurationCompact(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return `${hours}:${String(mins).padStart(2, '0')}`;
+}
+
+/**
+ * Bezeichnung eines Tagesbezugs: 0 → „heute“, 1 → „morgen“,
+ * sonst → „Folgetag“.
+ */
+export function formatDayOffset(
+  dayOffset: number,
+  t: (key: StringKey, replacements?: Record<string, string | number>) => string,
+): string {
+  if (dayOffset === 0) return t('dayToday');
+  if (dayOffset === 1) return t('dayTomorrow');
+  return t('dayFollowing');
 }
 
 /** Formatiert einen Prozentwert. */

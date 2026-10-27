@@ -40,13 +40,13 @@ const deviceScaleFactor = Number(process.env.SCALE ?? 2);
 const SHOTS = [
   {
     name: 'Standardansicht (Dark)',
-    url: '/shots.html?preset=default&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=280',
+    url: '/shots.html?preset=default&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=340',
     selector: 'sun-moon-card',
     file: 'screenshot-default-dark.png',
   },
   {
     name: 'Standardansicht (Light)',
-    url: '/shots.html?preset=default&loc=berlin&time=2026-10-26T18:30&theme=light&w=620&h=280',
+    url: '/shots.html?preset=default&loc=berlin&time=2026-10-26T18:30&theme=light&w=620&h=340',
     selector: 'sun-moon-card',
     file: 'screenshot-default-light.png',
   },
@@ -73,25 +73,37 @@ const SHOTS = [
   },
   {
     name: 'Astronomische Details',
-    url: '/shots.html?preset=details&loc=berlin&time=2026-06-21T13:00&theme=dark&w=620&h=340',
+    url: '/shots.html?preset=details&loc=berlin&time=2026-06-21T13:00&theme=dark&w=620&h=380',
     selector: 'sun-moon-card',
     file: 'screenshot-details.png',
   },
   {
     name: 'Polartag (Longyearbyen, 21. Juni)',
-    url: '/shots.html?preset=default&loc=longyearbyen&time=2026-06-21T12:00&theme=dark&w=620&h=300',
+    url: '/shots.html?preset=default&loc=longyearbyen&time=2026-06-21T12:00&theme=dark&w=620&h=340',
     selector: 'sun-moon-card',
     file: 'screenshot-polar-day.png',
   },
   {
     name: 'Polarnacht (Longyearbyen, 21. Dezember)',
-    url: '/shots.html?preset=default&loc=longyearbyen&time=2026-12-21T12:00&theme=dark&w=620&h=300',
+    url: '/shots.html?preset=default&loc=longyearbyen&time=2026-12-21T12:00&theme=dark&w=620&h=340',
     selector: 'sun-moon-card',
     file: 'screenshot-polar-night.png',
   },
   {
+    name: 'Breite Karte: Verlauf und Himmelsansicht nebeneinander',
+    url: '/shots.html?preset=wide&loc=berlin&time=2026-06-21T13:00&theme=dark&w=900&h=380',
+    selector: 'sun-moon-card',
+    file: 'screenshot-wide.png',
+  },
+  {
+    name: 'Flache Darstellung (card_style: flat)',
+    url: '/shots.html?preset=flat&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=340',
+    selector: 'sun-moon-card',
+    file: 'screenshot-flat.png',
+  },
+  {
     name: 'Englisch, 12-Stunden-Format',
-    url: '/shots.html?preset=english&loc=newyork&time=2026-10-26T18:30&theme=light&w=620&h=300',
+    url: '/shots.html?preset=english&loc=newyork&time=2026-10-26T18:30&theme=light&w=620&h=340',
     selector: 'sun-moon-card',
     file: 'screenshot-english.png',
   },

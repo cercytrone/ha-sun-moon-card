@@ -146,6 +146,17 @@ export function endOfLocalDay(instant: Date, timeZone: string): Date {
   return startOfLocalDay(new Date(dayStart.getTime() + 36 * 60 * 60 * 1000), timeZone);
 }
 
+/**
+ * Index des lokalen Kalendertags eines Zeitpunkts.
+ *
+ * Der Index ist nur zum Vergleich innerhalb einer Zeitzone gedacht: Die
+ * Differenz zweier Indizes ergibt die Anzahl der Kalendertage zwischen den
+ * Zeitpunkten, Sommerzeitumstellungen eingeschlossen.
+ */
+export function localDayIndex(instant: Date, timeZone: string): number {
+  return Math.round(startOfLocalDay(instant, timeZone).getTime() / (24 * 60 * 60 * 1000));
+}
+
 /** Addiert Tage auf Basis des lokalen Kalenders (DST-sicher). */
 export function addLocalDays(instant: Date, timeZone: string, days: number): Date {
   const parts = zonedParts(instant, timeZone);

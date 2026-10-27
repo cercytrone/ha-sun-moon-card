@@ -32,13 +32,16 @@ images, and no additional Home Assistant integration is required.
 - **Sky view:** fisheye projection with cardinal directions, horizon and zenith; sun and moon are
   drawn **along their computed diurnal path** (altitude/azimuth), together with the moon disc
   showing the correct terminator for the current phase.
-- **Times and details:** row with dawn, sunrise, sunset, dusk; optionally solar noon, day length,
-  azimuth, moon age, moon distance, moonrise and moonset. Times follow the Home Assistant
+- **Times and details:** row with dawn, sunrise, sunset, dusk; optionally culmination with maximum
+  altitude, day length with change vs. yesterday, azimuth on a 16-point compass (“Sun: 250° WSW”),
+  azimuth at rise/set, “sun X° below the horizon”, moon age, moon distance with perigee/apogee,
+  moonrise and moonset, and the **next full moon** with date, time and days to go. A footer names
+  the time zone, the twilight limit and the calculation method. Times follow the Home Assistant
   language and 12/24-hour setting.
 - **Robust:** free card height (120–800 px or `auto`), every section can be switched off, compact
-  mode, theme mode, animations, visual editor **and** YAML, `setConfig()` / `getCardSize()` /
-  `getGridOptions()` / `getConfigElement()`. Missing entities, missing attributes or a missing
-  location never break the card – it shows a hint instead.
+  mode, theme mode, two card styles (`glass`, `flat`), animations, visual editor **and** YAML,
+  `setConfig()` / `getCardSize()` / `getGridOptions()` / `getConfigElement()`. Missing entities,
+  missing attributes or a missing location never break the card – it shows a hint instead.
 - **Accessible:** colours follow the Home Assistant theme variables; measured WCAG contrast of the
   weakest label is **5.86:1** (light theme) and **6.88:1** (dark theme), i.e. above the 4.5:1
   threshold for normal text. Symbols are `aria-hidden`, values exist as text, the card is
@@ -102,12 +105,14 @@ card_height: 320
 |--------|--------|---------|---------|
 | `entity` | entity id | `sun.sun` | Sun entity of the HA sun integration |
 | `moon_entity` | entity id | `sensor.moon` | Optional moon entity (phase name is taken from it) |
-| `card_height` | px (120–800) or `auto` | `260` | Card height; `auto` → 280 px narrow, 300 px wide |
+| `card_height` | px (120–800) or `auto` | `340` | Card height; `auto` → 320 px narrow, 360 px wide |
 | `show_sun` | boolean | `true` | Show sun (chart, detail row) |
 | `show_moon` | boolean | `true` | Show moon |
 | `show_twilight` | boolean | `true` | Show twilight phases |
-| `show_astronomical_details` | boolean | `false` | Solar noon, day length, azimuth, twilight layers, moon age/distance |
+| `show_astronomical_details` | boolean | `false` | Culmination and maximum altitude, day length with change vs. yesterday, azimuth, azimuth at rise/set, “sun X° below the horizon”, extra twilight layers, moon age, moon distance with perigee/apogee, next full moon |
 | `compact_mode` | boolean | `false` | Compact layout (no header, sky view or detail row) |
+| `card_style` | `glass` \| `flat` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices) |
+| `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |
 | `animations` | boolean | `true` | Animations (pulsing “now” marker, transitions) |
 | `time_format` | `auto` \| `12` \| `24` | `auto` | `auto` follows Home Assistant |
@@ -152,6 +157,19 @@ deviations over the reference fixture set (20 sun cases, 36 moon cases):
 | Bright limb position angle | **≤ 2°** (measured 0.25°) |
 | Moonrise / moonset | **≤ 60 s** (measured 7.2 s) |
 
+**Next full moon:** the moment when the Sun–Moon phase angle reaches 180° (maximum illuminated
+fraction). Deviation vs. PyEphem over the reference set: **≤ 2.6 min**. “Blue Moon” appears only
+when that full moon really is the second one in its calendar month – the previous full moon is
+compared within the same month, no month names are involved.
+
+**Month names are folklore, not astronomy.** The card can show the traditional name of the full
+moon (October: “Hunter's Moon”). These names come from the Anglo-American almanac tradition, vary
+by region and carry no astronomical meaning, so the card always labels them as a **folk name**.
+
+**No VSOP87:** the methods are the ones described above (NOAA/Meeus for the Sun, a truncated
+ELP2000/Meeus series for the Moon). No full VSOP87 or ELP2000-82B ephemeris is computed; accuracy
+follows the table above, not an observatory almanac.
+
 Time zones, DST rules and 23/25-hour days are handled through the browser’s `Intl` API (IANA data).
 
 ## Edge cases
@@ -164,6 +182,8 @@ Time zones, DST rules and 23/25-hour days are handled through the browser’s `I
 | Daylight saving change | The chart covers the real 23/25-hour day, all labels stay in local time |
 | Missing location | The card shows a hint and **no** times instead of computing for 0/0 |
 | Missing `sun.sun` or attributes | Everything is computed locally; implausible HA values are discarded |
+| Traditional full-moon names | Shown as a **folk name**; regional tradition, not an astronomical quantity |
+| Next full moon | Accurate to about ±5 min (measured ≤ 2.6 min vs. PyEphem); month names and “Blue Moon” refer to the calendar month of the configured time zone |
 
 ## Development
 

@@ -12,7 +12,9 @@
 import type {
   DayProfile,
   GeoLocation,
+  MoonDistanceRange,
   MoonEvents,
+  MoonPhaseEvent,
   MoonPhaseInfo,
   MoonPosition,
   SkyPhase,
@@ -50,6 +52,12 @@ export interface SunMoonCardConfig {
   show_astronomical_details?: boolean;
   /** Kompakte Darstellung (ohne Kopfzeile, Himmelsansicht und Detailzeile). */
   compact_mode?: boolean;
+  /**
+   * Optik der Flächen:
+   *  `glass` – leicht transluzente Kacheln mit weichem Schatten (Vorgabe)
+   *  `flat`  – flächige Kacheln, höchster Kontrast
+   */
+  card_style?: 'glass' | 'flat';
 
   /** `'auto'` folgt dem Home-Assistant-Theme. */
   theme_mode?: 'auto' | 'light' | 'dark';
@@ -70,6 +78,8 @@ export interface SunMoonCardConfig {
   show_events?: boolean;
   /** Mondauf- und -untergang anzeigen. */
   show_moon_times?: boolean;
+  /** Fußzeile mit Zeitzone, Dämmerungsart und Berechnungsverfahren. */
+  show_footer?: boolean;
 
   /**
    * Welche Dämmerungsgrenzen angezeigt werden:
@@ -99,6 +109,65 @@ export type ResolvedConfig = Required<
   longitude: number | null;
   type: string;
 };
+
+
+/**
+ * Zusätzliche, abgeleitete Werte, die über die reinen Positionsdaten
+ * hinausgehen (Vollmond, Entfernungen, Azimute, Zeitzonenname).
+ *
+ * Sie werden bewusst im Modell – nicht in der Darstellung – berechnet, damit
+ * sie in Tests geprüft und von der Oberfläche nur noch formatiert werden.
+ */
+export interface CardExtras {
+  /** Langname der Zeitzone, z. B. „Mitteleuropäische Sommerzeit“. */
+  timeZoneLongName: string;
+  /** Tageslänge des Vortags in Minuten (null bei Polartag/Polarnacht). */
+  previousDaylightMinutes: number | null;
+  /**
+   * Differenz der Tageslänge zum Vortag in Minuten
+   * (negativ = die Tage werden kürzer).
+   */
+  daylightDeltaMinutes: number | null;
+  /** Höhenwinkel der Sonne unter dem Horizont (Betrag, null bei Tag). */
+  sunBelowHorizon: number | null;
+  /** Azimut des Sonnenaufgangs in Grad (null, wenn kein Aufgang). */
+  sunriseAzimuth: number | null;
+  /** Azimut des Sonnenuntergangs in Grad (null, wenn kein Untergang). */
+  sunsetAzimuth: number | null;
+  /** Nächster Vollmond (null, wenn im Suchzeitraum keiner auftritt). */
+  nextFullMoon: MoonPhaseEvent | null;
+  /** Ganze Tage bis zum nächsten Vollmond. */
+  nextFullMoonDays: number | null;
+  /**
+   * Überlieferter Name des Vollmonds im Monat des nächsten Vollmonds
+   * (z. B. „Jägermond“). `null`, wenn kein Vollmond ermittelt wurde.
+   */
+  moonFolkName: string | null;
+  /**
+   * `true`, wenn der nächste Vollmond der zweite Vollmond seines Kalendermonats
+   * ist („Blue Moon“).
+   */
+  blueMoon: boolean;
+  /** Mondentfernung mit Erdnähe/Erdferne des umgebenden Zeitfensters. */
+  moonDistance: MoonDistanceRange | null;
+  /** Nächster Mondaufgang mit Azimut und Tagesbezug. */
+  moonRise: MoonEventDetail | null;
+  /** Nächster Monduntergang mit Azimut und Tagesbezug. */
+  moonSet: MoonEventDetail | null;
+}
+
+/** Ein Mondauf- oder -untergang mit Zusatzinformationen. */
+export interface MoonEventDetail {
+  /** Zeitpunkt des Ereignisses. */
+  time: Date;
+  /** Azimut zum Zeitpunkt des Ereignisses in Grad. */
+  azimuth: number;
+  /**
+   * Verschiebung des Ereignisses gegenüber dem heutigen Kalendertag:
+   * 0 = heute, 1 = morgen, −1 = gestern.
+   */
+  dayOffset: number;
+}
 
 /** Minimale Beschreibung eines Home-Assistant-Zustands. */
 export interface HaEntityState {
@@ -209,6 +278,8 @@ export interface CardModel {
   eventSources: Record<string, 'ha' | 'computed' | 'none'>;
   /** Tagesbahn der Sonne (Höhe/Azimut) für die Himmelsansicht. */
   sunTrack: AltAzPoint[];
+  /** Abgeleitete Zusatzwerte (Vollmond, Entfernungen, Azimute, Zeitzone). */
+  extras: CardExtras;
   /** Tageslänge in Minuten (Tag = Sonne über Horizont), null bei Polartag/Nacht. */
   daylightMinutes: number | null;
   /** Aufgetretene Hinweise (fehlende Daten, Sonderfälle). */

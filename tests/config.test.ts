@@ -199,8 +199,8 @@ describe('resolveCardHeight', () => {
 
   it('löst `auto` in Abhängigkeit von der Breite auf', () => {
     const config = resolveConfig({ card_height: 'auto' }).config;
-    expect(resolveCardHeight(config, 320)).toBe(280);
-    expect(resolveCardHeight(config, 700)).toBe(300);
+    expect(resolveCardHeight(config, 320)).toBe(320);
+    expect(resolveCardHeight(config, 700)).toBe(360);
   });
 
   it('hält die Höhengrenzen auch bei `auto` ein', () => {
