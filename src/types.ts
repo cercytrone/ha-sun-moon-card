@@ -58,7 +58,7 @@ export interface SunMoonCardConfig {
    *  `glass` – leicht transluzente Kacheln mit weichem Schatten (Vorgabe)
    *  `flat`  – flächige Kacheln, höchster Kontrast
    */
-  card_style?: 'glass' | 'flat';
+  card_style?: 'glass' | 'flat' | 'horizon';
 
   /** `'auto'` folgt dem Home-Assistant-Theme. */
   theme_mode?: 'auto' | 'light' | 'dark';

@@ -573,6 +573,45 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     );
   }
 
+  // Horizontstil: Fläche zwischen Kurve und Horizont statt bis zum Rand
+  {
+    const url = `${baseUrl}/shots.html?preset=horizon&loc=berlin&time=2026-10-26T18:30&theme=dark&h=340&w=620`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () =>
+        Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    const report = await page.evaluate(() => {
+      const svg = document.querySelector('sun-moon-card').shadowRoot.querySelector('svg.day-chart');
+      const texts = [...svg.querySelectorAll('g > text')];
+      const horizonNode = texts.find((node) => (node.textContent ?? '').includes('Horizont'));
+      const line = horizonNode?.parentElement.querySelector('line');
+      const area = [...svg.querySelectorAll('path')].find((path) =>
+        (path.getAttribute('fill') ?? '').includes('-area'),
+      );
+      const numbers = (area?.getAttribute('d') ?? '').match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+      const sky = [...svg.querySelectorAll('path')].find((path) =>
+        (path.getAttribute('fill') ?? '').includes('-sky'),
+      );
+      return {
+        horizonY: line ? Number(line.getAttribute('y1')) : null,
+        baseline: numbers.length ? numbers[numbers.length - 1] : null,
+        dash: line ? getComputedStyle(line).strokeDasharray : null,
+        hasSky: Boolean(sky),
+        moonOpacity: svg.querySelector('path.moon-curve')?.getAttribute('opacity') ?? null,
+      };
+    });
+    record(
+      `Horizontstil: Fläche endet am Horizont (${report.baseline} vs. ${report.horizonY}), ohne Himmelsverlauf, Mond gedämpft`,
+      report.horizonY !== null &&
+        Math.abs((report.baseline ?? -1) - report.horizonY) < 0.5 &&
+        report.hasSky === false &&
+        report.moonOpacity === '0.5' &&
+        String(report.dash).startsWith('999'),
+    );
+  }
+
   console.log('\n— Zusätzliche Werte im Chart und in der Himmelsansicht —');
   {
     const url = `${baseUrl}/shots.html?preset=details&loc=berlin&time=2026-06-21T13:00&theme=dark&h=380&w=900`;

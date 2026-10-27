@@ -195,11 +195,15 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                 .value=${this._value('card_style', 'glass')}
                 @change=${(event: Event) =>
                   this._update({
-                    card_style: (event.target as HTMLSelectElement).value as 'glass' | 'flat',
+                    card_style: (event.target as HTMLSelectElement).value as
+                      | 'glass'
+                      | 'flat'
+                      | 'horizon',
                   })}
               >
                 <option value="glass">${this._t('editorCardStyleGlass')}</option>
                 <option value="flat">${this._t('editorCardStyleFlat')}</option>
+                <option value="horizon">${this._t('editorCardStyleHorizon')}</option>
               </select>
             </div>
           </div>

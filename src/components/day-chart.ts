@@ -95,8 +95,12 @@ export interface DayChartOptions {
   compact: boolean;
   /** Stabile IDs für SVG-Definitionen. */
   uid: string;
-  /** Kartenstil: `flat` dämpft die Verläufe, `glass` zeigt sie voll. */
-  cardStyle: 'glass' | 'flat';
+  /**
+   * Kartenstil: `flat` dämpft die Verläufe, `glass` zeigt sie voll. `horizon`
+   * füllt nur den Raum zwischen Kurve und Horizont – der Tag steht als Berg
+   * über der Achse, die Nacht als Tal darunter.
+   */
+  cardStyle: 'glass' | 'flat' | 'horizon';
   /** Zusätzliche astronomische Ebenen (−6°/−12°/−18°-Linien). */
   showAstronomicalLayers: boolean;
   /** Aktuelle Sonnenhöhe (Position des „jetzt“-Markers). */
@@ -371,7 +375,15 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   const sideMaskId = `${uid}-side`;
   const sideFadeId = `${uid}-side-fade`;
 
-  const area = areaPath(points, plotBottom + 1, true);
+  const horizonStyle = cardStyle === 'horizon';
+
+  /**
+   * Gefüllte Fläche. Im Horizontstil liegt sie zwischen Kurve und
+   * Horizontlinie: Der Tag steht als Berg über der Achse, die Nacht als Tal
+   * darunter. Der senkrechte Phasenverlauf färbt sie dabei von selbst – oben
+   * Tag, unten Nacht.
+   */
+  const area = areaPath(points, horizonStyle ? round(horizonY, 2) : plotBottom + 1, true);
   const curve = smoothPath(points);
 
   // Zweite Kurve: der Tagesgang des Mondes. Sie liegt über den Flächen und
@@ -387,9 +399,11 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   // Himmelsfläche: alles oberhalb der Sonnenkurve.
   const sky = areaPath(points, plotTop - 1, true);
 
-  // Der flache Stil trägt die Verläufe dünner auf.
-  const strength = cardStyle === 'flat' ? 0.6 : 1;
-  const skyOpacity = round(0.15 * strength, 3);
+  // Der flache Stil trägt die Verläufe dünner auf. Im Horizontstil trägt
+  // allein die Fläche die Aussage – Himmelsverlauf und Glühen treten zurück,
+  // sonst konkurrieren sie mit ihr.
+  const strength = cardStyle === 'flat' ? 0.6 : horizonStyle ? 0.3 : 1;
+  const skyOpacity = horizonStyle ? 0 : round(0.15 * strength, 3);
 
   /**
    * Weiche Ränder der Flächen.
@@ -783,7 +797,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
         <path d="${area}" fill="url(#${areaId})" opacity="0.9" mask="url(#${footMaskId})" />
         <g mask="url(#${softMaskId})">
           ${
-            skyStops.length >= 2
+            skyStops.length >= 2 && !horizonStyle
               ? svg`<path d="${sky}" fill="url(#${skyId})" opacity="${skyOpacity}" />`
               : svg``
           }
@@ -796,7 +810,10 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
                 fill="url(#${glow.id})" />`;
           })}
           ${
-            dome
+            // Die Kuppel ist ein schwacher Schein über der Kurve. Im
+            // Horizontstil entfällt sie: Dort soll nur die Fläche sprechen,
+            // der Raum über dem Bogen bleibt frei wie im Vorbild.
+            dome && !horizonStyle
               ? svg`<path d="${dome.path}" fill="url(#${domeId})" opacity="0.95" />`
               : svg``
           }
@@ -813,7 +830,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
                 stroke-width="${moonWidth}"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                opacity="0.9"
+                opacity="${horizonStyle ? 0.5 : 0.9}"
               >
                 <title>${format.t('moonCurve')}</title>
               </path>`
@@ -874,9 +891,9 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
               x1="${round(plotLeft, 1)}" y1="${round(y, 1)}"
               x2="${round(plotLeft + plotWidth, 1)}" y2="${round(y, 1)}"
               stroke="var(--smc-horizon-line, rgba(255,255,255,0.5))"
-              stroke-width="${primary ? 1 : 0.6}"
-              stroke-dasharray="${primary ? '3 3' : '2 4'}"
-              opacity="${primary ? 0.6 : 0.45}"
+              stroke-width="${primary && horizonStyle ? 1.5 : primary ? 1 : 0.6}"
+              stroke-dasharray="${primary && horizonStyle ? '999 0' : primary ? '3 3' : '2 4'}"
+              opacity="${primary && horizonStyle ? 0.9 : primary ? 0.6 : horizonStyle ? 0.3 : 0.45}"
             />
             ${
               showRefLabels

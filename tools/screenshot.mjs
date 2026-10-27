@@ -102,6 +102,12 @@ const SHOTS = [
     file: 'screenshot-flat.png',
   },
   {
+    name: 'Horizontstil (card_style: horizon)',
+    url: '/shots.html?preset=horizon&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=340',
+    selector: 'sun-moon-card',
+    file: 'screenshot-horizon.png',
+  },
+  {
     name: 'Englisch, 12-Stunden-Format',
     url: '/shots.html?preset=english&loc=newyork&time=2026-10-26T18:30&theme=light&w=620&h=340',
     selector: 'sun-moon-card',

@@ -166,7 +166,7 @@ export const CONFIG_CHOICES = {
   timeFormat: ['auto', '12', '24'],
   language: ['auto', 'de', 'en'],
   twilightLevel: ['civil', 'nautical', 'astronomical', 'all'],
-  cardStyle: ['glass', 'flat'],
+  cardStyle: ['glass', 'flat', 'horizon'],
 } as const;
 
 /** Einstellungen des Layouts – abhängig von Höhe, Breite und Konfiguration. */

@@ -37,6 +37,7 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   tiny: { card_height: 120, compact_mode: true },
   // Neue Gestaltungsvarianten
   flat: { card_style: 'flat' },
+  horizon: { card_style: 'horizon' },
   wide: { show_astronomical_details: true },
   nofooter: { show_footer: false },
 };

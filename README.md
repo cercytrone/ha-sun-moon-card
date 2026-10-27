@@ -76,6 +76,9 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   Verlauf nicht an einer Kante abbricht. Kurve, Marken und Beschriftungen bleiben davon
   unberührt – sie tragen die Information und bleiben scharf
 - `card_style: flat` trägt alle Verläufe dünner auf, `glass` zeigt sie in voller Stärke
+- **`card_style: horizon`** füllt nur den Raum **zwischen Kurve und Horizont**: Der Tag steht als
+  Berg über der Achse, die Nacht als Tal darunter. Der Himmelsverlauf über der Kurve entfällt,
+  Horizontglühen und Mondkurve treten zurück – die Fläche trägt die Aussage
 
 **Zweite Ansicht: aktueller Himmel**
 
@@ -108,8 +111,9 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 
 - Frei wählbare Kartenhöhe in Pixeln (oder `auto`), geprüft von 120 bis 800 px
 - Alle Bereiche einzeln abschaltbar (`show_*`), Kompaktmodus, Theme-Modus, Animationen
-- Zwei Kartenstile: `card_style: glass` (halbtransparente Kacheln, Standard) und `flat`
-  (deckende Flächen ohne Weichzeichner – für schwache Geräte)
+- Drei Kartenstile: `card_style: glass` (halbtransparente Kacheln, Standard), `flat`
+  (deckende Flächen ohne Weichzeichner – für schwache Geräte) und `horizon`
+  (Fläche nur zwischen Kurve und Horizont)
 - Visual Editor **und** YAML; `setConfig()`, `getCardSize()`, `getGridOptions()`,
   `getConfigElement()`, `getStubConfig()`
 - Keine Abstürze bei fehlender Entität, fehlenden Attributen oder fehlendem Standort – stattdessen
@@ -243,7 +247,7 @@ cards:
 | `show_twilight` | `true` / `false` | `true` | Dämmerungsphasen anzeigen |
 | `show_astronomical_details` | `true` / `false` | `false` | Zusätzliche Details: Kulmination mit maximaler Höhe, Tageslänge mit Änderung zum Vortag, Azimut, Azimut bei Auf-/Untergang, „Sonne X° unter dem Horizont“, nautische/astronomische Dämmerung, Mondalter, Mondentfernung mit Erdferne/-nähe, nächster Vollmond |
 | `compact_mode` | `true` / `false` | `false` | Kompakte Darstellung ohne Kopfzeile, Himmelsansicht und Detailzeile |
-| `card_style` | `glass` \| `flat` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte) |
+| `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
 | `animations` | `true` / `false` | `true` | Animationen (pulsierender „Jetzt“-Marker, Übergänge) |

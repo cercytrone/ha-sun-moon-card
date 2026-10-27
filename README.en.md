@@ -41,7 +41,9 @@ images, and no additional Home Assistant integration is required.
   markers**: a golden dot for the sun’s current
   elevation and a moon disc in its current phase for the moon’s. They step aside when they would
   overlap, and a marker whose body sits outside the plotted elevation range is dimmed at the edge
-  with the exact value in its tooltip. `card_style: flat` renders all gradients thinner.
+  with the exact value in its tooltip. `card_style: flat` renders all gradients thinner, and
+  **`card_style: horizon` fills only the space between curve and horizon** – day as a hill above
+  the axis, night as a valley below, with the sky gradient off and glow and moon curve stepped back.
 - **Sky view:** fisheye projection with cardinal directions, horizon and zenith; sun and moon are
   drawn **along their computed diurnal path** (altitude/azimuth), together with the moon disc
   showing the correct terminator for the current phase.
@@ -129,7 +131,7 @@ card_height: 320
 | `show_twilight` | boolean | `true` | Show twilight phases |
 | `show_astronomical_details` | boolean | `false` | Culmination and maximum altitude, day length with change vs. yesterday, azimuth, azimuth at rise/set, “sun X° below the horizon”, extra twilight layers, moon age, moon distance with perigee/apogee, next full moon |
 | `compact_mode` | boolean | `false` | Compact layout (no header, sky view or detail row) |
-| `card_style` | `glass` \| `flat` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices) |
+| `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |
 | `animations` | boolean | `true` | Animations (pulsing “now” marker, transitions) |
