@@ -375,6 +375,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                       showTwilight: config.show_twilight,
                       twilightLevel: config.twilight_level,
                       animations: config.animations,
+                      cardStyle: config.card_style,
                       compact: layout.compact,
                       uid: `${this._uid}-chart`,
                       showAstronomicalLayers: config.show_astronomical_details,

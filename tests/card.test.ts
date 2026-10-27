@@ -166,6 +166,50 @@ describe('Darstellung', () => {
     expect(svg!.querySelectorAll('circle').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('zeichnet Himmelsverlauf, Horizontglühen und weiche Phasenstopps', async () => {
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+
+    // Waagerechter Himmelsverlauf über der Kurve.
+    const sky = svg.querySelector('linearGradient[id$="-sky"]');
+    expect(sky).not.toBeNull();
+    expect(sky!.querySelectorAll('stop').length).toBeGreaterThanOrEqual(5);
+    const skyPath = [...svg.querySelectorAll('path')].find((path) =>
+      (path.getAttribute('fill') ?? '').includes('-sky'),
+    );
+    expect(skyPath).toBeDefined();
+    expect(Number(skyPath!.getAttribute('opacity'))).toBeCloseTo(0.15, 2);
+
+    // Horizontglühen an Sonnenauf- und -untergang.
+    const glows = [...svg.querySelectorAll('ellipse')].map((ellipse) =>
+      ellipse.getAttribute('fill'),
+    );
+    expect(glows.some((fill) => (fill ?? '').includes('glow-rise'))).toBe(true);
+    expect(glows.some((fill) => (fill ?? '').includes('glow-set'))).toBe(true);
+
+    // Weicher Phasenverlauf: abgetastet statt aus einzelnen Kanten gesetzt.
+    const area = svg.querySelector('linearGradient[id$="-area"]')!;
+    const colors = [...area.querySelectorAll('stop')].map((stop) =>
+      stop.getAttribute('stop-color'),
+    );
+    expect(colors.length).toBeGreaterThanOrEqual(20);
+    expect(new Set(colors).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('dämpft die Verläufe im flachen Stil', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      card_height: 340,
+      card_style: 'flat',
+    });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+    const skyPath = [...svg.querySelectorAll('path')].find((path) =>
+      (path.getAttribute('fill') ?? '').includes('-sky'),
+    );
+    expect(skyPath).toBeDefined();
+    expect(Number(skyPath!.getAttribute('opacity'))).toBeLessThan(0.15);
+  });
+
   it('bleibt ohne `hass` stabil', async () => {
     const card = await mountCard({ type: 'custom:sun-moon-card' }, { hass: null });
     const root = card.shadowRoot!;

@@ -66,8 +66,17 @@ export const cardStyles = css`
 
     /* ---- Linien und Marker im Chart ---- */
     --smc-divider: var(--divider-color, rgba(128, 128, 128, 0.25));
-    --smc-label-bg: rgba(0, 0, 0, 0.34);
-    --smc-label-color: #ffffff;
+    /* Farbe des Hintergrunds der Karte. Beschriftungen im Chart erhalten
+       einen Rand in dieser Farbe („Halo“), damit sie auch über den
+       Farbverläufen lesbar bleiben. */
+    --smc-halo: var(
+      --ha-card-background,
+      var(--card-background-color, var(--primary-background-color, #10131a))
+    );
+    /* Kärtchen hinter Beschriftungen im Chart: deckkräftig genug, damit die
+       Schrift unabhängig von der Fläche darunter die WCAG-Schwelle hält. */
+    --smc-label-bg: rgba(9, 12, 22, 0.78);
+    --smc-label-color: #f4f7fd;
     --smc-grid-line: rgba(128, 140, 180, 0.12);
     --smc-horizon-line: rgba(255, 255, 255, 0.5);
     --smc-now-line: rgba(255, 255, 255, 0.78);
@@ -91,6 +100,12 @@ export const cardStyles = css`
   }
 
   :host(.smc-light) {
+    --smc-halo: var(
+      --ha-card-background,
+      var(--card-background-color, var(--primary-background-color, #ffffff))
+    );
+    --smc-label-bg: rgba(255, 255, 255, 0.88);
+    --smc-label-color: #1a2233;
     --smc-surface: rgba(255, 255, 255, 0.62);
     --smc-surface-hover: rgba(255, 255, 255, 0.82);
     --smc-surface-border: rgba(15, 23, 42, 0.08);
