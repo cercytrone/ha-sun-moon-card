@@ -14,6 +14,7 @@ import type {
   GeoLocation,
   MoonDistanceRange,
   MoonEvents,
+  MoonPath,
   MoonPhaseEvent,
   MoonPhaseInfo,
   MoonPosition,
@@ -278,6 +279,11 @@ export interface CardModel {
   eventSources: Record<string, 'ha' | 'computed' | 'none'>;
   /** Tagesbahn der Sonne (Höhe/Azimut) für die Himmelsansicht. */
   sunTrack: AltAzPoint[];
+  /**
+   * Tagesgang des Mondes für die Kurve im Chart. `null`, wenn der Mond
+   * abgeschaltet ist – die Berechnung wird dann nicht gebraucht.
+   */
+  moonPath: MoonPath | null;
   /** Abgeleitete Zusatzwerte (Vollmond, Entfernungen, Azimute, Zeitzone). */
   extras: CardExtras;
   /** Tageslänge in Minuten (Tag = Sonne über Horizont), null bei Polartag/Nacht. */

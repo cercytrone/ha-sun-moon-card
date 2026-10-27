@@ -339,6 +339,28 @@ describe('Darstellung', () => {
     expect(moonText).toMatch(direction);
   });
 
+  it('zeichnet den Höhenverlauf des Mondes als zweite Kurve', async () => {
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+    const moon = svg.querySelector('path.moon-curve');
+    const sun = svg.querySelector('path[stroke^="url"]');
+    expect(moon).not.toBeNull();
+    expect(sun).not.toBeNull();
+
+    // Beide Kurven laufen über die ganze Breite des Plots.
+    const viewBox = Number(svg.getAttribute('viewBox')!.split(' ')[2]);
+    const numbers = (path: Element) =>
+      (path.getAttribute('d') ?? '').match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    for (const path of [moon!, sun!]) {
+      const values = numbers(path);
+      expect(values.length).toBeGreaterThan(40); // kein Strich, sondern ein Verlauf
+      expect(values[0]).toBeLessThan(20); // beginnt am linken Rand
+      expect(Math.max(...values)).toBeGreaterThan(viewBox * 0.8);
+    }
+    expect(moon!.getAttribute('d')).not.toBe(sun!.getAttribute('d'));
+    expect(moon!.querySelector('title')?.textContent).toBeTruthy();
+  });
+
   it('markiert die Stellung von Sonne und Mond im Tagesverlauf', async () => {
     const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 });
     const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
@@ -373,6 +395,7 @@ describe('Darstellung', () => {
     const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
     expect(svg.querySelector('.now-moon')).toBeNull();
     expect(svg.querySelector('.now-sun')).not.toBeNull();
+    expect(svg.querySelector('path.moon-curve')).toBeNull();
   });
 
   it('nennt unter der Himmelsansicht Höhe und Richtung', async () => {

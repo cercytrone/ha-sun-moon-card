@@ -17,6 +17,7 @@
 import {
   azimuthAt,
   buildDayProfile,
+  buildMoonPath,
   findFullMoons,
   findMoonEvents,
   findNextFullMoon,
@@ -282,6 +283,7 @@ function emptyModel(
     },
     moon: { position: moon, phase, events: moonEvents, haPhaseName: null },
     sunTrack: [],
+    moonPath: null,
     events: emptyProfile.events,
     eventSources: {},
     daylightMinutes: null,
@@ -510,6 +512,13 @@ export function buildModel(
       ? (HA_MOON_PHASES[moonEntity.state] ?? null)
       : null;
 
+  // ---- Tagesgang des Mondes für die Kurve im Chart --------------------------
+  // Nur bei eingeschaltetem Mond: Das Profil kostet rund 150 Mondpositionen
+  // und wird sonst nicht gebraucht.
+  const moonPath = config.show_moon
+    ? buildMoonPath(location, dayStart, dayEnd, moonEvents)
+    : null;
+
   // ---- Tagesbahn für die Himmelsansicht (alle 15 Minuten) -----------------
   const sunTrack: AltAzPoint[] = [];
   const trackStep = 15 * 60 * 1000;
@@ -579,6 +588,7 @@ export function buildModel(
     },
     moon: { position: moon, phase, events: moonEvents, haPhaseName },
     sunTrack,
+    moonPath,
     events,
     eventSources,
     extras,

@@ -70,6 +70,42 @@ describe('buildModel – Normalfall', () => {
     expect(model.sunTrack.every((point) => Number.isFinite(point.altitude))).toBe(true);
   });
 
+  it('erzeugt einen Tagesgang des Mondes über den ganzen Tag', () => {
+    const { config } = resolveConfig({});
+    const model = buildModel(config, hassWith(), NOON);
+    const path = model.moonPath;
+    expect(path).not.toBeNull();
+
+    const { samples } = path!.profile;
+    // Ein ganzer Tag in 10-Minuten-Schritten.
+    expect(samples.length).toBeGreaterThanOrEqual(140);
+    expect(samples.every((sample) => Number.isFinite(sample.altitude))).toBe(true);
+
+    // Zeitlich aufsteigend, vom Tagesanfang bis zum Tagesende.
+    const times = samples.map((sample) => sample.time);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    expect(times[0]).toBe(model.day.dayStart.getTime());
+    expect(times.at(-1)).toBe(model.day.dayEnd.getTime());
+
+    // Höchster und tiefster Stand stammen aus dem Profil selbst.
+    const altitudes = samples.map((sample) => sample.altitude);
+    expect(path!.profile.maxAltitude).toBeCloseTo(Math.max(...altitudes), 6);
+    expect(path!.profile.minAltitude).toBeCloseTo(Math.min(...altitudes), 6);
+
+    // Auf- und Untergang liegen im Fenster des Tages – oder fehlen, weil der
+    // Mond bei 24 h 50 min nicht in jeden lokalen Tag einen Aufgang legt.
+    for (const time of [path!.rise, path!.set]) {
+      if (time === null) continue;
+      expect(time).toBeGreaterThanOrEqual(model.day.dayStart.getTime());
+      expect(time).toBeLessThan(model.day.dayEnd.getTime());
+    }
+  });
+
+  it('lässt den Tagesgang des Mondes weg, wenn der Mond abgeschaltet ist', () => {
+    const { config } = resolveConfig({ show_moon: false });
+    expect(buildModel(config, hassWith(), NOON).moonPath).toBeNull();
+  });
+
   it('berechnet Sonnenauf- und -untergang', () => {
     const { config } = resolveConfig({});
     const model = buildModel(config, hassWith(), NOON);
