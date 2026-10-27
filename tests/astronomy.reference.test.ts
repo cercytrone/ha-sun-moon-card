@@ -20,6 +20,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDayProfile,
   findMoonEvents,
+  findNextFullMoon,
+  moonDistanceRange,
   moonPhase,
   moonPosition,
   sunPosition,
@@ -68,6 +70,21 @@ interface ReferenceMoonCase {
 
 const EVENT_TOLERANCE_MS = 60_000;
 const MOON_EVENT_TOLERANCE_MS = 60_000;
+const FULL_MOON_TOLERANCE_MS = 300_000;
+const DISTANCE_TOLERANCE_KM = 150;
+
+interface ReferenceMoonEventCase {
+  name: string;
+  latitude: number;
+  longitude: number;
+  startUtc: string;
+  nextFullMoon: string;
+  distanceKm: number;
+  minDistanceKm: number;
+  minDistanceTimeUtc: string;
+  maxDistanceKm: number;
+  maxDistanceTimeUtc: string;
+}
 
 function expectCloseTime(actual: Date | null, expected: string | null, toleranceMs: number) {
   if (expected === null) {
@@ -169,6 +186,58 @@ describe('Sonnenposition gegen astral', () => {
       );
       expect(azimuthDelta).toBeLessThan(0.05);
     }
+  });
+});
+
+describe('Nächster Vollmond gegen PyEphem', () => {
+  const cases = reference.moonEventCases as unknown as ReferenceMoonEventCase[];
+
+  it.each(cases)('$name', (entry) => {
+    const start = new Date(entry.startUtc);
+    const found = findNextFullMoon(start);
+
+    expect(found, `Vollmond fehlt: ${entry.nextFullMoon}`).not.toBeNull();
+    if (!found) return;
+    expect(Math.abs(found.time.getTime() - new Date(entry.nextFullMoon).getTime())).toBeLessThanOrEqual(
+      FULL_MOON_TOLERANCE_MS,
+    );
+    // Ein echter Vollmond ist praktisch vollständig beleuchtet.
+    expect(found.illumination).toBeGreaterThan(0.98);
+  });
+
+  it('liefert den nächstmöglichen Vollmond, nicht den hellsten im Fenster', () => {
+    // 1. Januar 2026: der Vollmond am 3. Januar ist schwächer beleuchtet als
+    // der am 1. Februar – gesucht wird trotzdem der 3. Januar.
+    const found = findNextFullMoon(new Date('2026-01-01T12:00:00Z'));
+    expect(found).not.toBeNull();
+    expect(found?.time.toISOString().startsWith('2026-01-03')).toBe(true);
+  });
+
+  it('liefert null, wenn im Fenster kein Vollmond auftritt', () => {
+    // Ein sehr kurzes Fenster direkt nach einem Neumond enthält keinen Vollmond.
+    expect(findNextFullMoon(new Date('2026-01-18T00:00:00Z'), 1)).toBeNull();
+  });
+});
+
+describe('Mondentfernungsbereich gegen PyEphem', () => {
+  const cases = reference.moonEventCases as unknown as ReferenceMoonEventCase[];
+
+  it.each(cases)('$name', (entry) => {
+    const location = { latitude: entry.latitude, longitude: entry.longitude };
+    const range = moonDistanceRange(new Date(entry.startUtc), location, 14);
+
+    expect(Math.abs(range.current - entry.distanceKm)).toBeLessThanOrEqual(
+      DISTANCE_TOLERANCE_KM,
+    );
+    expect(Math.abs(range.min - entry.minDistanceKm)).toBeLessThanOrEqual(
+      DISTANCE_TOLERANCE_KM,
+    );
+    expect(Math.abs(range.max - entry.maxDistanceKm)).toBeLessThanOrEqual(
+      DISTANCE_TOLERANCE_KM,
+    );
+    expect(range.min).toBeLessThan(range.max);
+    expect(range.min).toBeLessThanOrEqual(range.current);
+    expect(range.current).toBeLessThanOrEqual(range.max);
   });
 });
 

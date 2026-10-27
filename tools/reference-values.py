@@ -263,8 +263,91 @@ def main() -> None:
                 }
             )
     result["moonCases"] = moon_cases
+    result["moonEventCases"] = build_moon_event_cases()
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
+
+# Startzeitpunkte (UTC) für die Vollmond-/Distanz-Referenzfälle.
+MOON_EVENT_CASES = [
+    ("Berlin_Neujahr", 52.5200, 13.4050, 12, 0),
+    ("Berlin_Maerz", 52.5200, 13.4050, 6, 0),
+    ("Berlin_Sommer", 52.5200, 13.4050, 18, 0),
+    ("Berlin_Oktober", 52.5200, 13.4050, 17, 50),
+    ("Berlin_Silvester", 52.5200, 13.4050, 23, 30),
+    ("Berlin_Mai_2027", 52.5200, 13.4050, 9, 15),
+]
+
+# Index in MOON_EVENT_CASES → (Jahr, Monat, Tag)
+MOON_EVENT_DATES = [
+    (2026, 1, 1),
+    (2026, 3, 15),
+    (2026, 6, 30),
+    (2026, 10, 26),
+    (2026, 12, 31),
+    (2027, 5, 5),
+]
+
+# Fenster für die Distanz-Suche: ±14 Tage um den Startzeitpunkt.
+DISTANCE_WINDOW_DAYS = 14
+DISTANCE_STEP_HOURS = 6
+
+
+def build_moon_event_cases() -> list[dict]:
+    """Nächster Vollmond und Mondentfernungsbereich nach PyEphem.
+
+    Der Vollmond wird als Zeitpunkt bestimmt, an dem die geozentrische
+    Elongation zwischen Mond und Sonne 180° beträgt; gesucht wird die erste
+    Lösung ab dem Startzeitpunkt. Der Entfernungsbereich wird im 6-Stunden-
+    Raster über ein Fenster von ±14 Tagen bestimmt und dient als Prüfgröße für
+    die Perigäums-/Apogäums-Einordnung der Card.
+
+    Die Entfernung wird – wie in den Mondfällen oben – **geozentrisch**
+    berechnet (Erde–Mond), weil auch die Card den geozentrischen Wert der
+    Mondreihe anzeigt.
+    """
+    cases = []
+    for (name, lat, lon, hour, minute), (year, month, day) in zip(
+        MOON_EVENT_CASES, MOON_EVENT_DATES
+    ):
+        start = dt.datetime(year, month, day, hour, minute, tzinfo=dt.timezone.utc)
+
+        # Vollmond: erster Zeitpunkt mit Elongation 180° ab dem Startzeitpunkt.
+        full_moon = ephem.localtime(ephem.next_full_moon(start)).replace(
+            tzinfo=dt.timezone.utc
+        )
+
+        # Entfernungen geozentrisch im 6-Stunden-Raster über ±14 Tage.
+        moon = ephem.Moon()
+        moment = start - dt.timedelta(days=DISTANCE_WINDOW_DAYS)
+        window_end = start + dt.timedelta(days=DISTANCE_WINDOW_DAYS)
+        distances = []
+        while moment <= window_end:
+            moon.compute(moment)
+            distances.append(
+                (moment, float(moon.earth_distance) * ephem.meters_per_au / 1000.0)
+            )
+            moment += dt.timedelta(hours=DISTANCE_STEP_HOURS)
+
+        moon.compute(start)
+        current = float(moon.earth_distance) * ephem.meters_per_au / 1000.0
+        min_time, min_km = min(distances, key=lambda item: item[1])
+        max_time, max_km = max(distances, key=lambda item: item[1])
+
+        cases.append(
+            {
+                "name": name,
+                "latitude": lat,
+                "longitude": lon,
+                "startUtc": iso(start),
+                "nextFullMoon": iso(full_moon),
+                "distanceKm": current,
+                "minDistanceKm": min_km,
+                "minDistanceTimeUtc": iso(min_time),
+                "maxDistanceKm": max_km,
+                "maxDistanceTimeUtc": iso(max_time),
+            }
+        )
+    return cases
 
 
 if __name__ == "__main__":

@@ -2071,5 +2071,79 @@
       "nextRising": "2024-01-12T08:33:11.518430",
       "nextSetting": "2024-01-11T14:40:34.447657"
     }
+  ],
+  "moonEventCases": [
+    {
+      "name": "Berlin_Neujahr",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "startUtc": "2026-01-01T12:00:00+00:00",
+      "nextFullMoon": "2026-01-03T10:02:50.576062+00:00",
+      "distanceKm": 360486.1025190493,
+      "minDistanceKm": 360355.38189478917,
+      "minDistanceTimeUtc": "2026-01-02T00:00:00+00:00",
+      "maxDistanceKm": 405720.34967959626,
+      "maxDistanceTimeUtc": "2025-12-18T12:00:00+00:00"
+    },
+    {
+      "name": "Berlin_Maerz",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "startUtc": "2026-03-15T06:00:00+00:00",
+      "nextFullMoon": "2026-04-02T02:11:54.061294+00:00",
+      "distanceKm": 391395.38249065634,
+      "minDistanceKm": 366857.3135897703,
+      "minDistanceTimeUtc": "2026-03-22T12:00:00+00:00",
+      "maxDistanceKm": 404381.09894610243,
+      "maxDistanceTimeUtc": "2026-03-10T12:00:00+00:00"
+    },
+    {
+      "name": "Berlin_Sommer",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "startUtc": "2026-06-30T18:00:00+00:00",
+      "nextFullMoon": "2026-07-29T14:35:37.457882+00:00",
+      "distanceKm": 404206.80478042224,
+      "minDistanceKm": 359118.081405689,
+      "minDistanceTimeUtc": "2026-07-13T06:00:00+00:00",
+      "maxDistanceKm": 406264.20041959034,
+      "maxDistanceTimeUtc": "2026-06-28T06:00:00+00:00"
+    },
+    {
+      "name": "Berlin_Oktober",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "startUtc": "2026-10-26T17:50:00+00:00",
+      "nextFullMoon": "2026-11-24T14:53:29.238870+00:00",
+      "distanceKm": 367125.3378913109,
+      "minDistanceKm": 364407.02462748624,
+      "minDistanceTimeUtc": "2026-10-28T17:50:00+00:00",
+      "maxDistanceKm": 404641.77391331876,
+      "maxDistanceTimeUtc": "2026-10-16T23:50:00+00:00"
+    },
+    {
+      "name": "Berlin_Silvester",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "startUtc": "2026-12-31T23:30:00+00:00",
+      "nextFullMoon": "2027-01-22T12:17:18.258239+00:00",
+      "distanceKm": 391395.55664549815,
+      "minDistanceKm": 356665.8070782083,
+      "minDistanceTimeUtc": "2026-12-24T11:30:00+00:00",
+      "maxDistanceKm": 406603.10574174626,
+      "maxDistanceTimeUtc": "2027-01-07T05:30:00+00:00"
+    },
+    {
+      "name": "Berlin_Mai_2027",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "startUtc": "2027-05-05T09:15:00+00:00",
+      "nextFullMoon": "2027-05-20T10:58:55.865552+00:00",
+      "distanceKm": 377432.7618655795,
+      "minDistanceKm": 366631.9572244724,
+      "minDistanceTimeUtc": "2027-05-09T21:15:00+00:00",
+      "maxDistanceKm": 404168.5603771615,
+      "maxDistanceTimeUtc": "2027-04-27T21:15:00+00:00"
+    }
   ]
 }
