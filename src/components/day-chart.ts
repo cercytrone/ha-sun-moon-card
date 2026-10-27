@@ -32,7 +32,7 @@ import {
   type SolarEvents,
 } from '../astronomy.js';
 import type { PhasePalette } from '../const.js';
-import type { FormatContext } from '../format.js';
+import { formatDegrees, formatTime, type FormatContext } from '../format.js';
 import type { StringKey } from '../localize.js';
 import { clamp, round, smoothPath, areaPath } from '../utils.js';
 
@@ -97,6 +97,51 @@ function pickSamples(
   const last = samples[samples.length - 1];
   if (result[result.length - 1] !== last) result.push(last);
   return result;
+}
+
+/**
+ * Geometrie der Sonnenkuppel.
+ *
+ * Die Kuppel füllt die Fläche zwischen Sonnenauf- und -untergang mit einem
+ * warmen, radialen Lichtverlauf, der vom Horizont ausgeht. Bei Polartag
+ * (kein Auf- oder Untergang) wird die gesamte Breite verwendet; bei
+ * Polarnacht entfällt die Kuppel, weil die Sonne den Horizont nicht
+ * überschreitet.
+ */
+function domeGeometry(
+  points: { x: number; y: number }[],
+  events: SolarEvents,
+  polar: 'none' | 'polar-day' | 'polar-night' | undefined,
+  xOf: (time: number) => number,
+  horizonY: number,
+): { path: string; cx: number; cy: number; r: number } | null {
+  if (points.length < 2) return null;
+
+  const riseTime = events.sunrise?.getTime();
+  const setTime = events.sunset?.getTime();
+  let startX: number;
+  let endX: number;
+
+  if (riseTime !== undefined && setTime !== undefined && setTime > riseTime) {
+    startX = xOf(riseTime);
+    endX = xOf(setTime);
+  } else if (polar === 'polar-day') {
+    startX = points[0].x;
+    endX = points[points.length - 1].x;
+  } else {
+    // Kein Auf- oder Untergang und kein Polartag → keine Kuppel zeichnen.
+    return null;
+  }
+
+  const segment = points.filter((point) => point.x >= startX - 0.5 && point.x <= endX + 0.5);
+  if (segment.length < 2) return null;
+
+  return {
+    path: areaPath(segment, horizonY, true),
+    cx: (startX + endX) / 2,
+    cy: horizonY,
+    r: Math.max(6, (endX - startX) / 2),
+  };
 }
 
 /**
@@ -221,6 +266,8 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   const yOf = (altitude: number): number =>
     plotBottom - ((clamp(altitude, -95, 95) - domainBottom) / domainSpan) * plotHeight;
 
+  const horizonY = yOf(0);
+
   // --- Kurve ---------------------------------------------------------------
   const maxPoints = clamp(Math.round(plotWidth / 1.6), 60, 361);
   const points = pickSamples(profile.samples, maxPoints).map((sample) => ({
@@ -236,6 +283,10 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
 
   const area = areaPath(points, plotBottom + 1, true);
   const curve = smoothPath(points);
+
+  // --- Sonnenkuppel -------------------------------------------------------
+  const dome = domeGeometry(points, events, profile.polar, xOf, horizonY);
+  const domeId = `${uid}-dome`;
 
   // --- Ereignismarken ------------------------------------------------------
   const t = format.t;
@@ -355,18 +406,69 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   const markerClass = animations ? 'smc-pulse' : '';
   const markerFilter = animations ? `url(#${glowId})` : '';
 
-  // --- Horizont- und Dämmerungslinien --------------------------------------
-  const horizonY = yOf(0);
-  const horizonVisible = domainBottom < 0 && domainTop > 0;
-  const layerLines = showAstronomicalLayers
-    ? [
-        { altitude: ELEVATION_CIVIL, label: '−6°' },
-        { altitude: ELEVATION_NAUTICAL, label: '−12°' },
-        { altitude: ELEVATION_ASTRONOMICAL, label: '−18°' },
-      ].filter((line) => line.altitude > domainBottom && line.altitude < domainTop)
-    : [];
+  // --- Höhen-Referenzlinien ------------------------------------------------
+  // Beschriftet werden nur die Linien, die für die eingestellte
+  // Dämmerungsgrenze Bedeutung haben; der Horizont immer.
+  const referenceCandidates: Array<{ altitude: number; label: string; key: string }> = [
+    { altitude: 0, label: t('horizon'), key: 'horizon' },
+  ];
+  if (showAstronomicalLayers || twilightLevel === 'all') {
+    referenceCandidates.push(
+      { altitude: ELEVATION_CIVIL, label: `${t('refCivil')} (−6°)`, key: 'civil' },
+      { altitude: ELEVATION_NAUTICAL, label: `${t('refNautical')} (−12°)`, key: 'nautical' },
+      {
+        altitude: ELEVATION_ASTRONOMICAL,
+        label: `${t('refAstronomical')} (−18°)`,
+        key: 'astronomical',
+      },
+    );
+  } else if (showTwilight) {
+    referenceCandidates.push({
+      altitude: ELEVATION_CIVIL,
+      label: `${t('refCivil')} (−6°)`,
+      key: 'civil',
+    });
+  }
+  const showRefLabels = plotHeight >= 86 && plotWidth >= 250;
+  const refLines = referenceCandidates.filter(
+    (line) => line.altitude > domainBottom + 0.5 && line.altitude < domainTop - 0.5,
+  );
+  const refLabelFontSize = clamp(round(safeHeight * 0.055, 1), 7.5, 9.5);
 
   // --- Hilfslinien im 3-Stunden-Raster -------------------------------------
+  // --- Zenit (Kulmination) -------------------------------------------------
+  // Kleine Beschriftung am höchsten Punkt der Kurve: Zeit und Höhe.
+  const zenithTime = events.solarNoon;
+  const showZenith =
+    Boolean(zenithTime) &&
+    profile.maxAltitude > 0 &&
+    plotHeight >= 104 &&
+    plotWidth >= 220 &&
+    showAstronomicalLayers;
+  const zenithLabel = showZenith
+    ? `${t('zenith')} ${formatTime(zenithTime!, format)} · ${formatDegrees(
+        profile.maxAltitude,
+        1,
+        format.locale,
+      )}`
+    : '';
+  const zenithFontSize = clamp(round(safeHeight * 0.055, 1), 7.5, 9.5);
+  const zenithWidth = zenithLabel.length * zenithFontSize * 0.56 + 10;
+  const zenithX = zenithTime
+    ? clamp(
+        xOf(zenithTime.getTime()),
+        plotLeft + zenithWidth / 2,
+        plotLeft + plotWidth - zenithWidth / 2,
+      )
+    : 0;
+  const zenithYRaw = zenithTime ? yOf(profile.maxAltitude) : 0;
+  const zenithChipHeight = zenithFontSize + 5;
+  const zenithY = clamp(
+    zenithYRaw - zenithChipHeight - 4,
+    plotTop,
+    Math.max(plotTop, zenithYRaw + 10),
+  );
+
   const gridCount = plotWidth < 220 ? 4 : plotWidth < 420 ? 6 : 8;
   const gridLines: number[] = [];
   for (let i = 1; i < gridCount; i++) {
@@ -400,6 +502,16 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
               }" />`,
           )}
         </linearGradient>
+        ${
+          dome
+            ? svg`<radialGradient id="${domeId}" gradientUnits="userSpaceOnUse"
+                cx="${round(dome.cx, 1)}" cy="${round(dome.cy, 1)}" r="${round(dome.r, 1)}">
+                <stop offset="0%" stop-color="${palette.day}" stop-opacity="0.34" />
+                <stop offset="55%" stop-color="${palette.day}" stop-opacity="0.15" />
+                <stop offset="100%" stop-color="${palette.day}" stop-opacity="0" />
+              </radialGradient>`
+            : svg``
+        }
         <clipPath id="${clipId}">
           <rect x="${round(plotLeft - 1, 1)}" y="${round(plotTop - 2, 1)}"
             width="${round(plotWidth + 2, 1)}" height="${round(plotHeight + 4, 1)}" />
@@ -424,6 +536,11 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
               stroke="var(--smc-grid-line, rgba(255,255,255,0.10))" stroke-width="0.6" />`,
         )}
         <path d="${area}" fill="url(#${areaId})" opacity="0.9" />
+        ${
+          dome
+            ? svg`<path d="${dome.path}" fill="url(#${domeId})" opacity="0.95" />`
+            : svg``
+        }
         <path
           d="${curve}"
           fill="none"
@@ -433,29 +550,31 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
           stroke-linejoin="round"
           opacity="0.95"
         />
-        ${
-          horizonVisible
-            ? svg`<line
-                x1="${round(plotLeft, 1)}" y1="${round(horizonY, 1)}"
-                x2="${round(plotLeft + plotWidth, 1)}" y2="${round(horizonY, 1)}"
-                stroke="var(--smc-horizon-line, rgba(255,255,255,0.5))"
-                stroke-width="1"
-                stroke-dasharray="3 3"
-                opacity="0.6"
-              />`
-            : svg``
-        }
-        ${layerLines.map(
-          (line) =>
-            svg`<line
-              x1="${round(plotLeft, 1)}" y1="${round(yOf(line.altitude), 1)}"
-              x2="${round(plotLeft + plotWidth, 1)}" y2="${round(yOf(line.altitude), 1)}"
-              stroke="var(--smc-horizon-line, rgba(255,255,255,0.3))"
-              stroke-width="0.6"
-              stroke-dasharray="2 4"
-              opacity="0.45"
-            />`,
-        )}
+        ${refLines.map((line) => {
+          const y = yOf(line.altitude);
+          const primary = line.key === 'horizon';
+          return svg`<g>
+            <line
+              x1="${round(plotLeft, 1)}" y1="${round(y, 1)}"
+              x2="${round(plotLeft + plotWidth, 1)}" y2="${round(y, 1)}"
+              stroke="var(--smc-horizon-line, rgba(255,255,255,0.5))"
+              stroke-width="${primary ? 1 : 0.6}"
+              stroke-dasharray="${primary ? '3 3' : '2 4'}"
+              opacity="${primary ? 0.6 : 0.45}"
+            />
+            ${
+              showRefLabels
+                ? svg`<text
+                    x="${round(plotLeft + 3, 1)}"
+                    y="${round(y - 2.5, 1)}"
+                    fill="var(--smc-muted-color)"
+                    font-size="${refLabelFontSize}"
+                    opacity="0.85"
+                  >${line.label}</text>`
+                : svg``
+            }
+          </g>`;
+        })}
       </g>
 
       <g class="event-markers">
@@ -466,6 +585,15 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
           const dotRadius = primary ? clamp(round(safeHeight * 0.022, 1), 1.8, 3) : 1.4;
           const strong = 'var(--smc-marker-strong, rgba(255,255,255,0.9))';
           const soft = 'var(--smc-marker-soft, rgba(255,255,255,0.55))';
+          const accent =
+            marker.kind === 'dawn'
+              ? 'var(--smc-dawn, #a5b4fc)'
+              : marker.kind === 'sunrise'
+                ? 'var(--smc-sunrise, #fbbf24)'
+                : marker.kind === 'sunset'
+                  ? 'var(--smc-sunset, #fdba74)'
+                  : 'var(--smc-dusk, #d8b4fe)';
+          const guide = primary ? accent : soft;
           const color = primary ? strong : soft;
 
           const glyph =
@@ -488,8 +616,8 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
             <line
               x1="${round(x, 1)}" y1="${round(plotTop, 1)}"
               x2="${round(x, 1)}" y2="${round(plotBottom, 1)}"
-              stroke="${color}" stroke-width="${primary ? 1 : 0.7}"
-              stroke-dasharray="2 3" opacity="${primary ? 0.35 : 0.2}" />
+              stroke="${guide}" stroke-width="${primary ? 1 : 0.7}"
+              stroke-dasharray="3 3" opacity="${primary ? 0.5 : 0.25}" />
             ${glyph}
           </g>`;
         })}
@@ -517,6 +645,28 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
             : svg``
         }
       </g>
+
+      ${
+        showZenith
+          ? svg`<g class="zenith-chip">
+              <rect
+                x="${round(zenithX - zenithWidth / 2, 1)}"
+                y="${round(zenithY, 1)}"
+                width="${round(zenithWidth, 1)}"
+                height="${round(zenithChipHeight, 1)}"
+                rx="${round(zenithChipHeight / 2.6, 1)}"
+                fill="var(--smc-label-bg, rgba(0,0,0,0.34))"
+                opacity="0.85" />
+              <text
+                x="${round(zenithX, 1)}"
+                y="${round(zenithY + zenithChipHeight / 2 + zenithFontSize * 0.36, 1)}"
+                text-anchor="middle"
+                font-size="${zenithFontSize}"
+                fill="var(--smc-label-color, #ffffff)"
+              >${zenithLabel}</text>
+            </g>`
+          : svg``
+      }
 
       ${
         showLabelStrip

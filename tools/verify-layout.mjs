@@ -49,6 +49,9 @@ const CASES = [
   { loc: 'longyearbyen', time: '2026-10-05T12:00', theme: 'dark', h: 300, w: 620 }, // Übergang
   { loc: 'tromso', time: '2026-11-27T12:00', theme: 'dark', h: 300, w: 620 },
   { loc: 'kapstadt', time: '2026-06-21T17:00', theme: 'light', h: 280, w: 620 },
+  { loc: 'berlin', time: '2026-10-26T18:30', theme: 'dark', h: 340, w: 900 }, // Standardhöhe, zweispaltig
+  { loc: 'berlin', time: '2026-10-26T18:30', theme: 'dark', h: 340, w: 620 }, // Standardhöhe
+  { loc: 'berlin', time: '2026-10-26T18:30', theme: 'light', h: 340, w: 900 }, // hell, zweispaltig
   { loc: 'berlin', time: '2026-10-26T18:30', theme: 'dark', h: 120, w: 620 }, // Minimum
   { loc: 'berlin', time: '2026-10-26T18:30', theme: 'dark', h: 800, w: 620 }, // Maximum
 ];
@@ -300,6 +303,7 @@ async function main() {
         const selectors = [
           '.title', '.subtitle', '.phase-chip', '.event-time', '.event-label',
           '.detail-title', '.detail-value', '.detail-sub', '.message',
+          '.meta-chip', '.legend-chip', '.sky-readout', '.footer .part',
         ];
         const found = [];
         for (const selector of selectors) {
@@ -346,6 +350,234 @@ async function main() {
           : `min ${Math.min(...results.map((entry) => entry.ratio))}:1`,
       );
     }
+  }
+
+  console.log('\n— Zweispaltiges Raster (Tagesverlauf 8 : Himmelsansicht 4) —');
+  await page.setViewport({ width: 1000, height: 520, deviceScaleFactor: 1 });
+  for (const width of [620, 700, 900, 1200]) {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=2026-06-21T13:00&theme=dark&h=380&w=${width}`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const report = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const chart = root.querySelector('.chart-column');
+      const sky = root.querySelector('.sky-column');
+      const inner = root.querySelector('.body');
+      if (!chart || !sky) {
+        return { columns: false, inline: Boolean(root.querySelector('.detail-tile.sky-inline')) };
+      }
+      const chartBox = chart.getBoundingClientRect();
+      const skyBox = sky.getBoundingClientRect();
+      const bodyBox = inner.getBoundingClientRect();
+      return {
+        columns: true,
+        sideBySide: Math.abs(chartBox.top - skyBox.top) < 2 && skyBox.left >= chartBox.right - 1,
+        ratio: Number((chartBox.width / skyBox.width).toFixed(2)),
+        fitsWidth: Number((skyBox.right - bodyBox.left).toFixed(1)) <= Number(bodyBox.width.toFixed(1)) + 0.6,
+        chartWidth: Number(chartBox.width.toFixed(1)),
+        skyWidth: Number(skyBox.width.toFixed(1)),
+      };
+    });
+    const expectedColumns = width >= 700;
+    if (expectedColumns) {
+      record(
+        `Raster ${width}px: ${report.chartWidth}px Verlauf / ${report.skyWidth}px Himmel (${report.ratio}:1)`,
+        Boolean(report.columns) && report.sideBySide && report.fitsWidth && report.ratio >= 1.9,
+      );
+    } else {
+      record(
+        `Raster ${width}px: gestapelt (Himmelsansicht in der Detailzeile)`,
+        !report.columns && report.inline,
+      );
+    }
+  }
+
+  console.log('\n— Neue Bereiche: Legende, Fußzeile, Glas/Flach —');
+  await page.setViewport({ width: 1000, height: 520, deviceScaleFactor: 1 });
+
+  // Legende und Fußzeile
+  {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=2026-10-26T18:30&theme=dark&h=340&w=620`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('.legend-chip')),
+      { timeout: 20000 },
+    );
+    const report = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const legends = [...root.querySelectorAll('.legend-chip')].map((chip) => chip.textContent.trim());
+      const footer = root.querySelector('.footer');
+      const parts = footer ? [...footer.querySelectorAll('.part')].map((part) => part.textContent.trim()) : [];
+      const eventIcons = [...root.querySelectorAll('.event-tile .event-icon')].map((icon) => {
+        const style = getComputedStyle(icon);
+        return { background: style.backgroundColor, color: style.color };
+      });
+      return { legends, parts, eventIcons };
+    });
+    record(
+      `Legende (${report.legends.join(' / ')})`,
+      report.legends.length === 3 && report.legends.every((text) => text.length > 2),
+    );
+    record(
+      `Fußzeile (${report.parts.join(' | ').slice(0, 70)}…)`,
+      report.parts.length === 2 &&
+        report.parts[0].includes('Dämmerung') &&
+        report.parts[1].includes('Berechnung'),
+    );
+    const tinted = report.eventIcons.filter(
+      (icon) => icon.background !== 'rgba(0, 0, 0, 0)' && icon.background !== 'transparent',
+    );
+    record(
+      `Ereignissymbole farbig getönt (${tinted.length}/${report.eventIcons.length})`,
+      report.eventIcons.length > 0 && tinted.length === report.eventIcons.length,
+    );
+  }
+
+  // Glas vs. flach
+  for (const preset of ['default', 'flat']) {
+    const url = `${baseUrl}/shots.html?preset=${preset}&loc=berlin&time=2026-10-26T18:30&theme=dark&h=340&w=620`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('.event-tile')),
+      { timeout: 20000 },
+    );
+    const report = await page.evaluate(() => {
+      const card = document.querySelector('sun-moon-card');
+      const root = card.shadowRoot;
+      const tile = root.querySelector('.event-tile');
+      const style = getComputedStyle(tile);
+      return {
+        host: card.className,
+        backdrop: style.backdropFilter || style.webkitBackdropFilter,
+        shadow: style.boxShadow,
+      };
+    });
+    const isFlat = preset === 'flat';
+    const flat = isFlat
+      ? report.backdrop === 'none' && report.shadow === 'none' && report.host.includes('smc-flat')
+      : report.backdrop !== 'none' && report.host.includes('smc-glass');
+    record(
+      `Darstellung ${preset}: ${report.backdrop}, Schatten ${report.shadow === 'none' ? 'aus' : 'an'}`,
+      flat,
+    );
+  }
+
+  console.log('\n— Zusätzliche Werte im Chart und in der Himmelsansicht —');
+  {
+    const url = `${baseUrl}/shots.html?preset=details&loc=berlin&time=2026-06-21T13:00&theme=dark&h=380&w=900`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const report = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const chart = root.querySelector('svg.day-chart');
+      const texts = [...chart.querySelectorAll('text')].map((text) => text.textContent.trim());
+      const sky = root.querySelector('svg.sky-view');
+      const skyTexts = sky ? [...sky.querySelectorAll('text')].map((text) => text.textContent.trim()) : [];
+      const details = [...root.querySelectorAll('.detail-sub, .detail-value')].map((node) =>
+        node.textContent.trim(),
+      );
+      const readout = root.querySelector('.sky-readout');
+      return {
+        hasHorizon: texts.some((text) => text.startsWith('Horizont')),
+        hasRef: texts.some((text) => text.includes('−6°')),
+        hasZenith: texts.some((text) => text.startsWith('Zenit')),
+        rings: skyTexts.filter((text) => text === '30°' || text === '60°'),
+        cardinals: skyTexts.filter((text) => ['N', 'O', 'S', 'W'].includes(text)),
+        stars: sky ? sky.querySelectorAll('.stars circle').length : 0,
+        details,
+        readout: readout ? readout.textContent.replace(/\s+/g, ' ').trim() : '',
+        dayLength: [...root.querySelectorAll('.meta-chip')].some((chip) =>
+          chip.textContent.includes('Tageslänge'),
+        ),
+        tileOverflow: [...root.querySelectorAll('.detail-tile')].map(
+          (tile) => tile.scrollHeight - tile.clientHeight,
+        ),
+        textOverflow: [...root.querySelectorAll('.detail-sub, .detail-value, .detail-title')]
+          .filter((node) => node.scrollWidth > node.clientWidth + 1)
+          .map((node) => node.textContent.trim()),
+      };
+    });
+    record(
+      'Höhenlinien beschriftet (Horizont, −6°)',
+      report.hasHorizon && report.hasRef,
+    );
+    record('Zenit-Chip', report.hasZenith);
+    record(
+      `Himmelsansicht: Ringe ${report.rings.join('/')}, Himmelsrichtungen ${report.cardinals.join('')}`,
+      report.rings.length === 2 && report.cardinals.length === 4,
+    );
+    record(`Ablesung Azimut: „${report.readout}“`, report.readout.includes('Sonne:'));
+    record('Tageslänge in der Kopfzeile', report.dayLength);
+    const joined = report.details.join(' | ');
+    record(
+      `Detailwerte (${joined.slice(0, 90)}…)`,
+      report.details.some((text) => text.includes('km')) &&
+        report.details.some((text) => text.includes('Vollmond')),
+    );
+    record(
+      'Azimut bei Auf-/Untergang in der Sonnenkachel',
+      report.details.some((text) => text.includes('Auf-/Untergang')),
+    );
+    record(
+      `Detailzeile ohne Überlauf (${Math.max(0, ...report.tileOverflow, 0)} px)`,
+      report.tileOverflow.every((value) => value <= 0),
+    );
+
+    // Auch auf schmalen Karten dürfen die Detailtexte nicht abgeschnitten
+    // werden – hier greifen die Kurzformen.
+    for (const width of [320, 430, 560]) {
+      await page.setViewport({ width: width + 40, height: 520, deviceScaleFactor: 1 });
+      await page.goto(
+        `${baseUrl}/shots.html?preset=details&loc=berlin&time=2026-06-21T13:00&theme=dark&h=380&w=${width}`,
+        { waitUntil: 'networkidle0' },
+      );
+      await page.waitForFunction(
+        () =>
+          Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('.details')),
+        { timeout: 20000 },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const narrow = await page.evaluate(() => {
+        const root = document.querySelector('sun-moon-card').shadowRoot;
+        return {
+          clipped: [...root.querySelectorAll('.detail-sub, .detail-value, .detail-title')]
+            .filter((node) => node.scrollWidth > node.clientWidth + 1)
+            .map((node) => node.textContent.trim()),
+          tiles: [...root.querySelectorAll('.detail-tile')].map(
+            (tile) => tile.scrollHeight - tile.clientHeight,
+          ),
+        };
+      });
+      record(
+        `Detailtexte bei ${width} px vollständig (${narrow.clipped.length ? narrow.clipped.join(' / ') : 'keine Kürzung'})`,
+        narrow.clipped.length === 0 && narrow.tiles.every((value) => value <= 0),
+      );
+    }
+  }
+
+  // Sterne nur bei dunklem Himmel
+  {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=2026-06-21T23:30&theme=dark&h=380&w=900`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.sky-view')),
+      { timeout: 20000 },
+    );
+    const night = await page.evaluate(
+      () =>
+        document
+          .querySelector('sun-moon-card')
+          .shadowRoot.querySelectorAll('svg.sky-view .stars circle').length,
+    );
+    record(`Sternenfeld bei Nacht (${night} Sterne)`, night > 20);
   }
 
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');

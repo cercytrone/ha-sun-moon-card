@@ -27,7 +27,7 @@
  * die Karte zu jeder vollen Minute.
  */
 
-import { html, LitElement, nothing, type TemplateResult } from 'lit';
+import { html, LitElement, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -44,28 +44,38 @@ import {
   MIN_CARD_HEIGHT,
   computeLayout,
   stubConfig,
+  type LayoutMetrics,
   type PhasePalette,
 } from './const.js';
 import {
   compassDirection,
   createFormatContext,
   formatDate,
+  formatDayOffset,
   formatDegrees,
-  formatDuration,
+  formatDurationCompact,
+  formatKilometers,
   formatPercent,
+  formatSignedDuration,
   formatTime,
   resolveHour12,
   type FormatContext,
 } from './format.js';
 import { iconDawn, iconDusk, iconSun, iconSunrise, iconSunset, iconWarning } from './icons.js';
-import { localize, resolveLanguage, type Language, type StringKey } from './localize.js';
+import {
+  localize,
+  resolveLanguage,
+  type Language,
+  type StringKey,
+} from './localize.js';
 import { clearModelCache, getModel, resolveCardHeight, resolveConfig } from './model.js';
+import { localDayIndex } from './timezone.js';
 import { cardStyles } from './styles.js';
 
 // Der Editor wird mitgebündelt, damit `getConfigElement()` eine einzige
 // Datei ausreicht.
 import './sun-moon-card-editor.js';
-import { round, nextMinute } from './utils.js';
+import { nextMinute } from './utils.js';
 import type {
   CardModel,
   ConfigChangedEvent,
@@ -79,6 +89,8 @@ import type {
 /** Eintrag der Ereignisleiste. */
 interface EventTile {
   key: string;
+  /** Bestimmt die Akzentfarbe der Kachel. */
+  kind: 'dawn' | 'sunrise' | 'sunset' | 'dusk' | 'extra';
   label: string;
   /** Kürzere Beschriftung für schmale Karten. */
   shortLabel: string;
@@ -154,6 +166,22 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       columns: 6,
       min_columns: 4,
     };
+  }
+
+  /**
+   * Setzt die Gestaltungsvarianten am Wurzelelement.
+   *
+   * Die Klassen liegen am Host (nicht an `ha-card`), weil die CSS-Variablen
+   * für Glas/Flach und hell/dunkel von dort in alle Bereiche – einschließlich
+   * der SVG-Darstellungen – vererbt werden.
+   */
+  protected override updated(changed: PropertyValues): void {
+    const dark = this._isDark();
+    this.classList.toggle('smc-dark', dark);
+    this.classList.toggle('smc-light', !dark);
+    this.classList.toggle('smc-flat', this._config?.card_style === 'flat');
+    this.classList.toggle('smc-glass', this._config?.card_style !== 'flat');
+    void changed;
   }
 
   override connectedCallback(): void {
@@ -302,9 +330,6 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       resolveHour12(config.time_format, this.hass?.locale?.time_format, this._locale()),
     );
 
-    const chartWidth =
-      width - 2 * layout.padding - (layout.skyViewSide ? layout.skyViewWidth + 10 : 0);
-
     return html`
       <ha-card
         class=${classMap({ 'smc-dark': dark, 'smc-light': !dark })}
@@ -315,108 +340,230 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       >
         <div
           class=${classMap({ root: true, compact: layout.compact })}
-          style=${styleMap({ padding: `${layout.padding}px`, gap: `${layout.compact ? 3 : 6}px` })}
+          style=${styleMap({
+            padding: `${layout.padding}px`,
+            gap: `${layout.compact ? 3 : 6}px`,
+            '--smc-palette-day': palette.day,
+            '--smc-palette-civil': palette.civil,
+            '--smc-palette-night': palette.night,
+          })}
         >
-          ${layout.showHeader ? this._renderHeader(model, context, palette) : nothing}
+          ${layout.showHeader ? this._renderHeader(model, context, palette, layout) : nothing}
 
-          <div class="body">
+          <div
+            class=${classMap({ body: true, columns: layout.skyViewSide })}
+            style=${styleMap({
+              height: `${layout.chartHeight + layout.legendHeight + (layout.showLegend ? 4 : 0)}px`,
+            })}
+          >
             ${config.show_day_chart
-              ? html`<div class="chart-wrap" style=${styleMap({ height: `${layout.chartHeight}px` })}>
-                  ${renderDayChart({
-                    profile: model.day,
-                    events: model.events,
-                    now: model.now,
-                    width: Math.max(120, chartWidth),
-                    height: layout.chartHeight,
-                    palette,
-                    format: context,
-                    showSun: config.show_sun,
-                    showMoon: config.show_moon,
-                    showTwilight: config.show_twilight,
-                    twilightLevel: config.twilight_level,
-                    animations: config.animations,
-                    compact: layout.compact,
-                    uid: `${this._uid}-chart`,
-                    showAstronomicalLayers: config.show_astronomical_details,
-                    currentAltitude: model.sun.altitude,
-                  })}
+              ? html`<div class="chart-column">
+                  <div
+                    class="chart-wrap"
+                    style=${styleMap({ height: `${layout.chartHeight}px` })}
+                  >
+                    ${renderDayChart({
+                      profile: model.day,
+                      events: model.events,
+                      now: model.now,
+                      width: Math.max(120, layout.chartWidth),
+                      height: layout.chartHeight,
+                      palette,
+                      format: context,
+                      showSun: config.show_sun,
+                      showMoon: config.show_moon,
+                      showTwilight: config.show_twilight,
+                      twilightLevel: config.twilight_level,
+                      animations: config.animations,
+                      compact: layout.compact,
+                      uid: `${this._uid}-chart`,
+                      showAstronomicalLayers: config.show_astronomical_details,
+                      currentAltitude: model.sun.altitude,
+                    })}
+                  </div>
+                  ${layout.showLegend ? this._renderLegend(context, layout.legendHeight) : nothing}
                 </div>`
               : nothing}
             ${layout.skyViewSide
               ? html`<div
-                  class="sky-wrap"
-                  style=${styleMap({
-                    width: `${layout.skyViewWidth}px`,
-                    height: `${layout.chartHeight}px`,
-                  })}
+                  class="sky-column"
+                  style=${styleMap({ width: `${layout.skyViewWidth}px` })}
                 >
-                  ${renderSkyView({
-                    width: layout.skyViewWidth,
-                    height: layout.chartHeight,
-                    sun: config.show_sun
-                      ? { altitude: model.sun.altitude, azimuth: model.sun.azimuth }
-                      : null,
-                    moon: config.show_moon
-                      ? {
-                          altitude: model.moon.position.apparentAltitude,
-                          azimuth: model.moon.position.azimuth,
-                          illumination: model.moon.phase.illumination,
-                          brightLimbAngle: model.moon.phase.brightLimbAngle,
-                        }
-                      : null,
-                    sunTrack: model.sunTrack,
-                    moonPhase: model.moon.phase,
-                    showSun: config.show_sun,
-                    showMoon: config.show_moon,
-                    palette,
-                    format: context,
-                    animations: config.animations,
-                    uid: `${this._uid}-sky`,
-                  })}
+                  <div class="sky-wrap">
+                    ${renderSkyView({
+                      width: layout.skyViewWidth,
+                      height: layout.chartHeight,
+                      sun: config.show_sun
+                        ? { altitude: model.sun.altitude, azimuth: model.sun.azimuth }
+                        : null,
+                      moon: config.show_moon
+                        ? {
+                            altitude: model.moon.position.apparentAltitude,
+                            azimuth: model.moon.position.azimuth,
+                            illumination: model.moon.phase.illumination,
+                            brightLimbAngle: model.moon.phase.brightLimbAngle,
+                          }
+                        : null,
+                      sunTrack: model.sunTrack,
+                      moonPhase: model.moon.phase,
+                      showSun: config.show_sun,
+                      showMoon: config.show_moon,
+                      palette,
+                      format: context,
+                      animations: config.animations,
+                      uid: `${this._uid}-sky`,
+                      seed: localDayIndex(model.now, model.timeZone),
+                    })}
+                  </div>
+                  ${this._renderSkyReadout(model, context, layout.skyViewWidth)}
                 </div>`
               : nothing}
           </div>
 
-          ${layout.showEvents
-            ? this._renderEvents(model, context, width, layout.compact, layout.padding)
-            : nothing}
+          ${layout.showEvents ? this._renderEvents(model, context, layout) : nothing}
           ${layout.showDetails
-            ? this._renderDetails(
-                model,
-                context,
-                config,
-                layout.skyViewInline,
-                language,
-                dark,
-                width,
-                layout.padding,
-              )
+            ? this._renderDetails(model, context, config, layout, language, dark, width)
             : nothing}
+          ${layout.showFooter ? this._renderFooter(model, context, config, layout) : nothing}
         </div>
       </ha-card>
     `;
   }
 
-  /** Kopfzeile mit Ort, Datum und Himmelsphase. */
+  /** Kopfzeile: Ort, Datum, Himmelsphase, Zeitzone und Tageslänge. */
   private _renderHeader(
     model: CardModel,
     context: FormatContext,
     palette: PhasePalette,
+    layout: LayoutMetrics,
   ): TemplateResult {
     const title = model.locationName || context.t('title');
+    const extras = model.extras;
+    const width = layout.chartWidth + (layout.skyViewSide ? layout.skyViewWidth + 10 : 0);
+
+    /*
+     * Die Kopfzeile teilt sich in Ort/Datum und Chips. Damit der Ort nicht
+     * durch zu viele Chips verdrängt wird, erhalten die Chips ein Budget:
+     * Zuerst kommen Tageslänge und Himmelsphase, die Zeitzone nur, wenn
+     * noch Platz bleibt (sie steht ohnehin in der Fußzeile).
+     */
+    const chipFontSize = 10.5;
+    // Gemessener Erfahrungswert für Chips: 0,55 em mittlere Zeichenbreite.
+    const estimateChip = (text: string, withDot = false): number =>
+      text.length * chipFontSize * 0.58 + 20 + (withDot ? 12 : 0);
+    const titleReserve = 108;
+    let budget = Math.max(0, width - 10 - titleReserve);
+
+    const phaseText = context.t(this._phaseKey(model));
+    const phaseWidth = estimateChip(phaseText, true);
+    budget -= phaseWidth;
+
+    let dayLengthChip: TemplateResult | typeof nothing = nothing;
+    if (model.daylightMinutes !== null) {
+      const length = formatDurationCompact(model.daylightMinutes);
+      const delta =
+        extras.daylightDeltaMinutes === null
+          ? ''
+          : ` ${formatSignedDuration(extras.daylightDeltaMinutes, context.locale)}`;
+      const text = `${context.t('dayLength')} ${length}${delta}`;
+      const chipWidth = estimateChip(text);
+      if (chipWidth <= budget) {
+        budget -= chipWidth;
+        dayLengthChip = html`<span class="meta-chip" title=${context.t('dayLength')}
+          >${text}</span
+        >`;
+      }
+    }
+
+    let timeZoneChip: TemplateResult | typeof nothing = nothing;
+    const timeZoneWidth = estimateChip(extras.timeZoneLongName);
+    if (timeZoneWidth <= budget) {
+      budget -= timeZoneWidth;
+      timeZoneChip = html`<span class="meta-chip">${extras.timeZoneLongName}</span>`;
+    }
+
     return html`
-      <div class="header">
+      <div class="header" style=${styleMap({ height: `${layout.headerHeight}px` })}>
         <div class="header-text">
           <span class="title">${title}</span>
           <span class="subtitle">${formatDate(model.now, context)}</span>
         </div>
-        <span class="phase-chip" title=${context.t(this._phaseKey(model))}>
-          <span
-            class="phase-dot"
-            style=${styleMap({ background: this._phaseColor(model, palette) })}
-          ></span>
-          ${context.t(this._phaseKey(model))}
-        </span>
+        <div class="header-meta">
+          ${dayLengthChip}${timeZoneChip}
+          <span class="phase-chip" title=${phaseText}>
+            <span
+              class="phase-dot"
+              style=${styleMap({ background: this._phaseColor(model, palette) })}
+            ></span>
+            ${phaseText}
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  /** Legende der Phasenflächen unter dem Tagesverlauf. */
+  private _renderLegend(context: FormatContext, height: number): TemplateResult {
+    return html`
+      <div class="legend" aria-hidden="true" style=${styleMap({ height: `${height}px` })}>
+        <span class="legend-chip"
+          ><span class="legend-dot day"></span>${context.t('legendDaylight')}</span
+        >
+        <span class="legend-chip"
+          ><span class="legend-dot twilight"></span>${context.t('legendTwilightShort')}</span
+        >
+        <span class="legend-chip"
+          ><span class="legend-dot night"></span>${context.t('legendNight')}</span
+        >
+      </div>
+    `;
+  }
+
+  /** Ablesung unter der Himmelsansicht: Azimut von Sonne und Mond. */
+  private _renderSkyReadout(
+    model: CardModel,
+    context: FormatContext,
+    width: number,
+  ): TemplateResult | typeof nothing {
+    const config = this._config!;
+    const rows: TemplateResult[] = [];
+    const readout = (label: string, azimuth: number) =>
+      html`<span
+        >${context.t('azimuthReadout', {
+          body: label,
+          degrees: String(Math.round(azimuth)),
+          direction: compassDirection(azimuth, context.language),
+        })}</span
+      >`;
+
+    if (config.show_sun) rows.push(readout(context.t('sun'), model.sun.azimuth));
+    if (config.show_moon) {
+      rows.push(readout(context.t('moon'), model.moon.position.azimuth));
+    }
+    if (rows.length === 0 || width < 150) return nothing;
+    return html`<div class="sky-readout">${rows}</div>`;
+  }
+
+  /** Fußzeile: Dämmerungsart, Zeitzone und Berechnungsverfahren. */
+  private _renderFooter(
+    model: CardModel,
+    context: FormatContext,
+    config: ResolvedConfig,
+    layout: LayoutMetrics,
+  ): TemplateResult {
+    const twilightKey: StringKey =
+      config.twilight_level === 'nautical'
+        ? 'footerTwilightNautical'
+        : config.twilight_level === 'astronomical'
+          ? 'footerTwilightAstronomical'
+          : config.twilight_level === 'all'
+            ? 'footerTwilightAll'
+            : 'footerTwilightCivil';
+
+    return html`
+      <div class="footer" style=${styleMap({ height: `${layout.footerHeight}px` })}>
+        <span class="part">${context.t(twilightKey)} · ${model.extras.timeZoneLongName}</span>
+        <span class="part">${context.t('footerMethod')}</span>
       </div>
     `;
   }
@@ -457,18 +604,20 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
    * Wählt die erste Beschriftung, die in die verfügbare Breite passt.
    *
    * Die Breite wird über eine Näherung der mittleren Zeichenbreite
-   * abgeschätzt (0,62 em – Erfahrungswert für lateinische Schrift mit
-   * Großbuchstaben und Umlauten). Damit werden abgeschnittene Texte auf
-   * schmalen Karten zuverlässig vermieden.
+   * abgeschätzt. Der Faktor 0,7 em ist absichtlich grob gewählt: Gemessen
+   * wurden 0,48 em für Eigennamen, 0,58 em für Ziffern (tabellarisch) und
+   * bis zu 0,70 em für wortreiche Beschriftungen mit Umlauten. Lieber wird
+   * die kürzere Variante gewählt, als dass Text abgeschnitten wird.
    */
   private _fitLabel(
     candidates: Array<string | null>,
     availableWidth: number,
     fontSize: number,
+    factor = 0.7,
   ): string | null {
     for (const candidate of candidates) {
       if (!candidate) continue;
-      if (candidate.length * fontSize * 0.62 <= availableWidth) return candidate;
+      if (candidate.length * fontSize * factor <= availableWidth) return candidate;
     }
     return null;
   }
@@ -477,16 +626,17 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   private _renderEvents(
     model: CardModel,
     context: FormatContext,
-    width: number,
-    compact: boolean,
-    padding: number,
+    layout: LayoutMetrics,
   ): TemplateResult | typeof nothing {
+    const { compact, padding } = layout;
+    const width = layout.chartWidth + (layout.skyViewSide ? layout.skyViewWidth + 10 : 0);
     const config = this._config!;
     const tiles: EventTile[] = [];
 
     if (config.show_twilight) {
       tiles.push({
         key: 'civilDawn',
+        kind: 'dawn',
         label: context.t('civilDawn'),
         shortLabel: context.t('civilDawnShort'),
         time: model.events.civilDawn,
@@ -496,6 +646,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     }
     tiles.push({
       key: 'sunrise',
+      kind: 'sunrise',
       label: context.t('sunrise'),
       shortLabel: context.t('sunriseShort'),
       time: model.events.sunrise,
@@ -504,6 +655,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     });
     tiles.push({
       key: 'sunset',
+      kind: 'sunset',
       label: context.t('sunset'),
       shortLabel: context.t('sunsetShort'),
       time: model.events.sunset,
@@ -513,6 +665,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     if (config.show_twilight) {
       tiles.push({
         key: 'civilDusk',
+        kind: 'dusk',
         label: context.t('civilDusk'),
         shortLabel: context.t('civilDuskShort'),
         time: model.events.civilDusk,
@@ -522,19 +675,20 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     }
 
     if (config.twilight_level === 'all' || config.show_astronomical_details) {
-      const extras: Array<[StringKey, Date | null]> = [
-        ['nauticalDawn', model.events.nauticalDawn],
-        ['nauticalDusk', model.events.nauticalDusk],
-        ['astronomicalDawn', model.events.astronomicalDawn],
-        ['astronomicalDusk', model.events.astronomicalDusk],
+      const extras: Array<[StringKey, Date | null, 'dawn' | 'dusk']> = [
+        ['nauticalDawn', model.events.nauticalDawn, 'dawn'],
+        ['nauticalDusk', model.events.nauticalDusk, 'dusk'],
+        ['astronomicalDawn', model.events.astronomicalDawn, 'dawn'],
+        ['astronomicalDusk', model.events.astronomicalDusk, 'dusk'],
       ];
-      for (const [key, time] of extras) {
+      for (const [key, time, kind] of extras) {
         tiles.push({
           key,
+          kind,
           label: context.t(key),
           shortLabel: context.t(key),
           time,
-          icon: key.endsWith('Dawn') ? iconDawn(compact ? 13 : 15) : iconDusk(compact ? 13 : 15),
+          icon: kind === 'dawn' ? iconDawn(compact ? 13 : 15) : iconDusk(compact ? 13 : 15),
           secondary: true,
           missingText: context.t('noEvent'),
         });
@@ -549,7 +703,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     // verfügbare Breite je Kachel (Innenmaß)
     const gap = 6;
     const innerWidth = Math.max(40, width - 2 * padding - gap * (visible.length - 1));
-    const tileInner = innerWidth / visible.length - 6;
+    // Innenmaß einer Kachel: Rand 1 px und Innenabstand 3 px je Seite
+    const tileInner = innerWidth / visible.length - 10;
     const labelFontSize = compact
       ? tileInner < 120
         ? 8.5
@@ -560,7 +715,10 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     const timeFontSize = tileInner < 74 ? 11 : tileInner < 96 ? 12 : 12.5;
 
     return html`
-      <div class="events" style=${styleMap({ gap: `${gap}px` })}>
+      <div
+        class="events"
+        style=${styleMap({ gap: `${gap}px`, height: `${layout.eventsHeight}px` })}
+      >
         ${visible.map((tile) => {
           const label = this._fitLabel([tile.label, tile.shortLabel], tileInner, labelFontSize);
           const timeText = tile.time ? formatTime(tile.time, context) : tile.missingText;
@@ -569,21 +727,34 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
             <div
               class=${classMap({
                 'event-tile': true,
+                [tile.kind]: true,
                 secondary: Boolean(tile.secondary),
                 compact,
               })}
               title=${`${tile.label}: ${timeText}`}
             >
-              <span class="event-icon">${tile.icon}</span>
-              ${compact && label ? html`<span class="event-label">${label}</span>` : nothing}
-              <span
-                class=${classMap({ 'event-time': true, missing: !tile.time })}
-                style=${styleMap({ fontSize: `${timeFontSize}px` })}
-              >
-                ${fittedTime}
+              <span class="event-head">
+                <span class="event-icon">${tile.icon}</span>
+                <span
+                  class=${classMap({ 'event-time': true, missing: !tile.time })}
+                  style=${styleMap({ fontSize: `${timeFontSize}px` })}
+                >
+                  ${fittedTime}
+                </span>
+                ${compact && label
+                  ? html`<span
+                      class="event-label"
+                      style=${styleMap({ fontSize: `${labelFontSize}px` })}
+                      >${label}</span
+                    >`
+                  : nothing}
               </span>
               ${!compact && label
-                ? html`<span class="event-label" style=${styleMap({ fontSize: `${labelFontSize}px` })}>${label}</span>`
+                ? html`<span
+                    class="event-label"
+                    style=${styleMap({ fontSize: `${labelFontSize}px` })}
+                    >${label}</span
+                  >`
                 : nothing}
             </div>
           `;
@@ -597,70 +768,167 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     model: CardModel,
     context: FormatContext,
     config: ResolvedConfig,
-    inlineSky: boolean,
+    layout: LayoutMetrics,
     language: Language,
     dark: boolean,
     width: number,
-    padding: number,
   ): TemplateResult {
+    const extras = model.extras;
     const moonPhaseKey = (model.moon.haPhaseName ?? model.moon.phase.phaseKey) as StringKey;
-    const nextMoonRise = model.moon.events.nextRise ?? model.moon.events.previousRise;
-    const nextMoonSet = model.moon.events.nextSet ?? model.moon.events.previousSet;
 
     // Auf sehr schmalen Karten wird die Himmelsansicht ausgeblendet, damit
     // die Texte der Detailkacheln nicht abgeschnitten werden.
-    const showInlineSky = inlineSky && width >= 430;
+    const showInlineSky = layout.skyViewInline && width >= 430;
     const tileCount =
       (config.show_sun ? 1 : 0) + (config.show_moon ? 1 : 0) + (showInlineSky ? 1 : 0);
-    const innerWidth = Math.max(60, width - 2 * padding - 8 * Math.max(0, tileCount - 1));
+    const innerWidth = Math.max(
+      60,
+      width - 2 * layout.padding - 8 * Math.max(0, tileCount - 1),
+    );
     const contentWidth = innerWidth / Math.max(1, tileCount) - 20 - 26 - 9;
 
-    const sunTitle = this._fitLabel([context.t('sunAltitude'), context.t('elevation')], contentWidth, 10.5);
-    const sunSub = config.show_astronomical_details
-      ? `${context.t('solarNoon')} ${model.events.solarNoon ? formatTime(model.events.solarNoon, context) : '—'}` +
-        (model.daylightMinutes !== null
-          ? ` · ${context.t('dayLength')} ${formatDuration(model.daylightMinutes, language)}`
-          : '')
-      : `${round(model.sun.azimuth, 0)}° ${compassDirection(model.sun.azimuth, language)}`;
-    const sunValue = formatDegrees(model.sun.altitude, 1, context.locale);
-
-    const moonTitle = this._fitLabel([context.t(moonPhaseKey), context.t('moon')], contentWidth, 10.5);
-    const percentText = formatPercent(model.moon.phase.illumination, context.locale);
-    const moonValue = this._fitLabel(
-      [`${percentText} ${context.t('illumination')}`, percentText],
+    // ---- Sonne ------------------------------------------------------------
+    const sunTitle = this._fitLabel(
+      [context.t('sunAltitude'), context.t('elevation')],
       contentWidth,
-      13,
+      10.5,
     );
-    const moonTimes = config.show_moon_times
+    const sunValue = formatDegrees(model.sun.altitude, 1, context.locale);
+    const azimuthText = `${Math.round(model.sun.azimuth)}° ${compassDirection(
+      model.sun.azimuth,
+      language,
+    )}`;
+    const sunSubText =
+      extras.sunBelowHorizon !== null
+        ? `${formatDegrees(extras.sunBelowHorizon, 1, context.locale)} ${context.t('belowHorizon')}`
+        : `${context.t('azimuth')} ${azimuthText}`;
+    const sunSub = this._fitLabel([sunSubText, azimuthText], contentWidth, 9.5);
+    // Azimut bei Auf- und Untergang – nur mit astronomischen Details.
+    const riseAzimuth =
+      extras.sunriseAzimuth !== null
+        ? `${Math.round(extras.sunriseAzimuth)}° ${compassDirection(extras.sunriseAzimuth, language)}`
+        : null;
+    const setAzimuth =
+      extras.sunsetAzimuth !== null
+        ? `${Math.round(extras.sunsetAzimuth)}° ${compassDirection(extras.sunsetAzimuth, language)}`
+        : null;
+    const sunEventAzimuth =
+      config.show_astronomical_details && riseAzimuth && setAzimuth
+        ? this._fitLabel(
+            [
+              context.t('sunAzimuthAtEvents', { rise: riseAzimuth, set: setAzimuth }),
+              `${Math.round(extras.sunriseAzimuth as number)}° / ${Math.round(
+                extras.sunsetAzimuth as number,
+              )}°`,
+            ],
+            contentWidth,
+            9.5,
+          )
+        : null;
+    // Kulmination und Mittagshöhe – nur mit astronomischen Details.
+    const sunExtra = config.show_astronomical_details
       ? this._fitLabel(
           [
-            `↑ ${nextMoonRise ? formatTime(nextMoonRise, context) : '—'} · ↓ ${
-              nextMoonSet ? formatTime(nextMoonSet, context) : '—'
-            }`,
-            `↑ ${nextMoonRise ? formatTime(nextMoonRise, context) : '—'}`,
+            `${context.t('solarNoon')} ${
+              model.events.solarNoon ? formatTime(model.events.solarNoon, context) : '—'
+            } · ${formatDegrees(model.day.maxAltitude, 1, context.locale)}`,
+            model.events.solarNoon ? formatTime(model.events.solarNoon, context) : null,
           ],
           contentWidth,
           9.5,
         )
       : null;
 
+    // ---- Mond -------------------------------------------------------------
+    const moonTitle = this._fitLabel(
+      [context.t(moonPhaseKey), context.t('moon')],
+      contentWidth,
+      10.5,
+    );
+    const percentText = formatPercent(model.moon.phase.illumination, context.locale);
+    const moonValue = this._fitLabel(
+      [`${percentText} ${context.t('illumination')}`, percentText],
+      contentWidth,
+      13,
+    );
+
+    // Entfernung mit Einordnung: nahe Erdnähe bzw. nahe Erdferne.
+    let moonSub: string | null = null;
+    let moonSubTitle = '';
+    if (extras.moonDistance) {
+      const { current, min, max } = extras.moonDistance;
+      const span = Math.max(1, max - min);
+      const nearPerigee = current <= min + span * 0.2;
+      const nearApogee = current >= min + span * 0.8;
+      const distance = formatKilometers(current, context.locale);
+      const hint = nearPerigee
+        ? context.t('nearPerigee')
+        : nearApogee
+          ? context.t('nearApogee')
+          : '';
+      moonSubTitle = `${context.t('moonDistance')}: ${distance} · ${context.t('distanceRange', {
+        min: formatKilometers(min, context.locale),
+        max: formatKilometers(max, context.locale),
+      })}`;
+      moonSub = this._fitLabel(
+        hint ? [`${distance} · ${hint}`, distance] : [distance],
+        contentWidth,
+        9.5,
+      );
+    }
+
+    // Nächster Vollmond – inklusive Hinweis auf einen zweiten Vollmond
+    // im Kalendermonat („Blue Moon“).
+    let moonExtra: string | null = null;
+    let moonExtraTitle = '';
+    if (config.show_astronomical_details && extras.nextFullMoon) {
+      const days = extras.nextFullMoonDays ?? 0;
+      const when = days <= 0 ? context.t('dayToday') : context.t('inDays', { days: String(days) });
+      const short = `${context.t('nextFullMoon')} ${when}`;
+      const blue = extras.blueMoon ? ` · ${context.t('blueMoon')}` : '';
+      const full = `${short}${blue}${
+        extras.moonFolkName ? ` · ${extras.moonFolkName}` : ''
+      }`;
+      moonExtraTitle = extras.blueMoon
+        ? context.t('blueMoonHint')
+        : extras.moonFolkName
+          ? context.t('folkNameHint')
+          : context.t('nextFullMoon');
+      moonExtra = this._fitLabel([full, `${short}${blue}`, short], contentWidth, 9.5);
+    }
+
+    const moonTimes = config.show_moon_times
+      ? this._fitLabel(
+          [this._moonTimesText(model, context, false), this._moonTimesText(model, context, true)],
+          contentWidth,
+          9.5,
+        )
+      : null;
+
     return html`
-      <div class="details" style=${styleMap({ gap: '8px' })}>
+      <div
+        class="details"
+        style=${styleMap({ gap: '8px', height: `${layout.detailsHeight}px` })}
+      >
         ${config.show_sun
           ? html`
-              <div class="detail-tile">
+              <div class="detail-tile sun">
                 <span class="detail-icon">${iconSun(20, dark ? '#ffd166' : '#f5a524')}</span>
                 <span class="detail-content">
                   ${sunTitle ? html`<span class="detail-title">${sunTitle}</span>` : nothing}
                   <span class="detail-value">${sunValue}</span>
-                  <span class="detail-sub">${sunSub}</span>
+                  ${sunSub ? html`<span class="detail-sub">${sunSub}</span>` : nothing}
+                  ${sunExtra ? html`<span class="detail-sub">${sunExtra}</span>` : nothing}
+                  ${sunEventAzimuth
+                    ? html`<span class="detail-sub">${sunEventAzimuth}</span>`
+                    : nothing}
                 </span>
               </div>
             `
           : nothing}
         ${config.show_moon
           ? html`
-              <div class="detail-tile">
+              <div class="detail-tile moon">
                 <span class="detail-icon">
                   ${renderMoonDisc({
                     size: 26,
@@ -672,6 +940,12 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                 <span class="detail-content">
                   ${moonTitle ? html`<span class="detail-title">${moonTitle}</span>` : nothing}
                   ${moonValue ? html`<span class="detail-value">${moonValue}</span>` : nothing}
+                  ${moonSub
+                    ? html`<span class="detail-sub" title=${moonSubTitle}>${moonSub}</span>`
+                    : nothing}
+                  ${moonExtra
+                    ? html`<span class="detail-sub" title=${moonExtraTitle}>${moonExtra}</span>`
+                    : nothing}
                   ${moonTimes ? html`<span class="detail-sub">${moonTimes}</span>` : nothing}
                 </span>
               </div>
@@ -680,7 +954,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         ${showInlineSky
           ? html`
               <div class="detail-tile sky-inline">
-                ${renderSkyView({
+                <span class="sky-inline-wrap">
+                  ${renderSkyView({
                   width: 56,
                   height: 56,
                   sun: config.show_sun
@@ -703,12 +978,34 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                   animations: config.animations,
                   uid: `${this._uid}-sky-inline`,
                   showCardinals: false,
-                })}
+                  seed: localDayIndex(model.now, model.timeZone),
+                  })}
+                </span>
               </div>
             `
           : nothing}
       </div>
     `;
+  }
+
+  /**
+   * Auf- und Untergang des Mondes als Kurzform.
+   *
+   * @param shortOnly nur der Aufgang (für sehr schmale Karten)
+   */
+  private _moonTimesText(model: CardModel, context: FormatContext, shortOnly: boolean): string {
+    const rise = model.extras.moonRise;
+    const set = model.extras.moonSet;
+    const riseSuffix = rise && rise.dayOffset !== 0
+      ? ` ${formatDayOffset(rise.dayOffset, context.t)}`
+      : '';
+    const riseText = rise ? `↑ ${formatTime(rise.time, context)}${riseSuffix}` : '↑ —';
+    if (shortOnly) return riseText;
+    const setSuffix = set && set.dayOffset !== 0
+      ? ` ${formatDayOffset(set.dayOffset, context.t)}`
+      : '';
+    const setText = set ? `↓ ${formatTime(set.time, context)}${setSuffix}` : '↓ —';
+    return `${riseText} · ${setText}`;
   }
 
   /** Bildet eine kurze Zusammenfassung für Screenreader. */

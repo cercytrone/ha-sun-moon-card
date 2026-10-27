@@ -184,6 +184,23 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
           </div>
 
           <div class="row">
+            <label for="cardstyle">${this._t('editorCardStyle')}</label>
+            <div class="control">
+              <select
+                id="cardstyle"
+                .value=${this._value('card_style', 'glass')}
+                @change=${(event: Event) =>
+                  this._update({
+                    card_style: (event.target as HTMLSelectElement).value as 'glass' | 'flat',
+                  })}
+              >
+                <option value="glass">${this._t('editorCardStyleGlass')}</option>
+                <option value="flat">${this._t('editorCardStyleFlat')}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
             <label for="timeformat">${this._t('editorTimeFormat')}</label>
             <div class="control">
               <select
@@ -286,6 +303,7 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
           ${this._switch('show_sky_view', 'editorShowSkyView')}
           ${this._switch('show_events', 'editorShowEvents')}
           ${this._switch('show_moon_times', 'editorShowMoonTimes')}
+          ${this._switch('show_footer', 'editorShowFooter')}
         </div>
 
         <div class="section">

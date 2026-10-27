@@ -15,8 +15,12 @@
  */
 
 import {
+  azimuthAt,
   buildDayProfile,
+  findFullMoons,
   findMoonEvents,
+  findNextFullMoon,
+  moonDistanceRange,
   moonPhase,
   moonPosition,
   skyPhase,
@@ -35,14 +39,23 @@ import {
   DEFAULT_CONFIG,
   HA_EVENT_TOLERANCE_MS,
   resolveAutoHeight,
+  MOON_FOLK_KEYS,
 } from './const.js';
-import { type Language, localize } from './localize.js';
-import { endOfLocalDay, resolveTimeZone, startOfLocalDay } from './timezone.js';
+import { timeZoneLongName } from './format.js';
+import { type Language, type StringKey, localize, resolveLanguage } from './localize.js';
+import {
+  endOfLocalDay,
+  localDayIndex,
+  resolveTimeZone,
+  startOfLocalDay,
+} from './timezone.js';
 import type {
   AltAzPoint,
+  CardExtras,
   CardModel,
   HomeAssistant,
   ModelIssue,
+  MoonEventDetail,
   ResolvedConfig,
   SunMoonCardConfig,
 } from './types.js';
@@ -160,6 +173,7 @@ export function resolveConfig(
       DEFAULT_CONFIG.show_astronomical_details,
     ),
     compact_mode: asBoolean(input.compact_mode, DEFAULT_CONFIG.compact_mode),
+    card_style: asChoice(input.card_style, CONFIG_CHOICES.cardStyle, DEFAULT_CONFIG.card_style),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
     animations: asBoolean(input.animations, DEFAULT_CONFIG.animations),
     time_format: asChoice(input.time_format, CONFIG_CHOICES.timeFormat, DEFAULT_CONFIG.time_format),
@@ -169,6 +183,7 @@ export function resolveConfig(
     show_sky_view: asBoolean(input.show_sky_view, DEFAULT_CONFIG.show_sky_view),
     show_events: asBoolean(input.show_events, DEFAULT_CONFIG.show_events),
     show_moon_times: asBoolean(input.show_moon_times, DEFAULT_CONFIG.show_moon_times),
+    show_footer: asBoolean(input.show_footer, DEFAULT_CONFIG.show_footer),
     twilight_level: asChoice(
       input.twilight_level,
       CONFIG_CHOICES.twilightLevel,
@@ -191,7 +206,18 @@ export function resolveCardHeight(config: ResolvedConfig, width: number): number
 }
 
 /** Erzeugt ein leeres Modell (wird bei fehlendem Standort verwendet). */
-function emptyModel(now: Date, timeZone: string, issues: ModelIssue[]): CardModel {
+/**
+ * Leeres Modell für den Fall fehlender Daten.
+ *
+ * Die Sprache wird nur für den Zeitzonennamen benötigt; ist keine gesetzt,
+ * wird Deutsch verwendet (Sprache der Standarddokumentation).
+ */
+function emptyModel(
+  now: Date,
+  timeZone: string,
+  issues: ModelIssue[],
+  language: Language = 'de',
+): CardModel {
   const location: GeoLocation = { latitude: 0, longitude: 0 };
   const emptyProfile: DayProfile = {
     dayStart: now,
@@ -244,6 +270,7 @@ function emptyModel(now: Date, timeZone: string, issues: ModelIssue[]): CardMode
     timeZone,
     location,
     locationName: '',
+    extras: emptyExtras(timeZone, languageLocale(language)),
     day: emptyProfile,
     sun: {
       altitude: 0,
@@ -260,6 +287,91 @@ function emptyModel(now: Date, timeZone: string, issues: ModelIssue[]): CardMode
     daylightMinutes: null,
     issues,
     fatal: true,
+  };
+}
+
+/** Gebietsschema aus der konfigurierten Sprache (für Zeitzonennamen). */
+function languageLocale(language: Language): string {
+  return language === 'de' ? 'de-DE' : 'en-GB';
+}
+
+/** Zusatzwerte für den Fall fehlender Daten (keine erfundenen Werte). */
+export function emptyExtras(timeZone: string, locale: string): CardExtras {
+  return {
+    timeZoneLongName: timeZoneLongName(timeZone, locale, new Date()),
+    previousDaylightMinutes: null,
+    daylightDeltaMinutes: null,
+    sunBelowHorizon: null,
+    sunriseAzimuth: null,
+    sunsetAzimuth: null,
+    nextFullMoon: null,
+    nextFullMoonDays: null,
+    blueMoon: false,
+    moonFolkName: null,
+    moonDistance: null,
+    moonRise: null,
+    moonSet: null,
+  };
+}
+
+/**
+ * Ist der gegebene Vollmond der zweite Vollmond seines Kalendermonats?
+ *
+ * Das ist die gängige Definition eines „Blue Moon“. Sie wird hier aus den
+ * berechneten Vollmondzeitpunkten abgeleitet (vorheriger Vollmond im selben
+ * Monat) und nicht aus überlieferten Monatsnamen.
+ */
+function isBlueMoon(fullMoon: Date, timeZone: string): boolean {
+  const previous = findFullMoons(
+    fullMoon.getTime() - 32 * 24 * 60 * 60 * 1000,
+    fullMoon.getTime() - 60_000,
+  );
+  if (previous.length === 0) return false;
+  const last = previous[previous.length - 1];
+  const key = (value: Date): string => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+    }).format(value);
+    return parts;
+  };
+  return key(last) === key(fullMoon);
+}
+
+/**
+ * Überlieferter Name des Vollmonds im Monat des gegebenen Vollmonds.
+ *
+ * Die Monatsnamen sind Volkstradition und keine Astronomie; sie werden in der
+ * Anzeige ausdrücklich als Volksname gekennzeichnet. Maßgeblich ist der
+ * Kalendermonat des Vollmonds in der Zeitzone der Karte.
+ */
+function moonFolkName(
+  fullMoon: Date | null,
+  timeZone: string,
+  language: Language,
+): string | null {
+  if (!fullMoon) return null;
+  const month = Number(
+    new Intl.DateTimeFormat('en-CA', { timeZone, month: '2-digit' }).format(fullMoon),
+  );
+  if (!Number.isFinite(month) || month < 1 || month > 12) return null;
+  const key = MOON_FOLK_KEYS[month - 1] as StringKey;
+  return localize(language, 'folkName', { name: localize(language, key) });
+}
+
+/** Aufbereitung eines Mondauf- oder -untergangs. */
+function moonEventDetail(
+  time: Date | null,
+  location: GeoLocation,
+  now: Date,
+  timeZone: string,
+): MoonEventDetail | null {
+  if (!time) return null;
+  return {
+    time,
+    azimuth: azimuthAt(time, location, 'moon'),
+    dayOffset: localDayIndex(time, timeZone) - localDayIndex(now, timeZone),
   };
 }
 
@@ -316,8 +428,15 @@ export function buildModel(
   const latitude = config.latitude ?? hassLatitude;
   const longitude = config.longitude ?? hassLongitude;
 
+  // „auto“ folgt der Sprache der Home-Assistant-Oberfläche (`hass.locale`),
+  // sonst der Sprache der Installation.
+  const language = resolveLanguage(
+    config.language,
+    hass?.locale?.language ?? hass?.language,
+  );
+
   if (latitude === null || longitude === null) {
-    return emptyModel(now, timeZone, ['missing-location', ...issues]);
+    return emptyModel(now, timeZone, ['missing-location', ...issues], language);
   }
 
   const location: GeoLocation = { latitude, longitude };
@@ -404,6 +523,40 @@ export function buildModel(
   if (events.sunrise && events.sunset) {
     daylightMinutes = (events.sunset.getTime() - events.sunrise.getTime()) / 60_000;
   }
+  // ---- Abgeleitete Zusatzwerte ---------------------------------------------
+  // Der Vortag wird nur für die Differenz der Tageslänge benötigt; er wird
+  // hier mitberechnet, weil das Ergebnis im Minuten-Cache liegt und damit
+  // pro Minute höchstens einmal anfällt.
+  const previousDayStart = startOfLocalDay(new Date(dayStart.getTime() - 12 * 60 * 60 * 1000), timeZone);
+  const previousDay = buildDayProfile(location, previousDayStart, dayStart);
+  const previousDaylightMinutes =
+    previousDay.events.sunrise && previousDay.events.sunset
+      ? (previousDay.events.sunset.getTime() - previousDay.events.sunrise.getTime()) / 60_000
+      : null;
+  const daylightDeltaMinutes =
+    daylightMinutes !== null && previousDaylightMinutes !== null
+      ? daylightMinutes - previousDaylightMinutes
+      : null;
+
+  const nextFullMoon = findNextFullMoon(now);
+  const extras: CardExtras = {
+    timeZoneLongName: timeZoneLongName(timeZone, languageLocale(language), now),
+    previousDaylightMinutes,
+    daylightDeltaMinutes,
+    sunBelowHorizon: sunAltNow < 0 ? Math.abs(sunAltNow) : null,
+    sunriseAzimuth: events.sunrise ? azimuthAt(events.sunrise, location, 'sun') : null,
+    sunsetAzimuth: events.sunset ? azimuthAt(events.sunset, location, 'sun') : null,
+    nextFullMoon,
+    nextFullMoonDays: nextFullMoon
+      ? Math.round((nextFullMoon.time.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+      : null,
+    blueMoon: nextFullMoon ? isBlueMoon(nextFullMoon.time, timeZone) : false,
+    moonFolkName: moonFolkName(nextFullMoon?.time ?? null, timeZone, language),
+    moonDistance: moonDistanceRange(now, location, 14),
+    moonRise: moonEventDetail(moonEvents.nextRise ?? moonEvents.previousRise, location, now, timeZone),
+    moonSet: moonEventDetail(moonEvents.nextSet ?? moonEvents.previousSet, location, now, timeZone),
+  };
+
   if (day.polar === 'polar-day') issues.push('polar-day');
   if (day.polar === 'polar-night') issues.push('polar-night');
   if (!events.sunrise) issues.push('no-sunrise-today');
@@ -428,6 +581,7 @@ export function buildModel(
     sunTrack,
     events,
     eventSources,
+    extras,
     daylightMinutes,
     issues,
     fatal: false,

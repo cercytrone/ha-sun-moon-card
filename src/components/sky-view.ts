@@ -52,6 +52,53 @@ export interface SkyViewOptions {
   uid: string;
   /** Himmelsrichtungen beschriften. */
   showCardinals?: boolean;
+  /**
+   * Keim für das Sternenfeld (üblich: Index des aktuellen Kalendertags).
+   * Gleicher Keim ⇒ gleiche Sterne; so bleibt die Darstellung über alle
+   * Bildwiederholungen hinweg ruhig.
+   */
+  seed?: number;
+}
+
+/**
+ * Streut Werte deterministisch im Bereich 0…1.
+ *
+ * Es wird bewusst ein einfacher Hash und kein Zufallszahlengenerator
+ * verwendet: Das Sternenfeld muss über alle Bildwiederholungen hinweg
+ * unverändert bleiben, darf sich aber von Tag zu Tag unterscheiden.
+ */
+function hash01(seed: number): number {
+  const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+/**
+ * Erzeugt ein unveränderliches Sternenfeld für einen Tag.
+ *
+ * @param seed Tagesindex (ändert sich einmal pro Tag)
+ * @param count Anzahl der Sterne
+ * @param maxRadius Radius der Himmelsansicht
+ */
+function starField(
+  seed: number,
+  count: number,
+  maxRadius: number,
+): Array<{ x: number; y: number; r: number; opacity: number }> {
+  const stars: Array<{ x: number; y: number; r: number; opacity: number }> = [];
+  for (let i = 0; i < count; i++) {
+    // Wurzelverteilung: Sterne gleichmäßig über die Kreisfläche
+    const distance = Math.sqrt(hash01(seed * 7.13 + i * 1.37)) * maxRadius * 0.96;
+    const angle = hash01(seed * 3.71 + i * 2.11) * 360;
+    const point = skyPoint({ x: 0, y: 0 }, distance, angle);
+    const brightness = hash01(seed * 5.19 + i * 4.53);
+    stars.push({
+      x: point.x,
+      y: point.y,
+      r: 0.35 + brightness * 0.75,
+      opacity: 0.16 + brightness * 0.34,
+    });
+  }
+  return stars;
 }
 
 /** Radius für eine Höhe (0° = Horizont, 90° = Zenit). */
@@ -75,6 +122,7 @@ export function renderSkyView(options: SkyViewOptions): TemplateResult {
     animations,
     uid,
     showCardinals = true,
+    seed = 0,
   } = options;
 
   const safeWidth = Math.max(80, width);
@@ -112,6 +160,21 @@ export function renderSkyView(options: SkyViewOptions): TemplateResult {
     : null;
   const moonVisible = showMoon && moon && moonPoint && moonPhase;
 
+  // --- Höhenringe mit Beschriftung -----------------------------------------
+  // Die Ringe liegen bei 30° und 60° Höhe (Radius = (90° − Höhe)/90°).
+  const showRingLabels = showCardinals && maxRadius >= 42;
+  const ringLabelFontSize = clamp(round(maxRadius * 0.14, 1), 6.5, 9);
+  const rings = [
+    { altitude: 30, radius: maxRadius * (60 / 90) },
+    { altitude: 60, radius: maxRadius * (30 / 90) },
+  ];
+
+  // --- Sterne (nur bei dunklem Himmel) -------------------------------------
+  // Unter −6° Sonnenhöhe ist der Himmel dunkel genug, dass Sterne sichtbar
+  // wären; tagsüber würden sie nur stören.
+  const isDarkSky = (sun?.altitude ?? -90) < -6;
+  const stars = isDarkSky ? starField(Math.max(1, Math.round(seed)), 46, maxRadius) : [];
+
   // --- Sonnenbahn ----------------------------------------------------------
   const trackPoints = sunTrack
     .filter((point) => point.altitude >= -8)
@@ -142,16 +205,29 @@ export function renderSkyView(options: SkyViewOptions): TemplateResult {
         fill="url(#${domeId})" opacity="0.55" />
 
       <g clip-path="url(#${clipId})">
-        <circle
-          cx="${round(center.x, 1)}" cy="${round(center.y, 1)}" r="${round(maxRadius * 0.667, 1)}"
-          fill="none"
-          stroke="var(--smc-sky-ring, rgba(128,140,180,0.28))"
-          stroke-width="0.7" stroke-dasharray="2 4" />
-        <circle
-          cx="${round(center.x, 1)}" cy="${round(center.y, 1)}" r="${round(maxRadius * 0.333, 1)}"
-          fill="none"
-          stroke="var(--smc-sky-ring, rgba(128,140,180,0.2))"
-          stroke-width="0.7" stroke-dasharray="2 4" />
+        ${
+          stars.length
+            ? svg`<g class="stars">
+                ${stars.map(
+                  (star) =>
+                    svg`<circle
+                      cx="${round(center.x + star.x, 1)}"
+                      cy="${round(center.y + star.y, 1)}"
+                      r="${round(star.r, 2)}"
+                      fill="var(--smc-moon-lit, #eef2fa)"
+                      opacity="${round(star.opacity, 2)}" />`,
+                )}
+              </g>`
+            : svg``
+        }
+        ${rings.map(
+          (ring) =>
+            svg`<circle
+              cx="${round(center.x, 1)}" cy="${round(center.y, 1)}" r="${round(ring.radius, 1)}"
+              fill="none"
+              stroke="var(--smc-sky-ring, rgba(128,140,180,0.24))"
+              stroke-width="0.7" stroke-dasharray="2 4" />`,
+        )}
         <line
           x1="${round(center.x - maxRadius, 1)}" y1="${round(center.y, 1)}"
           x2="${round(center.x + maxRadius, 1)}" y2="${round(center.y, 1)}"
@@ -181,6 +257,27 @@ export function renderSkyView(options: SkyViewOptions): TemplateResult {
         fill="none"
         stroke="var(--smc-sky-horizon, rgba(140,152,190,0.5))"
         stroke-width="1.1" />
+
+      ${
+        showRingLabels
+          ? svg`<g
+              font-size="${ringLabelFontSize}"
+              fill="var(--smc-muted-color)"
+              opacity="0.55"
+              text-anchor="middle"
+            >
+              ${rings.map((ring) => {
+                // Beschriftung auf dem Nordost-Strahl, damit sie weder die
+                // Himmelsrichtungen noch Sonne und Mond überdeckt.
+                const point = skyPoint(center, ring.radius, 45);
+                return svg`<text
+                  x="${round(point.x, 1)}"
+                  y="${round(point.y + ringLabelFontSize * 0.35, 1)}"
+                >${ring.altitude}°</text>`;
+              })}
+            </g>`
+          : svg``
+      }
 
       ${
         showCardinals

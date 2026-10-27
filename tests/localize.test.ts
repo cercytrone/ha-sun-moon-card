@@ -156,4 +156,20 @@ describe('compassDirection', () => {
   it('liefert für Nord und Süd in beiden Sprachen unterschiedliche Texte', () => {
     expect(compassDirection(0, 'de')).not.toBe(compassDirection(180, 'de'));
   });
+
+  it('nutzt die 16-teilige Windrose', () => {
+    expect(compassDirection(0, 'de')).toBe('N');
+    expect(compassDirection(30, 'de')).toBe('NNO');
+    expect(compassDirection(90, 'de')).toBe('O');
+    expect(compassDirection(180, 'en')).toBe('S');
+    expect(compassDirection(250, 'de')).toBe('WSW');
+    expect(compassDirection(250, 'en')).toBe('WSW');
+    expect(compassDirection(270, 'de')).toBe('W');
+    expect(compassDirection(340, 'de')).toBe('NNW');
+    // Jede der 16 Richtungen ist in beiden Sprachen belegt.
+    for (let deg = 0; deg < 360; deg += 22.5) {
+      expect(compassDirection(deg, 'de')).toMatch(/^[NSOW]{1,3}$/);
+      expect(compassDirection(deg, 'en')).toMatch(/^[NSEW]{1,3}$/);
+    }
+  });
 });

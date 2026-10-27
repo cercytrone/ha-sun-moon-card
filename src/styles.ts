@@ -11,11 +11,39 @@
 
 import { css } from 'lit';
 
+/**
+ * Gestaltungsschicht der Karte.
+ *
+ * Aufbau
+ * ------
+ *  1. **Tokens** (`--smc-*`): Farben, Radien, Schatten. Alle Farben leiten sich
+ *     aus den Theme-Variablen von Home Assistant ab; eigene Festwerte sind
+ *     Fallbacks für die Vorschau ohne Home Assistant.
+ *  2. **Oberflächen**: `glass` (transluzente Kacheln mit Weichzeichnung und
+ *     feinem Schatten) und `flat` (flächige Kacheln). Beide Varianten
+ *     verwenden dieselben Tokens, damit zwischen ihnen ohne Nacharbeit
+ *     gewechselt werden kann.
+ *  3. **Bereiche**: Kopfzeile, Inhalt (Tagesverlauf + Himmelsansicht),
+ *     Ereignisleiste, Detailzeile, Fußzeile.
+ *
+ * Bewusst **kein** externes Framework und keine Web-Fonts: Die Karte darf
+ * zur Laufzeit keine Netzwerkzugriffe auslösen.
+ */
 export const cardStyles = css`
   :host {
     display: block;
+
+    /* ---- Form ---- */
+    --smc-radius: 14px;
+    --smc-tile-radius: 12px;
+    --smc-chip-radius: 999px;
     --smc-gap: 10px;
-    --smc-radius: 12px;
+    /* Vertikaler Abstand der Bereiche – muss zu ROOT_GAP in const.ts passen. */
+    --smc-root-gap: 4px;
+
+    /* ---- Text ---- */
+    --smc-font: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+      Arial, sans-serif;
     /* Grundfarbe: Sekundärfarbe des Themes; ohne Theme ein Grau, das auf
        hellem Grund bereits 4,5:1 Kontrast erreicht. */
     --smc-muted-color: var(--secondary-text-color, var(--primary-text-color, #626b7a));
@@ -27,6 +55,16 @@ export const cardStyles = css`
       var(--secondary-text-color, #626b7a) 72%,
       var(--primary-text-color, #212121)
     );
+
+    /* ---- Flächen (Standard: Glas) ---- */
+    --smc-surface: rgba(255, 255, 255, 0.07);
+    --smc-surface-hover: rgba(255, 255, 255, 0.11);
+    --smc-surface-border: rgba(255, 255, 255, 0.12);
+    --smc-surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    --smc-surface-blur: saturate(140%) blur(10px);
+
+    /* ---- Linien und Marker im Chart ---- */
     --smc-divider: var(--divider-color, rgba(128, 128, 128, 0.25));
     --smc-label-bg: rgba(0, 0, 0, 0.34);
     --smc-label-color: #ffffff;
@@ -40,10 +78,25 @@ export const cardStyles = css`
     --smc-moon-lit: #f3f6fc;
     --smc-moon-dark: rgba(108, 122, 164, 0.38);
     --smc-moon-outline: rgba(255, 255, 255, 0.18);
-    --smc-tile-bg: rgba(127, 137, 170, 0.12);
+
+    /* ---- Akzentfarben der Ereignisse ----
+       Kräftig genug für Flächen und Symbole; Text bleibt in der
+       Theme-Textfarbe, damit die WCAG-Kontrastschwelle sicher eingehalten
+       wird. */
+    --smc-dawn: #a5b4fc;
+    --smc-sunrise: #fbbf24;
+    --smc-sunset: #fdba74;
+    --smc-dusk: #d8b4fe;
+    --smc-accent: var(--primary-color, #4f8cff);
   }
 
   :host(.smc-light) {
+    --smc-surface: rgba(255, 255, 255, 0.62);
+    --smc-surface-hover: rgba(255, 255, 255, 0.82);
+    --smc-surface-border: rgba(15, 23, 42, 0.08);
+    --smc-surface-shadow: 0 1px 2px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    --smc-surface-blur: saturate(130%) blur(10px);
     --smc-grid-line: rgba(40, 48, 70, 0.1);
     --smc-horizon-line: rgba(255, 255, 255, 0.65);
     --smc-now-line: rgba(255, 255, 255, 0.9);
@@ -51,7 +104,25 @@ export const cardStyles = css`
     --smc-sky-horizon: rgba(60, 72, 100, 0.35);
     --smc-moon-dark: rgba(80, 92, 130, 0.28);
     --smc-moon-outline: rgba(40, 48, 70, 0.12);
-    --smc-tile-bg: rgba(60, 72, 100, 0.07);
+    --smc-dawn: #4338ca;
+    --smc-sunrise: #b45309;
+    --smc-sunset: #c2410c;
+    --smc-dusk: #7e22ce;
+  }
+
+  /* Flache Variante: keine Weichzeichnung, kräftigere Flächen. */
+  :host(.smc-flat) {
+    --smc-surface: rgba(127, 137, 170, 0.14);
+    --smc-surface-hover: rgba(127, 137, 170, 0.2);
+    --smc-surface-border: rgba(127, 137, 170, 0.16);
+    --smc-surface-shadow: none;
+    --smc-surface-blur: none;
+  }
+
+  :host(.smc-flat.smc-light) {
+    --smc-surface: rgba(60, 72, 100, 0.07);
+    --smc-surface-hover: rgba(60, 72, 100, 0.11);
+    --smc-surface-border: rgba(60, 72, 100, 0.1);
   }
 
   ha-card {
@@ -79,11 +150,12 @@ export const cardStyles = css`
     box-sizing: border-box;
     height: 100%;
     width: 100%;
-    gap: 4px;
+    gap: var(--smc-root-gap);
+    font-family: var(--smc-font);
   }
 
   .root.compact {
-    gap: 2px;
+    gap: 3px;
   }
 
   /* ---------- Kopfzeile ---------- */
@@ -93,7 +165,8 @@ export const cardStyles = css`
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 0;
+    flex: 0 0 auto;
+    box-sizing: border-box;
     overflow: hidden;
   }
 
@@ -101,11 +174,11 @@ export const cardStyles = css`
     display: flex;
     flex-direction: column;
     min-width: 0;
-    line-height: 1.15;
+    line-height: 1.2;
   }
 
   .title {
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
     letter-spacing: 0.2px;
     white-space: nowrap;
@@ -120,38 +193,95 @@ export const cardStyles = css`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
   }
 
-  .phase-chip {
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .phase-chip,
+  .legend-chip,
+  .meta-chip {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    flex-shrink: 0;
     padding: 3px 9px;
-    border-radius: 999px;
+    border-radius: var(--smc-chip-radius);
     font-size: 10.5px;
     font-weight: 500;
     line-height: 1.4;
-    background: var(--smc-tile-bg);
-    color: var(--primary-text-color, #212121);
     white-space: nowrap;
   }
 
-  .phase-dot {
+  .phase-chip {
+    background: var(--smc-surface);
+    border: 1px solid var(--smc-surface-border);
+    backdrop-filter: var(--smc-surface-blur);
+    -webkit-backdrop-filter: var(--smc-surface-blur);
+    color: var(--primary-text-color, #212121);
+  }
+
+  .meta-chip {
+    background: transparent;
+    border: 1px solid var(--smc-surface-border);
+    color: var(--smc-muted-color);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .phase-dot,
+  .legend-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     flex-shrink: 0;
   }
 
+  .legend-dot.day {
+    background: var(--smc-palette-day, #ffc44d);
+  }
+
+  .legend-dot.twilight {
+    background: var(--smc-palette-civil, #4f6fb3);
+  }
+
+  .legend-dot.night {
+    background: var(--smc-palette-night, #12172f);
+    border: 1px solid var(--smc-surface-border);
+  }
+
   /* ---------- Inhalt ---------- */
 
   .body {
     display: flex;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    box-sizing: border-box;
     min-height: 0;
     min-width: 0;
     gap: var(--smc-gap);
+  }
+
+  /* Ab etwa 700 px Kartenbreite: zweispaltiges Raster im Verhältnis 8:4
+     (Tagesverlauf : Himmelsansicht) – das entspricht 8 bzw. 4 von 12
+     Rasterspalten. Darunter wird gestapelt. Maßgeblich ist die Breite der
+     Karte, nicht die des Fensters. */
+  .body.columns {
+    align-items: stretch;
+  }
+
+  .chart-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    gap: 4px; /* LEGEND_GAP in const.ts */
+    /* 8 von 12 Spalten */
+    flex: 2 1 0;
   }
 
   .chart-wrap {
@@ -161,18 +291,73 @@ export const cardStyles = css`
     display: block;
   }
 
+  .sky-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    gap: 4px;
+    /* 4 von 12 Spalten, höchstens 260 px breit */
+    flex: 1 1 0;
+    max-width: 260px;
+  }
+
   .sky-wrap {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 0;
+    min-width: 0;
   }
 
   svg.day-chart,
   svg.sky-view {
     display: block;
     overflow: visible;
+  }
+
+  /* ---------- Legende ---------- */
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    height: 16px; /* LEGEND_HEIGHT in const.ts */
+    overflow: hidden;
+  }
+
+  .legend-chip {
+    background: var(--smc-surface);
+    border: 1px solid var(--smc-surface-border);
+    backdrop-filter: var(--smc-surface-blur);
+    -webkit-backdrop-filter: var(--smc-surface-blur);
+    color: var(--smc-muted-color);
+    padding: 0 8px;
+    font-size: 10px;
+    line-height: 15px;
+  }
+
+  /* ---------- Himmelsansicht: Ablesung ---------- */
+
+  .sky-readout {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    font-size: 10px;
+    color: var(--smc-muted-color);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .sky-readout .value {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--primary-text-color, #212121);
   }
 
   /* ---------- Ereignisleiste ---------- */
@@ -182,8 +367,9 @@ export const cardStyles = css`
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 6px;
-    min-height: 0;
+    box-sizing: border-box;
     flex: 0 0 auto;
+    overflow: hidden;
   }
 
   .event-tile {
@@ -192,26 +378,85 @@ export const cardStyles = css`
     align-items: center;
     justify-content: center;
     gap: 1px;
-    padding: 4px 2px;
-    border-radius: 9px;
-    background: var(--smc-tile-bg);
+    padding: 2px 3px;
+    border-radius: var(--smc-tile-radius);
+    background: var(--smc-surface);
+    border: 1px solid var(--smc-surface-border);
+    box-shadow: var(--smc-surface-shadow);
+    backdrop-filter: var(--smc-surface-blur);
+    -webkit-backdrop-filter: var(--smc-surface-blur);
     min-width: 0;
     overflow: hidden;
+    transition:
+      transform 0.18s ease,
+      background 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+
+  @media (hover: hover) {
+    .event-tile:hover,
+    .detail-tile:hover {
+      transform: translateY(-1px);
+      background: var(--smc-surface-hover);
+    }
   }
 
   .event-tile.secondary {
     background: transparent;
+    box-shadow: none;
     padding-top: 2px;
     padding-bottom: 2px;
   }
 
+  /* Symbolkachel mit farbig getöntem Grund – je Ereignis eigener Akzent. */
+  /* Erste Zeile der Kachel: Symbol und Zeit nebeneinander. Das spart Höhe
+     gegenüber einer reinen Spaltenanordnung. */
+  .event-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
   .event-icon {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--smc-event-color, #888) 20%, transparent);
+    border: 1px solid color-mix(in srgb, var(--smc-event-color, #888) 34%, transparent);
+    color: var(--smc-event-color, currentColor);
     line-height: 1;
+  }
+
+  .event-tile.secondary .event-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 6px;
+  }
+
+  .event-tile.dawn {
+    --smc-event-color: var(--smc-dawn);
+  }
+
+  .event-tile.sunrise {
+    --smc-event-color: var(--smc-sunrise);
+  }
+
+  .event-tile.sunset {
+    --smc-event-color: var(--smc-sunset);
+  }
+
+  .event-tile.dusk {
+    --smc-event-color: var(--smc-dusk);
   }
 
   .event-label {
     font-size: 9.5px;
+    line-height: 1.15;
     font-weight: 400;
     color: var(--smc-muted-color);
     white-space: nowrap;
@@ -221,7 +466,7 @@ export const cardStyles = css`
   }
 
   .event-time {
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
@@ -256,8 +501,9 @@ export const cardStyles = css`
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 8px;
+    box-sizing: border-box;
     flex: 0 0 auto;
-    min-height: 0;
+    overflow: hidden;
     align-items: stretch;
   }
 
@@ -266,10 +512,17 @@ export const cardStyles = css`
     align-items: center;
     gap: 9px;
     padding: 7px 10px;
-    border-radius: 10px;
-    background: var(--smc-tile-bg);
+    border-radius: var(--smc-tile-radius);
+    background: var(--smc-surface);
+    border: 1px solid var(--smc-surface-border);
+    box-shadow: var(--smc-surface-shadow);
+    backdrop-filter: var(--smc-surface-blur);
+    -webkit-backdrop-filter: var(--smc-surface-blur);
     min-width: 0;
     overflow: hidden;
+    transition:
+      transform 0.18s ease,
+      background 0.18s ease;
   }
 
   .detail-icon {
@@ -277,13 +530,27 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--smc-event-color, var(--smc-accent)) 18%, transparent);
+    border: 1px solid
+      color-mix(in srgb, var(--smc-event-color, var(--smc-accent)) 32%, transparent);
+  }
+
+  .detail-tile.sun {
+    --smc-event-color: var(--smc-sunrise);
+  }
+
+  .detail-tile.moon {
+    --smc-event-color: var(--smc-dusk);
   }
 
   .detail-content {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    line-height: 1.25;
+    line-height: 1.3;
     flex: 1 1 auto;
   }
 
@@ -316,6 +583,47 @@ export const cardStyles = css`
   .detail-tile.sky-inline {
     padding: 4px;
     justify-content: center;
+    align-items: center;
+  }
+
+  /* Feste Größe, damit die Himmelsansicht die Zeilenhöhe nicht aufbläht. */
+  .sky-inline-wrap {
+    display: block;
+    width: 52px;
+    height: 52px;
+    flex: 0 0 auto;
+  }
+
+  .sky-inline-wrap svg {
+    width: 52px;
+    height: 52px;
+  }
+
+  /* ---------- Fußzeile ---------- */
+
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    overflow: hidden;
+    border-top: 1px solid var(--smc-divider);
+    font-size: 9.5px;
+    line-height: 1.2;
+    color: var(--smc-muted-color);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .footer .part {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .footer .part:last-child {
+    text-align: right;
   }
 
   /* ---------- Hinweise / Fehler ---------- */
@@ -356,6 +664,10 @@ export const cardStyles = css`
   @media (prefers-reduced-motion: reduce) {
     .smc-pulse {
       animation: none;
+    }
+    .event-tile,
+    .detail-tile {
+      transition: none;
     }
   }
 

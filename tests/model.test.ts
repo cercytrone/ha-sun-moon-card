@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { HA_MOON_PHASES, buildModel, resolveConfig } from '../src/model.js';
+import { HA_MOON_PHASES, buildModel, emptyExtras, resolveConfig } from '../src/model.js';
 import { zonedTimeToUtc } from '../src/timezone.js';
 import type { HomeAssistant } from '../src/types.js';
 
@@ -272,6 +272,44 @@ describe('buildModel – Sonderfälle', () => {
     );
     expect(model.sun.altitude).toBeGreaterThan(60); // Januar = Sommer in Sydney
     expect(model.sun.phase).toBe('day');
+  });
+});
+
+describe('Vollmond-Extras', () => {
+  it('nennt den überlieferten Namen des nächsten Vollmonds', () => {
+    // 29. Oktober 2026 fällt der Vollmond in den Oktober → „Jägermond“.
+    const { config } = resolveConfig({});
+    const model = buildModel(
+      config,
+      hassWith(),
+      zonedTimeToUtc(2026, 10, 20, 12, 0, 0, 'Europe/Berlin'),
+    );
+    expect(model.extras.nextFullMoon).not.toBeNull();
+    expect(model.extras.moonFolkName).toBe('Jägermond (Volksname)');
+  });
+
+  it('kennzeichnet den Volksnamen in beiden Sprachen', () => {
+    const { config } = resolveConfig({ language: 'en' });
+    const model = buildModel(
+      config,
+      hassWith(),
+      zonedTimeToUtc(2026, 10, 20, 12, 0, 0, 'Europe/Berlin'),
+    );
+    expect(model.extras.moonFolkName).toBe("Hunter's Moon (folk name)");
+  });
+
+  it('liefert den Namen des Januar-Vollmonds im Januar', () => {
+    const { config } = resolveConfig({});
+    const model = buildModel(
+      config,
+      hassWith(),
+      zonedTimeToUtc(2026, 1, 1, 12, 0, 0, 'Europe/Berlin'),
+    );
+    expect(model.extras.moonFolkName).toBe('Wolfsmond (Volksname)');
+  });
+
+  it('meldet keinen Volksnamen ohne Vollmonddaten', () => {
+    expect(emptyExtras('Europe/Berlin', 'de-DE').moonFolkName).toBeNull();
   });
 });
 

@@ -503,6 +503,9 @@ export interface MoonPhaseInfo {
   distanceKm: number;
 }
 
+/** Mittlere Länge des synodischen Monats in Tagen. */
+export const MOON_SYNODIC_MONTH_DAYS = 29.530588853;
+
 /**
  * Mondphase und Beleuchtungsgrad (Meeus, Kapitel 48).
  *
@@ -833,4 +836,137 @@ export function skyPhase(sunElevation: number): SkyPhase {
   if (sunElevation > ELEVATION_NAUTICAL) return 'nautical';
   if (sunElevation > ELEVATION_ASTRONOMICAL) return 'astronomical';
   return 'night';
+}
+
+/** Ergebnis der Suche nach dem nächsten Vollmond. */
+export interface MoonPhaseEvent {
+  /** Zeitpunkt der größten Beleuchtung (Maximum im Suchfenster). */
+  time: Date;
+  /** Beleuchtungsgrad am Maximum (0…1; 1 = exakter Vollmond). */
+  illumination: number;
+}
+
+/**
+ * Vollmond-Funktion: Abweichung des Mondalters vom halben synodischen Monat.
+ *
+ * Der Wert ist 0 im Vollmond und steigt monoton durch null hindurch. Das
+ * Mondalter wird auf (-0.5, 0.5] gefaltet, damit die Faltenstelle beim
+ * **Neumond** liegt – also möglichst weit vom gesuchten Nulldurchgang
+ * entfernt, sodass `findCrossings` keine Scheinlösung liefert.
+ */
+function fullMoonOffset(time: number): number {
+  const raw = moonPhase(time).moonAgeDays / MOON_SYNODIC_MONTH_DAYS - 0.5;
+  return (((raw % 1) + 1) % 1 + 0.5) % 1 - 0.5;
+}
+
+/**
+ * Alle Vollmonde im Zeitraum [from, to].
+ *
+ * Vollmond ist der Zeitpunkt, an dem der Mond der Sonne auf der Ekliptik genau
+ * gegenübersteht (Mondalter = halber synodischer Monat). Diese Definition ist
+ * deutlich besser konditioniert als das Maximum des Beleuchtungsgrads, dessen
+ * Ableitung am Maximum gegen null geht: Ein minimaler Fehler der Mondreihe
+ * verschiebt das Maximum um bis zu einer halben Stunde, den Nulldurchgang
+ * dagegen nur um wenige Minuten.
+ *
+ * @param from Beginn des Suchzeitraums
+ * @param to Ende des Suchzeitraums
+ * @returns Zeitpunkte der Vollmonde (aufsteigend)
+ */
+export function findFullMoons(from: Date | number, to: Date | number): Date[] {
+  const fromMs = typeof from === 'number' ? from : from.getTime();
+  const toMs = typeof to === 'number' ? to : to.getTime();
+  if (!(toMs > fromMs)) return [];
+  return findCrossings(fromMs, toMs, 6 * 60 * 60 * 1000, fullMoonOffset, 0)
+    .filter((crossing) => crossing.rising)
+    .map((crossing) => new Date(crossing.time));
+}
+
+/**
+ * Sucht den **nächsten** Vollmond ab dem angegebenen Zeitpunkt.
+ *
+ * Gesucht wird der erste Vollmond im Suchzeitraum – nicht der am stärksten
+ * beleuchtete: Die maximale Beleuchtung schwankt von Monat zu Monat (je nach
+ * Erdentfernung), ein globales Maximum würde daher gelegentlich einen späteren
+ * Vollmond liefern.
+ *
+ * @param from Startzeitpunkt (typisch: jetzt)
+ * @param maxDays maximaler Suchzeitraum in Tagen
+ */
+export function findNextFullMoon(from: Date | number, maxDays = 32): MoonPhaseEvent | null {
+  const startMs = typeof from === 'number' ? from : from.getTime();
+  const moons = findFullMoons(startMs, startMs + maxDays * 24 * 60 * 60 * 1000);
+  const candidate = moons[0];
+  if (!candidate) return null;
+  const illumination = moonPhase(candidate).illumination;
+  // Plausibilitätsprüfung: ein echter Vollmond ist praktisch voll beleuchtet.
+  return illumination < 0.98 ? null : { time: candidate, illumination };
+}
+
+/** Entfernungsbereich des Mondes um den angegebenen Zeitpunkt. */
+export interface MoonDistanceRange {
+  /** Aktuelle Entfernung in Kilometern. */
+  current: number;
+  /** Kleinste Entfernung im Fenster (Erdnähe, Perigäum). */
+  min: number;
+  /** Zeitpunkt der kleinsten Entfernung. */
+  minTime: Date;
+  /** Größte Entfernung im Fenster (Erdferne, Apogäum). */
+  max: number;
+  /** Zeitpunkt der größten Entfernung. */
+  maxTime: Date;
+  /** Mittlere Entfernung der Mondreihe als Bezugsgröße. */
+  mean: number;
+}
+
+/**
+ * Bestimmt den Entfernungsbereich des Mondes in einem Fenster um `from`.
+ *
+ * Damit lässt sich eine Angabe wie „Erdnähe“ oder „Erdferne“ einordnen, ohne
+ * eine weitere astronomische Reihe zu benötigen: Es werden lediglich die
+ * vorhandenen Mondpositionen abgetastet (alle 6 Stunden).
+ */
+export function moonDistanceRange(
+  from: Date | number,
+  location: GeoLocation,
+  days = 14,
+): MoonDistanceRange {
+  // Fenster ist um `from` zentriert, damit sich die aktuelle Entfernung
+  // zuverlässig als „nahe Erdnähe“ oder „nahe Erdferne“ einordnen lässt.
+  const referenceMs = typeof from === 'number' ? from : from.getTime();
+  const step = 6 * 60 * 60 * 1000;
+  const startMs = referenceMs - days * 24 * 60 * 60 * 1000;
+  const endMs = referenceMs + days * 24 * 60 * 60 * 1000;
+
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  let minTime = startMs;
+  let maxTime = startMs;
+
+  for (let t = startMs; t <= endMs; t += step) {
+    const distance = moonPosition(t, location).distanceKm;
+    if (distance < min) {
+      min = distance;
+      minTime = t;
+    }
+    if (distance > max) {
+      max = distance;
+      maxTime = t;
+    }
+  }
+
+  return {
+    current: moonPosition(referenceMs, location).distanceKm,
+    min,
+    minTime: new Date(minTime),
+    max,
+    maxTime: new Date(maxTime),
+    mean: LUNAR_MEAN_DISTANCE_KM,
+  };
+}
+
+/** Azimut von Sonne oder Mond zu einem bestimmten Zeitpunkt (Grad, 0…360). */
+export function azimuthAt(time: Date | number, location: GeoLocation, body: 'sun' | 'moon' = 'sun'): number {
+  const position = body === 'sun' ? sunPosition(time, location) : moonPosition(time, location);
+  return position.azimuth;
 }
