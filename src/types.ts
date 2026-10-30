@@ -59,6 +59,13 @@ export interface SunMoonCardConfig {
    *  `flat`  – flächige Kacheln, höchster Kontrast
    */
   card_style?: 'glass' | 'flat' | 'horizon';
+  /**
+   * Minimalmodus: zeigt ausschließlich den Zeitstrahl – keine Kopfzeile,
+   * keine Ereignisleiste, keine Details, keine Fußzeile, keine Legende.
+   * Dadurch sind sehr flache Karten ab 24&nbsp;px möglich. Ein Klick auf die
+   * Karte öffnet die vollständige Variante in einem Overlay.
+   */
+  minimal_mode?: boolean;
 
   /** `'auto'` folgt dem Home-Assistant-Theme. */
   theme_mode?: 'auto' | 'light' | 'dark';

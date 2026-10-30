@@ -24,6 +24,9 @@ import {
   MAX_CARD_HEIGHT,
   MIN_CARD_HEIGHT,
   MIN_CHART_HEIGHT_WITH_FOOTER,
+  MINIMAL_MIN_CARD_HEIGHT,
+  MINIMAL_MIN_CHART_HEIGHT,
+  MINIMAL_PADDING,
   PADDING_COMPACT,
   PADDING_REGULAR,
   ROOT_GAP,
@@ -332,5 +335,73 @@ describe('resolveAutoHeight', () => {
 
   it('unterscheidet schmale und breite Karten', () => {
     expect(resolveAutoHeight(320)).not.toBe(resolveAutoHeight(800));
+  });
+});
+
+describe('computeLayout – Minimalmodus', () => {
+  const heights = [24, 32, 48, 64, 96, 120, 200, 340, 800];
+
+  it('schaltet jeden Bereich außer dem Zeitstrahl ab', () => {
+    for (const height of heights) {
+      for (const width of WIDTHS) {
+        const layout = layoutFor({ minimal_mode: true }, height, width);
+        expect(layout.minimal).toBe(true);
+        expect(layout.showHeader).toBe(false);
+        expect(layout.showEvents).toBe(false);
+        expect(layout.showDetails).toBe(false);
+        expect(layout.showFooter).toBe(false);
+        expect(layout.showLegend).toBe(false);
+        expect(layout.skyViewSide).toBe(false);
+        expect(layout.skyViewInline).toBe(false);
+        expect(layout.skyViewWidth).toBe(0);
+        expect(layout.headerHeight).toBe(0);
+        expect(layout.eventsHeight).toBe(0);
+        expect(layout.detailsHeight).toBe(0);
+        expect(layout.footerHeight).toBe(0);
+        expect(layout.legendHeight).toBe(0);
+        expect(layout.compact).toBe(false);
+      }
+    }
+  });
+
+  it('gibt die gesamte Höhe abzüglich des Randes an den Zeitstrahl', () => {
+    for (const height of heights) {
+      const layout = layoutFor({ minimal_mode: true }, height);
+      expect(layout.gaps).toBe(0);
+      expect(layout.padding).toBe(MINIMAL_PADDING);
+      expect(layout.chartHeight + 2 * layout.padding).toBe(height);
+    }
+  });
+
+  it('funktioniert unter 100 px Kartenhöhe', () => {
+    for (const height of [24, 40, 64, 96]) {
+      const { config } = resolveConfig({ minimal_mode: true, card_height: height });
+      expect(config.card_height).toBe(height);
+      const layout = computeLayout(height, 620, config);
+      expect(layout.minimal).toBe(true);
+      expect(layout.chartHeight).toBe(height - 2 * MINIMAL_PADDING);
+      expect(layout.chartHeight).toBeGreaterThanOrEqual(MINIMAL_MIN_CHART_HEIGHT);
+    }
+  });
+
+  it('nutzt die volle Breite für den Zeitstrahl', () => {
+    for (const width of WIDTHS) {
+      const layout = layoutFor({ minimal_mode: true }, 48, width);
+      expect(layout.chartWidth).toBe(Math.max(40, width - 2 * MINIMAL_PADDING));
+    }
+  });
+
+  it('unterschreitet die kleinste Verlaufshöhe nicht', () => {
+    const { config } = resolveConfig({ minimal_mode: true, card_height: MINIMAL_MIN_CARD_HEIGHT });
+    const layout = computeLayout(10, 620, config);
+    expect(layout.chartHeight).toBe(MINIMAL_MIN_CHART_HEIGHT);
+  });
+
+  it('bleibt ohne Minimalmodus unverändert', () => {
+    for (const height of HEIGHTS) {
+      const layout = layoutFor({}, height);
+      expect(layout.minimal).toBe(false);
+      expect(layout.chartHeight).toBeGreaterThanOrEqual(56);
+    }
   });
 });

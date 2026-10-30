@@ -108,6 +108,18 @@ const SHOTS = [
     file: 'screenshot-horizon.png',
   },
   {
+    name: 'Minimalvariante: Zeitstrahl bei 48 px Kartenhöhe',
+    url: '/shots.html?preset=minimalmode&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=48',
+    selector: 'sun-moon-card',
+    file: 'screenshot-minimal.png',
+  },
+  {
+    name: 'Minimalvariante im Horizontstil (64 px)',
+    url: '/shots.html?preset=minimalmode_horizon&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=64',
+    selector: 'sun-moon-card',
+    file: 'screenshot-minimal-horizon.png',
+  },
+  {
     name: 'Englisch, 12-Stunden-Format',
     url: '/shots.html?preset=english&loc=newyork&time=2026-10-26T18:30&theme=light&w=620&h=340',
     selector: 'sun-moon-card',

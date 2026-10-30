@@ -28,6 +28,33 @@ export const AUTO_HEIGHT_WIDE = 360;
 
 /** Dokumentierter und geprüfter Wertebereich der Kartenhöhe. */
 export const CARD_HEIGHT_RANGE: [number, number] = [MIN_CARD_HEIGHT, MAX_CARD_HEIGHT];
+/**
+ * Kleinste Kartenhöhe im Minimalmodus. Dort trägt die Karte ausschließlich
+ * den Zeitstrahl; mehr als ein schmaler Rand und eine sehr flache Kurve sind
+ * nicht nötig, sodass Höhen weit unter 100 px sinnvoll bleiben.
+ */
+export const MINIMAL_MIN_CARD_HEIGHT = 24;
+/** Kleinste Höhe des Zeitstrahls im Minimalmodus (ergibt sich aus dem Rand). */
+export const MINIMAL_MIN_CHART_HEIGHT = 16;
+/** Außenabstand der Karte im Minimalmodus. */
+export const MINIMAL_PADDING = 4;
+/**
+ * Höhe der vollständigen Variante im Overlay des Minimalmodus. Der Streifen
+ * selbst ist zu flach, deshalb bekommt das Overlay eine eigene Höhe – nach
+ * oben begrenzt, damit es auf kleinen Bildschirmen nicht aus dem Blickfeld
+ * ragt.
+ */
+export const MINIMAL_POPUP_HEIGHT: [number, number] = [260, 520];
+
+/**
+ * Zulässiger Höhenbereich der Karte. Im Minimalmodus beginnt er deutlich
+ * niedriger, damit die Karte auch als schmaler Streifen funktioniert.
+ */
+export function cardHeightRange(minimal: boolean): [number, number] {
+  return minimal
+    ? [MINIMAL_MIN_CARD_HEIGHT, MAX_CARD_HEIGHT]
+    : [MIN_CARD_HEIGHT, MAX_CARD_HEIGHT];
+}
 /** Im Editor und in der Dokumentation genannte Empfehlung. */
 export const CARD_HEIGHT_RECOMMENDED: [number, number] = [180, 420];
 
@@ -41,6 +68,7 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   show_twilight: true,
   show_astronomical_details: false,
   compact_mode: false,
+  minimal_mode: false,
   card_style: 'glass',
   theme_mode: 'auto',
   animations: true,
@@ -212,6 +240,8 @@ export interface LayoutMetrics {
   legendHeight: number;
   /** Höhe des Charts. */
   chartHeight: number;
+  /** Minimalmodus: nur der Zeitstrahl, ohne jeden weiteren Bereich. */
+  minimal: boolean;
   /** Kompakte Schriftgrößen. */
   compact: boolean;
 }
@@ -295,6 +325,37 @@ export function computeLayout(
   width: number,
   config: ResolvedConfig,
 ): LayoutMetrics {
+  // Minimalmodus: Der Zeitstrahl ist die ganze Karte. Es gibt keinen
+  // Höhenhaushalt zu verteilen – Höhe abzüglich Rand gehört dem Verlauf.
+  // Deshalb sind hier auch Höhen unter 100 px darstellbar.
+  if (config.minimal_mode) {
+    const minimalChartHeight = Math.max(
+      MINIMAL_MIN_CHART_HEIGHT,
+      height - 2 * MINIMAL_PADDING,
+    );
+    return {
+      padding: MINIMAL_PADDING,
+      showHeader: false,
+      showEvents: false,
+      showDetails: false,
+      showFooter: false,
+      showLegend: false,
+      skyViewSide: false,
+      skyViewInline: false,
+      skyViewWidth: 0,
+      chartWidth: Math.max(40, width - 2 * MINIMAL_PADDING),
+      gaps: 0,
+      headerHeight: 0,
+      eventsHeight: 0,
+      detailsHeight: 0,
+      footerHeight: 0,
+      legendHeight: 0,
+      chartHeight: minimalChartHeight,
+      minimal: true,
+      compact: false,
+    };
+  }
+
   const compact = config.compact_mode;
   // Konstanter Innenabstand: dadurch wächst der verfügbare Platz – und damit
   // der Tagesverlauf – streng monoton mit der Kartenhöhe. Ein höhenabhängiger
@@ -421,6 +482,7 @@ export function computeLayout(
     footerHeight,
     legendHeight,
     chartHeight,
+    minimal: false,
     compact,
   };
 }

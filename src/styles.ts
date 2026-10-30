@@ -177,6 +177,32 @@ export const cardStyles = css`
     gap: 3px;
   }
 
+  /* ---------- Minimalvariante ---------- */
+
+  /* Der Streifen trägt keine Zahlen, sondern reagiert auf einen Klick: Er
+     öffnet die vollständige Karte in einem Overlay. */
+  ha-card.smc-minimal {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ha-card.smc-minimal:focus-visible {
+    outline: 2px solid var(--primary-color, #03a9f4);
+    outline-offset: -2px;
+  }
+
+  .root.minimal {
+    gap: 0;
+  }
+
+  .chart-wrap.minimal {
+    flex: 1 1 auto;
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   /* ---------- Kopfzeile ---------- */
 
   .header {

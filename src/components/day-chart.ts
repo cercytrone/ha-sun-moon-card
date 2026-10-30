@@ -93,6 +93,13 @@ export interface DayChartOptions {
   animations: boolean;
   /** Kompakte Darstellung. */
   compact: boolean;
+  /**
+   * Minimalmodus: Der Zeitstrahl tritt allein auf – ohne Raster, ohne
+   * Beschriftungen, ohne Mondgang, ohne Höhenlinien außer dem Horizont.
+   * Fläche, Kurve, Auf- und Untergangsmarken sowie der „Jetzt“-Marker
+   * bleiben, damit erkennbar ist, wo die Sonne im Tag steht.
+   */
+  minimal: boolean;
   /** Stabile IDs für SVG-Definitionen. */
   uid: string;
   /**
@@ -322,18 +329,19 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     twilightLevel,
     animations,
     cardStyle,
+    minimal,
     uid,
     showAstronomicalLayers,
     currentAltitude,
   } = options;
 
-  const safeWidth = Math.max(120, width);
-  const safeHeight = Math.max(56, height);
+  const safeWidth = Math.max(minimal ? 60 : 120, width);
+  const safeHeight = Math.max(minimal ? 12 : 56, height);
 
-  const padLeft = 4;
-  const padRight = 4;
-  const padTop = 6;
-  const showLabelStrip = safeHeight >= 112;
+  const padLeft = minimal ? 2 : 4;
+  const padRight = minimal ? 2 : 4;
+  const padTop = minimal ? 2 : 6;
+  const showLabelStrip = !minimal && safeHeight >= 112;
   const stripHeight = showLabelStrip ? clamp(round(safeHeight * 0.13, 1), 13, 20) : 0;
   const plotLeft = padLeft;
   const plotWidth = Math.max(10, safeWidth - padLeft - padRight);
@@ -393,7 +401,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
         (sample) => ({ x: xOf(sample.time), y: yOf(sample.altitude) }),
       )
     : null;
-  const moonCurve = moonPoints ? smoothPath(moonPoints) : null;
+  const moonCurve = moonPoints && !minimal ? smoothPath(moonPoints) : null;
   const moonLine = 'var(--smc-moon-line, #cbd5e1)';
   const moonWidth = clamp(round(safeHeight * 0.013, 2), 1.1, 1.9);
   // Himmelsfläche: alles oberhalb der Sonnenkurve.
@@ -417,10 +425,10 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   const fadeTop = plotTop - 1;
   const fadeBottom = plotBottom + 1;
   const fadeSpan = Math.max(1, fadeBottom - fadeTop);
-  const topFade = clamp(plotHeight * 0.14, 6, 18);
-  const footFade = clamp(plotHeight * 0.08, 4, 12);
-  const sideFade = clamp(plotWidth * 0.02, 6, 14);
-  const cornerRadius = clamp(round(plotHeight * 0.06, 1), 4, 10);
+  const topFade = clamp(plotHeight * 0.14, minimal ? 1.5 : 6, 18);
+  const footFade = clamp(plotHeight * 0.08, minimal ? 1 : 4, 12);
+  const sideFade = clamp(plotWidth * 0.02, minimal ? 2 : 6, 14);
+  const cornerRadius = clamp(round(plotHeight * 0.06, 1), minimal ? 1.5 : 4, 10);
   // Anteilige Offsets der Masken-Verläufe.
   const topFadeOffset = round(clamp(topFade / fadeSpan, 0, 0.45), 4);
   const footFadeOffset = round(1 - clamp(footFade / fadeSpan, 0, 0.45), 4);
@@ -443,7 +451,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   }
 
   // --- Sonnenkuppel -------------------------------------------------------
-  const dome = domeGeometry(points, events, profile.polar, xOf, horizonY);
+  const dome = minimal ? null : domeGeometry(points, events, profile.polar, xOf, horizonY);
   const domeId = `${uid}-dome`;
 
   // --- Ereignismarken ------------------------------------------------------
@@ -535,9 +543,11 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   const primaries = markers.filter((marker) => !marker.secondary);
   const secondaries = markers.filter((marker) => marker.secondary);
   const maxLabels = plotWidth < 240 ? 3 : plotWidth < 340 ? 4 : 6;
-  const ordered = [...primaries, ...secondaries]
-    .slice(0, Math.max(2, maxLabels))
-    .sort((a, b) => a.time.getTime() - b.time.getTime());
+  const ordered = minimal
+    ? []
+    : [...primaries, ...secondaries]
+        .slice(0, Math.max(2, maxLabels))
+        .sort((a, b) => a.time.getTime() - b.time.getTime());
   const useShort = ordered.length > 3 || plotWidth < 300;
 
   const labels: PlacedLabel[] = [];
@@ -560,7 +570,9 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   // Der Sonnenmarker trägt die gesättigte Tagesfarbe, nicht die blasse Farbe
   // der Kurve – sonst verschwindet er auf der Linie, auf der er sitzt.
   const markerColor = palette.day;
-  const markerRadius = clamp(round(safeHeight * 0.045, 1), 3.5, 6);
+  const markerRadius = minimal
+    ? clamp(round(safeHeight * 0.09, 1), 1.8, 4)
+    : clamp(round(safeHeight * 0.045, 1), 3.5, 6);
   const markerRing = clamp(round(markerRadius * 0.22, 2), 0.8, 1.4);
   const moonRadius = clamp(round(markerRadius * 1.1, 1), 3.5, 7);
 
@@ -579,7 +591,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   // Mondmarker: eigene Höhe auf der „Jetzt"-Linie. Liegt er dicht am
   // Sonnenmarker, weicht er seitlich aus, damit sich beide nicht verdecken.
   const moonNow =
-    showMoon && moon
+    showMoon && moon && !minimal
       ? {
           altitude: moon.altitude,
           y: markerY(moon.altitude, moonRadius),
@@ -622,9 +634,12 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
       key: 'civil',
     });
   }
-  const showRefLabels = plotHeight >= 86 && plotWidth >= 250;
+  const showRefLabels = !minimal && plotHeight >= 86 && plotWidth >= 250;
   const refLines = referenceCandidates.filter(
-    (line) => line.altitude > domainBottom + 0.5 && line.altitude < domainTop - 0.5,
+    (line) =>
+      (!minimal || line.key === 'horizon') &&
+      line.altitude > domainBottom + 0.5 &&
+      line.altitude < domainTop - 0.5,
   );
   const refLabelFontSize = clamp(round(safeHeight * 0.055, 1), 7.5, 9.5);
 
@@ -633,6 +648,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   // Kleine Beschriftung am höchsten Punkt der Kurve: Zeit und Höhe.
   const zenithTime = events.solarNoon;
   const showZenith =
+    !minimal &&
     Boolean(zenithTime) &&
     profile.maxAltitude > 0 &&
     plotHeight >= 104 &&
@@ -662,7 +678,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     Math.max(plotTop, zenithYRaw + 10),
   );
 
-  const gridCount = plotWidth < 220 ? 4 : plotWidth < 420 ? 6 : 8;
+  const gridCount = minimal ? 1 : plotWidth < 220 ? 4 : plotWidth < 420 ? 6 : 8;
   const gridLines: number[] = [];
   for (let i = 1; i < gridCount; i++) {
     gridLines.push(plotLeft + (plotWidth * i) / gridCount);

@@ -17,10 +17,11 @@ import { customElement, property, state } from 'lit/decorators.js';
 
 import { EDITOR_ELEMENT_NAME } from './const.js';
 import {
-  CARD_HEIGHT_RANGE,
   CONFIG_CHOICES,
   DEFAULT_CONFIG,
   MIN_CARD_HEIGHT,
+  MINIMAL_MIN_CARD_HEIGHT,
+  cardHeightRange,
   stubConfig,
 } from './const.js';
 import { localize, resolveLanguage, type StringKey } from './localize.js';
@@ -102,6 +103,10 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
     // und die Felder bleiben bedienbar – sonst wäre die Höhe bei jeder neuen
     // Karte ausgegraut.
     const heightIsAuto = height === 'auto' || height === null;
+    // Im Minimalmodus beginnt der zulässige Höhenbereich weit unten – der
+    // Streifen funktioniert bis 24 px.
+    const minimal = this._config.minimal_mode === true;
+    const heightRange = cardHeightRange(minimal);
     const heightNumber = typeof height === 'number' ? height : DEFAULT_CONFIG.card_height;
     const useHaLocation =
       this._config.latitude === undefined || this._config.latitude === null;
@@ -117,9 +122,9 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
               <input
                 id="height"
                 type="range"
-                min="${CARD_HEIGHT_RANGE[0]}"
-                max="${CARD_HEIGHT_RANGE[1]}"
-                step="10"
+                min="${heightRange[0]}"
+                max="${heightRange[1]}"
+                step="${minimal ? 2 : 10}"
                 .value=${String(heightNumber)}
                 ?disabled=${heightIsAuto}
                 @input=${(event: Event) =>
@@ -131,17 +136,15 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                 id="height-number"
                 type="number"
                 aria-label=${this._t('editorCardHeight')}
-                min="${CARD_HEIGHT_RANGE[0]}"
-                max="${CARD_HEIGHT_RANGE[1]}"
+                min="${heightRange[0]}"
+                max="${heightRange[1]}"
                 .value=${String(heightNumber)}
                 ?disabled=${heightIsAuto}
                 @change=${(event: Event) => {
                   const parsed = toNumber((event.target as HTMLInputElement).value);
                   if (parsed !== null) {
                     this._update({
-                      card_height: Math.round(
-                        clamp(parsed, CARD_HEIGHT_RANGE[0], CARD_HEIGHT_RANGE[1]),
-                      ),
+                      card_height: Math.round(clamp(parsed, heightRange[0], heightRange[1])),
                     });
                   }
                 }}
@@ -298,6 +301,27 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
               </span>
             </div>
           </div>
+
+          <div class="row">
+            <label for="minimal">${this._t('editorMinimalMode')}</label>
+            <div class="control">
+              <span class="switch">
+                <input
+                  id="minimal"
+                  type="checkbox"
+                  .checked=${this._value('minimal_mode', false)}
+                  @change=${(event: Event) =>
+                    this._update({ minimal_mode: (event.target as HTMLInputElement).checked })}
+                />
+                <span class="slider"></span>
+              </span>
+            </div>
+          </div>
+          ${minimal
+            ? html`<div class="row">
+                <span class="hint">${this._t('editorMinimalModeHelp')}</span>
+              </div>`
+            : nothing}
         </div>
 
         <div class="section">
@@ -429,8 +453,9 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
         <div class="section">
           <div class="row">
             <span class="hint">
-              ${this._t('editorCardHeight')}: ${CARD_HEIGHT_RANGE[0]}–${CARD_HEIGHT_RANGE[1]} px
-              (Standard ${DEFAULT_CONFIG.card_height} px, mindestens ${MIN_CARD_HEIGHT} px)
+              ${this._t('editorCardHeight')}: ${heightRange[0]}–${heightRange[1]} px (Standard
+              ${DEFAULT_CONFIG.card_height} px, mindestens
+              ${minimal ? MINIMAL_MIN_CARD_HEIGHT : MIN_CARD_HEIGHT} px)
             </span>
             <button class="link" @click=${() => this._reset()}>${this._t('editorReset')}</button>
           </div>
@@ -442,12 +467,13 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
 
   private _warnings(): TemplateResult | typeof nothing {
     const height = this._config?.card_height;
-    if (typeof height === 'number' && (height < CARD_HEIGHT_RANGE[0] || height > CARD_HEIGHT_RANGE[1])) {
+    const range = cardHeightRange(this._config?.minimal_mode === true);
+    if (typeof height === 'number' && (height < range[0] || height > range[1])) {
       return html`<span class="hint">
         ${this._t('invalidHeight', {
           value: String(height),
-          min: CARD_HEIGHT_RANGE[0],
-          max: CARD_HEIGHT_RANGE[1],
+          min: range[0],
+          max: range[1],
         })}
       </span>`;
     }

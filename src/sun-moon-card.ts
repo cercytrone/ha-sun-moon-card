@@ -42,6 +42,7 @@ import {
   DEFAULT_CONFIG,
   DETAILS_HEIGHT_DETAILED,
   LIGHT_PALETTE,
+  MINIMAL_POPUP_HEIGHT,
   MIN_CARD_HEIGHT,
   computeLayout,
   stubConfig,
@@ -76,7 +77,7 @@ import { cardStyles } from './styles.js';
 // Der Editor wird mitgebündelt, damit `getConfigElement()` eine einzige
 // Datei ausreicht.
 import './sun-moon-card-editor.js';
-import { nextMinute } from './utils.js';
+import { clamp, nextMinute } from './utils.js';
 import type {
   CardModel,
   ConfigChangedEvent,
@@ -112,6 +113,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   @state() private _tick = 0;
 
   private _uid = `smc-${Math.random().toString(36).slice(2, 9)}`;
+  /** Overlay mit der vollständigen Variante (nur im Minimalmodus). */
+  private _popup: HTMLElement | null = null;
   private _timer?: ReturnType<typeof setTimeout>;
   private _resizeObserver?: ResizeObserver;
   private _hassSignature = '';
@@ -163,7 +166,10 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     const rows = Math.max(1, Math.round(height / 56));
     return {
       rows,
-      min_rows: Math.max(1, Math.round(MIN_CARD_HEIGHT / 56)),
+      min_rows:
+        this._config?.minimal_mode === true
+          ? 1
+          : Math.max(1, Math.round(MIN_CARD_HEIGHT / 56)),
       columns: 6,
       min_columns: 4,
     };
@@ -209,6 +215,135 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     this._stopClock();
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
+    this._closeDetails();
+  }
+
+  /**
+   * Öffnet die vollständige Variante über der Karte.
+   *
+   * Der Minimalstreifen ist zu flach, um Zahlen zu tragen. Ein Klick legt
+   * daher dieselbe Karte – mit identischer Konfiguration, aber ohne
+   * Minimalmodus und mit ausreichender Höhe – in ein Overlay. Das Overlay
+   * hängt an `document.body`, damit es über allen Dashboard-Elementen
+   * liegt; es nutzt ausschließlich inline gesetzte Stile, weil dort keine
+   * Stile dieser Karte gelten.
+   */
+  private _openDetails(): void {
+    if (!this._config || !this.hass || this._popup) return;
+    const language = this._language();
+    const configured =
+      typeof this._config.card_height === 'number' ? this._config.card_height : 0;
+    const height = clamp(
+      configured || (DEFAULT_CONFIG.card_height as number),
+      MINIMAL_POPUP_HEIGHT[0],
+      MINIMAL_POPUP_HEIGHT[1],
+    );
+    const overlay = document.createElement('div');
+    overlay.className = 'smc-popup';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', localize(language, 'title'));
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      top: '0',
+      right: '0',
+      bottom: '0',
+      left: '0',
+      zIndex: '9999',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px',
+      boxSizing: 'border-box',
+      background: 'rgba(0, 0, 0, 0.6)',
+    } as Partial<CSSStyleDeclaration>);
+
+    const panel = document.createElement('div');
+    Object.assign(panel.style, {
+      position: 'relative',
+      width: 'min(92vw, 620px)',
+      maxWidth: '620px',
+      maxHeight: '92vh',
+      overflow: 'auto',
+      borderRadius: '12px',
+      boxShadow: '0 12px 32px rgba(0, 0, 0, 0.45)',
+    } as Partial<CSSStyleDeclaration>);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', localize(language, 'popupClose'));
+    close.textContent = '✕';
+    Object.assign(close.style, {
+      position: 'absolute',
+      top: '8px',
+      right: '8px',
+      zIndex: '1',
+      width: '30px',
+      height: '30px',
+      padding: '0',
+      borderRadius: '50%',
+      border: '1px solid rgba(128, 128, 128, 0.4)',
+      background: 'var(--card-background-color, #202124)',
+      color: 'var(--primary-text-color, #ffffff)',
+      font: '15px/1 system-ui, sans-serif',
+      cursor: 'pointer',
+    } as Partial<CSSStyleDeclaration>);
+    close.addEventListener('click', () => this._closeDetails());
+
+    const resolved = this._config;
+    const popupConfig: SunMoonCardConfig = {
+      ...resolved,
+      // Die aufgelöste Konfiguration trägt `null`, wo der Kartenkonfiguration
+      // `undefined` erlaubt ist; `setConfig()` prüft beides gleichermaßen.
+      latitude: resolved.latitude ?? undefined,
+      longitude: resolved.longitude ?? undefined,
+      location_name: resolved.location_name ?? undefined,
+      minimal_mode: false,
+      card_height: height,
+    };
+    const card = document.createElement(CARD_ELEMENT_NAME) as SunMoonCard;
+    card.hass = this.hass;
+    try {
+      card.setConfig(popupConfig);
+    } catch {
+      // Ungültige Konfiguration: Das Overlay erscheint dennoch und zeigt
+      // die Fehlermeldung der Karte.
+    }
+    panel.append(card, close);
+    overlay.append(panel);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) this._closeDetails();
+    });
+    document.body.append(overlay);
+    document.addEventListener('keydown', this._onPopupKeydown, true);
+    this._popup = overlay;
+    close.focus();
+  }
+
+  /** Schließt das Overlay und gibt den Fokus an die Karte zurück. */
+  private _closeDetails(): void {
+    if (!this._popup) return;
+    this._popup.remove();
+    this._popup = null;
+    document.removeEventListener('keydown', this._onPopupKeydown, true);
+    const card = this.renderRoot?.querySelector?.('ha-card') as HTMLElement | null;
+    card?.focus();
+  }
+
+  /** Escape schließt das Overlay. */
+  private _onPopupKeydown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape' && this._popup) {
+      event.stopPropagation();
+      this._closeDetails();
+    }
+  };
+
+  /** Tastaturbedienung des Minimalstreifens. */
+  private _handleMinimalKey(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this._openDetails();
+    }
   }
 
   /**
@@ -311,8 +446,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     if (model.fatal) {
       return html`
         <ha-card
-          class=${classMap({ 'smc-dark': dark, 'smc-light': !dark })}
-          style=${styleMap({ height: `${height}px` })}
+          class=${classMap({ 'smc-dark': dark, 'smc-light': !dark, 'smc-minimal': layout.minimal })}
+          style=${styleMap({ height: `${layout.minimal ? Math.max(height, 56) : height}px` })}
         >
           <div class="root">
             <div class="message" role="status">
@@ -330,6 +465,64 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       model.timeZone,
       resolveHour12(config.time_format, this.hass?.locale?.time_format, this._locale()),
     );
+
+    // Minimalvariante: nur der Zeitstrahl. Er füllt die ganze Karte, damit
+    // auch bei 24 px Höhe erkennbar bleibt, wo die Sonne im Tag steht.
+    if (layout.minimal) {
+      return html`
+        <ha-card
+          class=${classMap({ 'smc-dark': dark, 'smc-light': !dark, 'smc-minimal': true })}
+          style=${styleMap({ height: `${height}px` })}
+          role="button"
+          tabindex="0"
+          aria-label=${this._minimalAriaLabel(model, context)}
+          @click=${this._openDetails}
+          @keydown=${this._handleMinimalKey}
+        >
+          <div
+            class=${classMap({ root: true, minimal: true })}
+            style=${styleMap({
+              padding: `${layout.padding}px`,
+              gap: '0px',
+              '--smc-palette-day': palette.day,
+              '--smc-palette-civil': palette.civil,
+              '--smc-palette-night': palette.night,
+            })}
+          >
+            <div
+              class="chart-wrap minimal"
+              style=${styleMap({ height: `${layout.chartHeight}px` })}
+            >
+              ${renderDayChart({
+                profile: model.day,
+                events: model.events,
+                now: model.now,
+                width: Math.max(60, layout.chartWidth),
+                height: layout.chartHeight,
+                palette,
+                format: context,
+                showSun: config.show_sun,
+                showMoon: config.show_moon,
+                showTwilight: config.show_twilight,
+                twilightLevel: config.twilight_level,
+                animations: config.animations,
+                cardStyle: config.card_style,
+                compact: false,
+                minimal: true,
+                uid: `${this._uid}-chart`,
+                showAstronomicalLayers: config.show_astronomical_details,
+                currentAltitude: model.sun.altitude,
+                // Der Höhenbereich richtet sich im Minimalmodus allein nach
+                // der Sonne: Der Mond wird nicht gezeichnet und darf dem
+                // schmalen Streifen keine Höhe stehlen.
+                moonPath: null,
+                moon: null,
+              })}
+            </div>
+          </div>
+        </ha-card>
+      `;
+    }
 
     return html`
       <ha-card
@@ -378,6 +571,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                       animations: config.animations,
                       cardStyle: config.card_style,
                       compact: layout.compact,
+                      minimal: false,
                       uid: `${this._uid}-chart`,
                       showAstronomicalLayers: config.show_astronomical_details,
                       currentAltitude: model.sun.altitude,
@@ -1114,6 +1308,20 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       : '';
     const setText = set ? `↓ ${formatTime(set.time, context)}${setSuffix}` : '↓ —';
     return `${riseText} · ${setText}`;
+  }
+
+  /**
+   * Bildet die Zusammenfassung des Minimalstreifens für Screenreader. Sie
+   * ergänzt die Kurzfassung um den aktuellen Sonnenstand und den Hinweis,
+   * dass die vollständige Karte per Klick erreichbar ist.
+   */
+  private _minimalAriaLabel(model: CardModel, context: FormatContext): string {
+    const parts = [this._ariaLabel(model, context)];
+    parts.push(
+      `${context.t('sun')} ${formatDegrees(model.sun.altitude, 0, context.locale)}`,
+    );
+    parts.push(context.t('popupOpenHint'));
+    return parts.join(', ');
   }
 
   /** Bildet eine kurze Zusammenfassung für Screenreader. */
