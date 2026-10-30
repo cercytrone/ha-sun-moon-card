@@ -13,6 +13,9 @@ import {
   CARD_HEIGHT_RANGE,
   DEFAULT_CARD_HEIGHT,
   DEFAULT_CONFIG,
+  MAX_CARD_HEIGHT,
+  MIN_CARD_HEIGHT,
+  MINIMAL_MIN_CARD_HEIGHT,
   stubConfig,
 } from '../src/const.js';
 import { resolveCardHeight, resolveConfig } from '../src/model.js';
@@ -67,6 +70,34 @@ describe('resolveConfig – Kartenhöhe', () => {
     expect(resolveConfig({ card_height: 10 }).config.card_height).toBe(CARD_HEIGHT_RANGE[0]);
     expect(resolveConfig({ card_height: -50 }).config.card_height).toBe(CARD_HEIGHT_RANGE[0]);
     expect(resolveConfig({ card_height: 5000 }).config.card_height).toBe(CARD_HEIGHT_RANGE[1]);
+  });
+
+  it('erlaubt im Minimalmodus Höhen ab 24 px', () => {
+    for (const height of [24, 40, 64, 96]) {
+      const { config, warnings } = resolveConfig({ minimal_mode: true, card_height: height });
+      expect(config.card_height).toBe(height);
+      expect(warnings).toHaveLength(0);
+    }
+    expect(resolveConfig({ minimal_mode: true, card_height: 10 }).config.card_height).toBe(
+      MINIMAL_MIN_CARD_HEIGHT,
+    );
+    expect(resolveConfig({ minimal_mode: true, card_height: 5000 }).config.card_height).toBe(
+      CARD_HEIGHT_RANGE[1],
+    );
+  });
+
+  it('nennt in der Warnung die Untergrenze des Minimalmodus', () => {
+    const { warnings } = resolveConfig({ minimal_mode: true, card_height: 8 }, 'de');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(String(MINIMAL_MIN_CARD_HEIGHT));
+    expect(warnings[0]).toContain(String(MAX_CARD_HEIGHT));
+  });
+
+  it('begrenzt ohne Minimalmodus weiterhin auf 120 px', () => {
+    expect(resolveConfig({ card_height: 60 }).config.card_height).toBe(MIN_CARD_HEIGHT);
+    expect(resolveConfig({ minimal_mode: false, card_height: 60 }).config.card_height).toBe(
+      MIN_CARD_HEIGHT,
+    );
   });
 
   it('meldet eine Warnung, wenn korrigiert wurde', () => {

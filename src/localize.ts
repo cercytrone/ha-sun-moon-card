@@ -16,6 +16,8 @@ const strings = {
   de: {
     // Kopfzeile / allgemein
     title: 'Sonne & Mond',
+    popupClose: 'Schließen',
+    popupOpenHint: 'Zum Öffnen der vollständigen Karte drücken.',
     loading: 'Berechne…',
     noData: 'Keine Daten verfügbar',
     missingLocation:
@@ -190,6 +192,9 @@ const strings = {
     editorCardStyleGlass: 'Glas',
     editorCardStyleFlat: 'Flach',
     editorCardStyleHorizon: 'Horizont',
+    editorMinimalMode: 'Minimalvariante (nur Zeitstrahl)',
+    editorMinimalModeHelp:
+      'Zeigt ausschließlich den Zeitstrahl. Die Kartenhöhe darf dann bis auf 24 Pixel sinken; ein Klick öffnet die vollständige Karte.',
     editorThemeMode: 'Farbschema',
     editorThemeAuto: 'Automatisch (Theme)',
     editorThemeLight: 'Hell',
@@ -222,6 +227,8 @@ const strings = {
   },
   en: {
     title: 'Sun & Moon',
+    popupClose: 'Close',
+    popupOpenHint: 'Press to open the full card.',
     loading: 'Calculating…',
     noData: 'No data available',
     missingLocation:
@@ -384,6 +391,9 @@ const strings = {
     editorCardStyleGlass: 'Glass',
     editorCardStyleFlat: 'Flat',
     editorCardStyleHorizon: 'Horizon',
+    editorMinimalMode: 'Minimal variant (timeline only)',
+    editorMinimalModeHelp:
+      'Shows the timeline only. The card height may then go down to 24 pixels; a click opens the full card.',
     editorThemeMode: 'Colour scheme',
     editorThemeAuto: 'Automatic (theme)',
     editorThemeLight: 'Light',

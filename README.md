@@ -18,6 +18,8 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 [Kartenhöhen](docs/screenshot-heights.png) · [Schmale Karten](docs/screenshot-narrow.png) ·
 [Varianten](docs/screenshot-variants.png) · [Astronomische Details](docs/screenshot-details.png) ·
 [Polartag](docs/screenshot-polar-day.png) · [Polarnacht](docs/screenshot-polar-night.png) ·
+[Minimalvariante](docs/screenshot-minimal.png) ·
+[Minimalvariante im Horizontstil](docs/screenshot-minimal-horizon.png) ·
 [Englisch / 12-Stunden-Format](docs/screenshot-english.png)*
 
 > **English version:** [README.en.md](README.en.md)
@@ -79,6 +81,14 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 - **`card_style: horizon`** füllt nur den Raum **zwischen Kurve und Horizont**: Der Tag steht als
   Berg über der Achse, die Nacht als Tal darunter. Der Himmelsverlauf über der Kurve entfällt,
   Horizontglühen und Mondkurve treten zurück – die Fläche trägt die Aussage
+- **`minimal_mode: true` – die Minimalvariante:** Die Karte zeigt ausschließlich den Zeitstrahl,
+  also die Kurve mit Auf- und Untergang, dem Sonnenstand und der „Jetzt“-Linie. Kopfzeile,
+  Zeitenleiste, Details, Fußzeile und Legende entfallen, das Design des Zeitstrahls bleibt
+  erhalten und wird nur abgespeckt (kein Raster, keine Beschriftungen, kein Mondgang, von den
+  Höhenlinien bleibt der Horizont). Die Kartenhöhe darf damit **bis auf 24 px** sinken – auch
+  unter 100 px bleibt ablesbar, wo die Sonne im Tag steht. Ein Klick (oder die Taste
+  `Eingabe`/`Leertaste`) öffnet die vollständige Karte mit derselben Konfiguration in einem
+  Overlay; `Escape`, ein Klick daneben oder der Schließen-Knopf beenden es
 
 **Zweite Ansicht: aktueller Himmel**
 
@@ -109,8 +119,10 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 
 **Konfiguration und Robustheit**
 
-- Frei wählbare Kartenhöhe in Pixeln (oder `auto`), geprüft von 120 bis 800 px
-- Alle Bereiche einzeln abschaltbar (`show_*`), Kompaktmodus, Theme-Modus, Animationen
+- Frei wählbare Kartenhöhe in Pixeln (oder `auto`), geprüft von 120 bis 800 px – in der
+  Minimalvariante von 24 bis 800 px
+- Alle Bereiche einzeln abschaltbar (`show_*`), Kompaktmodus, Minimalvariante, Theme-Modus,
+  Animationen
 - Drei Kartenstile: `card_style: glass` (halbtransparente Kacheln, Standard), `flat`
   (deckende Flächen ohne Weichzeichner – für schwache Geräte) und `horizon`
   (Fläche nur zwischen Kurve und Horizont)
@@ -197,6 +209,14 @@ show_sky_view: false
 show_header: false
 ```
 
+**Minimalvariante: Zeitstrahl als schmaler Streifen**
+
+```yaml
+type: custom:sun-moon-card
+minimal_mode: true
+card_height: 48   # möglich ab 24 px; ein Klick öffnet die vollständige Karte
+```
+
 **Feste Sprache und Zeitformat, helles Theme**
 
 ```yaml
@@ -241,12 +261,13 @@ cards:
 | `type` | `custom:sun-moon-card` | – | Kartentyp (von Home Assistant gesetzt) |
 | `entity` | Entitäts-ID | `sun.sun` | Sonnen-Entität der HA-Sun-Integration |
 | `moon_entity` | Entitäts-ID | `sensor.moon` | Optionale Mond-Entität (Phasenname wird übernommen, wenn vorhanden) |
-| `card_height` | Zahl in px oder `auto` | `340` | Höhe der Karte; Bereich **120–800** (empfohlen 180–420), `auto` wählt 320 px auf schmalen und 360 px auf breiten Karten |
+| `card_height` | Zahl in px oder `auto` | `340` | Höhe der Karte; Bereich **120–800** (empfohlen 180–420), in der Minimalvariante **24–800**, `auto` wählt 320 px auf schmalen und 360 px auf breiten Karten |
 | `show_sun` | `true` / `false` | `true` | Sonne (Chart, Detailzeile) anzeigen |
 | `show_moon` | `true` / `false` | `true` | Mond anzeigen |
 | `show_twilight` | `true` / `false` | `true` | Dämmerungsphasen anzeigen |
 | `show_astronomical_details` | `true` / `false` | `false` | Zusätzliche Details: Kulmination mit maximaler Höhe, Tageslänge mit Änderung zum Vortag, Azimut, Azimut bei Auf-/Untergang, „Sonne X° unter dem Horizont“, nautische/astronomische Dämmerung, Mondalter, Mondentfernung mit Erdferne/-nähe, nächster Vollmond |
 | `compact_mode` | `true` / `false` | `false` | Kompakte Darstellung ohne Kopfzeile, Himmelsansicht und Detailzeile |
+| `minimal_mode` | `true` / `false` | `false` | Minimalvariante: nur der Zeitstrahl, ohne Kopfzeile, Zeitenleiste, Details, Fußzeile und Legende. Erlaubt Kartenhöhen ab 24 px; ein Klick öffnet die vollständige Karte in einem Overlay |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
@@ -275,7 +296,7 @@ Visual Editor zeigt den Grund dann an.
 Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
 
 - **Darstellung** – Kartenhöhe (Schieberegler und Zahlenfeld), automatische Höhe, Farbschema,
-  Zeitformat, Sprache, Animationen, Kompaktmodus, Dämmerungsgrenze
+  Zeitformat, Sprache, Animationen, Kompaktmodus, Minimalvariante, Dämmerungsgrenze
 - **Bereiche** – Schalter für Sonne, Mond, Dämmerung, astronomische Details, Kopfzeile,
   Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang
 - **Verhalten** – Sonnen- und Mond-Entität
@@ -413,6 +434,14 @@ Verlaufshöhe = Kartenhöhe`.
 Es gibt keine versteckte Mindesthöhe: auch bei 120 px wird nichts abgeschnitten, und bei 800 px
 entsteht keine ungenutzte Fläche, weil der Tagesverlauf den verbleibenden Platz einnimmt.
 
+**Minimalvariante.** Mit `minimal_mode: true` entfällt diese Rechnung: Der Zeitstrahl ist die
+ganze Karte, die Höhe gehört allein ihm (`2 × 4 px Rand + Verlauf = Kartenhöhe`). Der
+Schwellenwert von 120 px gilt dann nicht – geprüft sind Höhen von 24 px bis 800 px. Der
+Höhenbereich des Verlaufs richtet sich in der Minimalvariante nach der Sonne allein, damit die
+Kurve die wenigen Pixel voll ausnutzt. Der Streifen ist eine Schaltfläche: Er ist per Tastatur
+erreichbar, im Screenreader als Karte mit Auf- und Untergangszeit beschrieben und öffnet die
+vollständige Variante.
+
 ---
 
 ## Barrierefreiheit, Performance, Datenschutz
@@ -427,7 +456,10 @@ entsteht keine ungenutzte Fläche, weil der Tagesverlauf den verbleibenden Platz
   deckkräftiges Kärtchen.
 - **Tastatur/Assistenz:** die Karte ist per Tastatur erreichbar (Fokusrahmen), Symbole sind als
   `aria-hidden` markiert, Zahlenwerte sind als Text vorhanden; die Zeitenkacheln tragen einen
-  `title` mit vollständiger Bezeichnung.
+  `title` mit vollständiger Bezeichnung. Der Minimalstreifen ist eine Schaltfläche: `Eingabe`
+  oder `Leertaste` öffnen das Overlay, `Escape` schließt es und gibt den Fokus an die Karte
+  zurück. Das Overlay ist als `role="dialog"` mit `aria-modal` gekennzeichnet und trägt einen
+  beschrifteten Schließen-Knopf.
 - **Performance:** astronomische Berechnungen werden nur einmal pro Minute (bzw. bei relevanten
   Änderungen) ausgeführt und zwischengespeichert. Ein `ResizeObserver` aktualisiert die Breite,
   die Uhr tickt minutengenau zum Zeitpunkt des Minutenwechsels; ohne Änderung erfolgen keine
@@ -550,6 +582,10 @@ Push und Pull Request Typen, Lint, Tests, Build und ob das eingecheckte Bundle a
   unterschiedlich; sie werden als solche gekennzeichnet und sind keine astronomische Größe.
 - Der nächste Vollmond wird auf **±5 Minuten** genau bestimmt (gemessen ≤ 2,6 min zu PyEphem).
   Monatsnamen und „Blue Moon“ beziehen sich auf den Kalendermonat der eingestellten Zeitzone.
+- Das Overlay der Minimalvariante wird an `document.body` gehängt und legt sich über das ganze
+  Fenster. Es verwendet keine Home-Assistant-Dialogkomponente, damit es in allen Oberflächen
+  funktioniert; seine Gestalt folgt deshalb den Theme-Variablen, nicht jeder benutzerdefinierten
+  Karte.
 
 ---
 

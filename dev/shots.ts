@@ -38,6 +38,9 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   // Neue Gestaltungsvarianten
   flat: { card_style: 'flat' },
   horizon: { card_style: 'horizon' },
+  // Minimalvariante: ausschließlich der Zeitstrahl, Höhen ab 24 px
+  minimalmode: { minimal_mode: true },
+  minimalmode_horizon: { minimal_mode: true, card_style: 'horizon' },
   wide: { show_astronomical_details: true },
   nofooter: { show_footer: false },
 };

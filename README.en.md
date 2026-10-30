@@ -17,7 +17,9 @@ images, and no additional Home Assistant integration is required.
 *More views: [light](docs/screenshot-default-light.png) · [card heights](docs/screenshot-heights.png) ·
 [narrow cards](docs/screenshot-narrow.png) · [variants](docs/screenshot-variants.png) ·
 [astronomical details](docs/screenshot-details.png) · [polar day](docs/screenshot-polar-day.png) ·
-[polar night](docs/screenshot-polar-night.png) · [English / 12-hour format](docs/screenshot-english.png)*
+[polar night](docs/screenshot-polar-night.png) · [minimal variant](docs/screenshot-minimal.png) ·
+[minimal variant, horizon style](docs/screenshot-minimal-horizon.png) ·
+[English / 12-hour format](docs/screenshot-english.png)*
 
 > **Deutsche Fassung:** [README.md](README.md) – the German README is the full documentation
 > (installation, every YAML option, accuracy, edge cases, development).
@@ -44,6 +46,13 @@ images, and no additional Home Assistant integration is required.
   with the exact value in its tooltip. `card_style: flat` renders all gradients thinner, and
   **`card_style: horizon` fills only the space between curve and horizon** – day as a hill above
   the axis, night as a valley below, with the sky gradient off and glow and moon curve stepped back.
+- **Minimal variant (`minimal_mode: true`):** the card shows the timeline only – the curve with
+  sunrise and sunset, the current sun position and the “now” line. Header, times row, details,
+  footer and legend are dropped; the design of the timeline is kept, merely stripped down (no grid,
+  no labels, no moon course, and of the altitude lines only the horizon remains). Card heights down
+  to **24 px** are possible, so the card also works as a narrow strip below 100 px and still shows
+  where the sun stands in the day. A click (or `Enter` / `Space`) opens the full card with the same
+  configuration in an overlay; `Escape`, a click outside or the close button dismisses it.
 - **Sky view:** fisheye projection with cardinal directions, horizon and zenith; sun and moon are
   drawn **along their computed diurnal path** (altitude/azimuth), together with the moon disc
   showing the correct terminator for the current phase.
@@ -56,8 +65,9 @@ images, and no additional Home Assistant integration is required.
   moonrise and moonset, and the **next full moon** with date, time and days to go. A footer names
   the time zone, the twilight limit and the calculation method. Times follow the Home Assistant
   language and 12/24-hour setting.
-- **Robust:** free card height (120–800 px or `auto`), every section can be switched off, compact
-  mode, theme mode, two card styles (`glass`, `flat`), animations, visual editor **and** YAML,
+- **Robust:** free card height (120–800 px or `auto`, 24–800 px in the minimal variant), every
+  section can be switched off, compact mode, minimal variant, theme mode, three card styles
+  (`glass`, `flat`, `horizon`), animations, visual editor **and** YAML,
   `setConfig()` / `getCardSize()` / `getGridOptions()` / `getConfigElement()`. Missing entities,
   missing attributes or a missing location never break the card – it shows a hint instead.
 - **Accessible:** colours follow the Home Assistant theme variables; measured WCAG contrast of the
@@ -110,6 +120,13 @@ location_name: Garden house
 ```
 
 ```yaml
+# Minimal variant: the timeline as a narrow strip
+type: custom:sun-moon-card
+minimal_mode: true
+card_height: 48           # allowed from 24 px; a click opens the full card
+```
+
+```yaml
 # Own coordinates, English, 12-hour clock
 type: custom:sun-moon-card
 latitude: 78.2232
@@ -125,12 +142,13 @@ card_height: 320
 |--------|--------|---------|---------|
 | `entity` | entity id | `sun.sun` | Sun entity of the HA sun integration |
 | `moon_entity` | entity id | `sensor.moon` | Optional moon entity (phase name is taken from it) |
-| `card_height` | px (120–800) or `auto` | `340` | Card height; `auto` → 320 px narrow, 360 px wide. The visual editor keeps the height editable while no `card_height` is set; only `auto` locks slider and number field |
+| `card_height` | px (120–800, 24–800 in the minimal variant) or `auto` | `340` | Card height; `auto` → 320 px narrow, 360 px wide. The visual editor keeps the height editable while no `card_height` is set; only `auto` locks slider and number field |
 | `show_sun` | boolean | `true` | Show sun (chart, detail row) |
 | `show_moon` | boolean | `true` | Show moon |
 | `show_twilight` | boolean | `true` | Show twilight phases |
 | `show_astronomical_details` | boolean | `false` | Culmination and maximum altitude, day length with change vs. yesterday, azimuth, azimuth at rise/set, “sun X° below the horizon”, extra twilight layers, moon age, moon distance with perigee/apogee, next full moon |
 | `compact_mode` | boolean | `false` | Compact layout (no header, sky view or detail row) |
+| `minimal_mode` | boolean | `false` | Minimal variant: the timeline only, without header, times row, details, footer and legend. Allows card heights from 24 px; a click opens the full card in an overlay |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |

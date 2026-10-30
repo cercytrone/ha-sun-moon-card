@@ -66,6 +66,8 @@ const EDGE_CASES = [
 const results = [];
 let failed = 0;
 
+const onErrorUnused = () => {};
+
 function record(name, ok, details = '') {
   results.push({ name, ok, details });
   if (!ok) failed += 1;
@@ -724,6 +726,168 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
           .shadowRoot.querySelectorAll('svg.sky-view .stars circle').length,
     );
     record(`Sternenfeld bei Nacht (${night} Sterne)`, night > 20);
+  }
+
+  console.log('\n— Minimalvariante: Zeitstrahl unter 100 px —');
+  await page.setViewport({ width: 700, height: 420, deviceScaleFactor: 1 });
+  for (const height of [24, 40, 48, 96]) {
+    const errors = [];
+    const onConsole = (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    };
+    page.on('console', onConsole);
+    page.on('pageerror', onErrorUnused);
+    const url = `${baseUrl}/shots.html?preset=minimalmode&loc=berlin&time=2026-10-26T12:00&theme=dark&h=${height}&w=620`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const report = await page.evaluate(() => {
+      const card = document.querySelector('sun-moon-card');
+      const root = card.shadowRoot;
+      const haCard = root.querySelector('ha-card');
+      const cardBox = haCard.getBoundingClientRect();
+      const svg = root.querySelector('svg.day-chart');
+      const svgBox = svg.getBoundingClientRect();
+      const viewBox = svg.getAttribute('viewBox').split(' ').map(Number);
+      const line = svg.querySelector('.now-marker line');
+      const sun = svg.querySelector('.now-sun circle');
+      return {
+        cardHeight: Math.round(cardBox.height * 10) / 10,
+        svgHeight: Math.round(svgBox.height * 10) / 10,
+        distanceToBottom: Math.round((cardBox.bottom - svgBox.bottom) * 10) / 10,
+        sections: {
+          header: root.querySelectorAll('.header').length,
+          events: root.querySelectorAll('.event-tile').length,
+          details: root.querySelectorAll('.detail-tile').length,
+          footer: root.querySelectorAll('.footer').length,
+          legend: root.querySelectorAll('.legend-chip').length,
+          sky: root.querySelectorAll('svg.sky-view').length,
+          rootChildren: root.querySelector('.root').children.length,
+        },
+        decorations: {
+          grid: svg.querySelectorAll('g[clip-path] > line').length,
+          labels: svg.querySelectorAll('.event-labels').length,
+          zenith: svg.querySelectorAll('.zenith-chip').length,
+          moonCurve: svg.querySelectorAll('.moon-curve').length,
+          referenceLines: svg.querySelectorAll('g[clip-path] g > line').length,
+        },
+        markers: svg.querySelectorAll('.event-markers > g').length,
+        nowX: Number(line.getAttribute('x1')),
+        width: viewBox[2],
+        plotBottom: viewBox[3] - 2,
+        sun: sun
+          ? {
+              cy: Number(sun.getAttribute('cy')),
+              r: Number(sun.getAttribute('r')),
+            }
+          : null,
+        role: haCard.getAttribute('role'),
+        aria: haCard.getAttribute('aria-label') ?? '',
+      };
+    });
+    page.off('console', onConsole);
+    page.off('pageerror', onErrorUnused);
+
+    const label = `Minimal ${height} px`;
+    record(
+      `${label}: Kartenhöhe eingehalten (${report.cardHeight} px)`,
+      Math.abs(report.cardHeight - height) <= 0.6,
+    );
+    record(
+      `${label}: Verlauf füllt die Karte (${report.svgHeight} px, ${report.distanceToBottom} px Rand)`,
+      report.svgHeight === height - 8 && Math.abs(report.distanceToBottom - 4) <= 0.6,
+    );
+    record(
+      `${label}: keine weiteren Bereiche (${JSON.stringify(report.sections)})`,
+      report.sections.header === 0 &&
+        report.sections.events === 0 &&
+        report.sections.details === 0 &&
+        report.sections.footer === 0 &&
+        report.sections.legend === 0 &&
+        report.sections.sky === 0 &&
+        report.sections.rootChildren === 1,
+    );
+    record(
+      `${label}: Zeitstrahl abgespeckt (Raster ${report.decorations.grid}, Beschriftung ${report.decorations.labels}, Zenit ${report.decorations.zenith}, Mondgang ${report.decorations.moonCurve}, Höhenlinien ${report.decorations.referenceLines})`,
+      report.decorations.grid === 0 &&
+        report.decorations.labels === 0 &&
+        report.decorations.zenith === 0 &&
+        report.decorations.moonCurve === 0 &&
+        report.decorations.referenceLines <= 1,
+    );
+    record(
+      `${label}: Auf- und Untergang markiert (${report.markers} Marken)`,
+      report.markers >= 2,
+    );
+    const fraction = (report.nowX - 2) / (report.width - 4);
+    record(
+      `${label}: Now-Marker bei 12:00 (gemessen ${(fraction * 100).toFixed(1)} %)`,
+      Math.abs(fraction - 0.5) < 0.012,
+    );
+    record(
+      `${label}: Sonnenmarke im Verlauf (${report.sun ? `${report.sun.cy} ± ${report.sun.r}` : 'fehlt'})`,
+      Boolean(report.sun) &&
+        report.sun.cy - report.sun.r >= 1 &&
+        report.sun.cy + report.sun.r <= report.plotBottom + 1,
+    );
+    record(
+      `${label}: bedienbar und für Screenreader beschrieben`,
+      report.role === 'button' && report.aria.includes('Sonnenaufgang'),
+    );
+    record(
+      `${label}: keine Konsolenfehler`,
+      errors.length === 0,
+      errors.slice(0, 2).join(' | '),
+    );
+  }
+
+  // Klick öffnet die vollständige Variante im Overlay
+  {
+    const url = `${baseUrl}/shots.html?preset=minimalmode&loc=berlin&time=2026-10-26T12:00&theme=dark&h=48&w=620`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForSelector('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await page.click('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const open = await page.evaluate(() => {
+      const overlay = document.querySelector('.smc-popup');
+      if (!overlay) return { open: false };
+      const card = overlay.querySelector('sun-moon-card');
+      const inner = card?.shadowRoot?.querySelector('ha-card');
+      return {
+        open: true,
+        dialog:
+          overlay.getAttribute('role') === 'dialog' &&
+          overlay.getAttribute('aria-modal') === 'true',
+        height: inner ? Number.parseFloat(getComputedStyle(inner).height) : 0,
+        header: Boolean(card?.shadowRoot?.querySelector('.header')),
+        events: card?.shadowRoot?.querySelectorAll('.event-tile').length ?? 0,
+        minimal: Boolean(card?.shadowRoot?.querySelector('ha-card.smc-minimal')),
+        closeButton: Boolean(overlay.querySelector('button')),
+        focus: document.activeElement?.tagName ?? '',
+      };
+    });
+    record(
+      `Minimal: Klick öffnet die vollständige Karte (${open.height} px, ${open.events} Ereignisse)`,
+      open.open && open.header && open.events >= 2 && open.height >= 260 && !open.minimal,
+    );
+    record(
+      'Minimal: Overlay ist ein Dialog mit Schließen-Knopf und Fokus',
+      open.dialog && open.closeButton && open.focus === 'BUTTON',
+    );
+    await page.keyboard.press('Escape');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const closed = await page.evaluate(() => ({
+      overlays: document.querySelectorAll('.smc-popup').length,
+      focus: document.activeElement?.tagName ?? '',
+    }));
+    record(
+      `Minimal: Escape schließt das Overlay (Fokus zurück auf ${closed.focus})`,
+      closed.overlays === 0 && closed.focus === 'SUN-MOON-CARD',
+    );
   }
 
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');

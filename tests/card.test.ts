@@ -379,7 +379,12 @@ describe('Darstellung', () => {
       .match(/-?\d+(?:\.\d+)?/g)!
       .map(Number);
     const size = Number(moon!.getAttribute('width'));
-    expect(Math.abs(translate[0] + size / 2 - nowX)).toBeLessThan(size);
+    // Stehen Sonne und Mond dicht beieinander, weicht der Mond um genau
+    // einen Schritt zur Seite (Markerradius + Mondradius + 2 px). Anderenfalls
+    // sitzt er auf der Linie. Beides ist zulässig – nur darüber hinaus darf
+    // er nicht wandern.
+    const offset = Math.abs(translate[0] + size / 2 - nowX);
+    expect(offset < 0.5 || offset <= size + 4).toBe(true);
 
     // Beide Marker nennen im Tooltip Körper und Höhe.
     expect(svg.querySelector('.now-sun title')!.textContent).toMatch(/-?\d/);
@@ -582,5 +587,142 @@ describe('Editor', () => {
     checkbox.checked = true; // = Standardwert
     checkbox.dispatchEvent(new Event('change'));
     expect(events.at(-1)).not.toHaveProperty('show_moon');
+  });
+
+  it('senkt im Minimalmodus die Untergrenze der Kartenhöhe', async () => {
+    const editor = await mountEditor({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const slider = editor.shadowRoot!.querySelector<HTMLInputElement>('#height')!;
+    const number = editor.shadowRoot!.querySelector<HTMLInputElement>('#height-number')!;
+    expect(slider.min).toBe('24');
+    expect(number.min).toBe('24');
+    // In 10er-Schritten wäre der Bereich unter 100 px nicht einstellbar.
+    expect(slider.step).toBe('2');
+    expect(number.value).toBe('48');
+  });
+
+  it('schaltet die Minimalvariante', async () => {
+    const editor = await mountEditor({ type: 'custom:sun-moon-card', card_height: 200 });
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const minimal = editor.shadowRoot!.querySelector<HTMLInputElement>('#minimal')!;
+    expect(minimal.checked).toBe(false);
+    minimal.checked = true;
+    minimal.dispatchEvent(new Event('change'));
+    expect(events.at(-1)?.minimal_mode).toBe(true);
+  });
+});
+
+describe('Minimalvariante', () => {
+  it('zeigt ausschließlich den Zeitstrahl', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const root = card.shadowRoot!;
+    expect(root.querySelectorAll('.header')).toHaveLength(0);
+    expect(root.querySelectorAll('.event-tile')).toHaveLength(0);
+    expect(root.querySelectorAll('.detail-tile')).toHaveLength(0);
+    expect(root.querySelectorAll('.footer')).toHaveLength(0);
+    expect(root.querySelectorAll('.legend-chip')).toHaveLength(0);
+    expect(root.querySelectorAll('svg.sky-view')).toHaveLength(0);
+
+    const svg = root.querySelector('svg.day-chart')!;
+    // Abgespeckt: kein Raster, keine Beschriftung, kein Zenit, kein Mondgang.
+    expect(svg.querySelectorAll('.event-labels')).toHaveLength(0);
+    expect(svg.querySelectorAll('.zenith-chip')).toHaveLength(0);
+    expect(svg.querySelectorAll('.moon-curve')).toHaveLength(0);
+    // Erhalten: die Kurve, die Marken für Auf- und Untergang, der Sonnenstand.
+    expect(svg.querySelectorAll('.now-sun circle')).toHaveLength(1);
+    expect(svg.querySelectorAll('.event-markers > g').length).toBeGreaterThanOrEqual(2);
+    expect(svg.querySelector('.now-marker line')).not.toBeNull();
+  });
+
+  it('lässt die Zeitachse auch bei 24 px erkennen, wo die Sonne steht', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 24,
+    });
+    const svg = card.shadowRoot!.querySelector('svg.day-chart')!;
+    const viewBox = svg.getAttribute('viewBox')!.split(' ').map(Number);
+    expect(viewBox[3]).toBe(16);
+    // Der Höhenbereich richtet sich allein nach der Sonne.
+    expect(svg.querySelector('.now-moon')).toBeNull();
+    const sun = svg.querySelector('.now-sun circle')!;
+    const cy = Number(sun.getAttribute('cy'));
+    expect(cy).toBeGreaterThan(0);
+    expect(cy).toBeLessThan(viewBox[3]);
+  });
+
+  it('ist bedienbar und für Screenreader beschrieben', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const haCard = card.shadowRoot!.querySelector('ha-card')!;
+    expect(haCard.getAttribute('role')).toBe('button');
+    expect(haCard.getAttribute('tabindex')).toBe('0');
+    const label = haCard.getAttribute('aria-label') ?? '';
+    expect(label).toContain('Sonnenaufgang');
+    expect(label).toContain('Sonnenuntergang');
+  });
+
+  it('öffnet die vollständige Karte im Overlay und schließt sie mit Escape', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    card
+      .shadowRoot!.querySelector('ha-card')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    const overlay = document.querySelector('.smc-popup');
+    expect(overlay).not.toBeNull();
+    expect(overlay!.getAttribute('role')).toBe('dialog');
+    expect(overlay!.getAttribute('aria-modal')).toBe('true');
+
+    const full = overlay!.querySelector('sun-moon-card') as SunMoonCard;
+    await full.updateComplete;
+    expect(full.shadowRoot!.querySelector('.header')).not.toBeNull();
+    expect(full.shadowRoot!.querySelectorAll('.event-tile').length).toBeGreaterThan(0);
+    // Der Streifen selbst ist zu flach – das Overlay bekommt eine eigene Höhe.
+    expect(full.shadowRoot!.querySelector('ha-card')!.getAttribute('style')).toContain('260px');
+    expect(full.shadowRoot!.querySelector('ha-card.smc-minimal')).toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.querySelector('.smc-popup')).toBeNull();
+  });
+
+  it('schließt das Overlay, wenn die Karte aus dem Dokument entfernt wird', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    card
+      .shadowRoot!.querySelector('ha-card')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('.smc-popup')).not.toBeNull();
+    card.remove();
+    expect(document.querySelector('.smc-popup')).toBeNull();
+  });
+
+  it('meldet dem Dashboard eine Zeile als Mindesthöhe', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    expect(card.getCardSize()).toBe(1);
+    expect(card.getGridOptions().min_rows).toBe(1);
   });
 });

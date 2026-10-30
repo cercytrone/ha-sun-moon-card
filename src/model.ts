@@ -35,10 +35,10 @@ import {
   type SolarEvents,
 } from './astronomy.js';
 import {
-  CARD_HEIGHT_RANGE,
   CONFIG_CHOICES,
   DEFAULT_CONFIG,
   HA_EVENT_TOLERANCE_MS,
+  cardHeightRange,
   resolveAutoHeight,
   MOON_FOLK_KEYS,
 } from './const.js';
@@ -103,16 +103,21 @@ export function resolveConfig(
   const warnings: string[] = [];
   const input = (raw ?? {}) as SunMoonCardConfig;
 
+  // Minimalmodus: Er senkt die Untergrenze der Kartenhöhe und muss daher
+  // vor dem Prüfen der Höhe bekannt sein.
+  const minimalMode = asBoolean(input.minimal_mode, DEFAULT_CONFIG.minimal_mode);
+  const heightRange = cardHeightRange(minimalMode);
+
   // Kartenhöhe
   let cardHeight: number | 'auto' = DEFAULT_CONFIG.card_height;
   if (typeof input.card_height === 'number' && Number.isFinite(input.card_height)) {
-    cardHeight = Math.round(clamp(input.card_height, CARD_HEIGHT_RANGE[0], CARD_HEIGHT_RANGE[1]));
+    cardHeight = Math.round(clamp(input.card_height, heightRange[0], heightRange[1]));
     if (cardHeight !== input.card_height) {
       warnings.push(
         localize(language, 'invalidHeight', {
           value: String(input.card_height),
-          min: CARD_HEIGHT_RANGE[0],
-          max: CARD_HEIGHT_RANGE[1],
+          min: heightRange[0],
+          max: heightRange[1],
         }),
       );
     }
@@ -123,8 +128,8 @@ export function resolveConfig(
     warnings.push(
       localize(language, 'invalidHeight', {
         value: String(input.card_height),
-        min: CARD_HEIGHT_RANGE[0],
-        max: CARD_HEIGHT_RANGE[1],
+        min: heightRange[0],
+        max: heightRange[1],
       }),
     );
   } else if (input.card_height !== undefined) {
@@ -133,12 +138,12 @@ export function resolveConfig(
       errors.push(
         localize(language, 'invalidHeight', {
           value: String(input.card_height),
-          min: CARD_HEIGHT_RANGE[0],
-          max: CARD_HEIGHT_RANGE[1],
+          min: heightRange[0],
+          max: heightRange[1],
         }),
       );
     } else {
-      cardHeight = Math.round(clamp(parsed, CARD_HEIGHT_RANGE[0], CARD_HEIGHT_RANGE[1]));
+      cardHeight = Math.round(clamp(parsed, heightRange[0], heightRange[1]));
     }
   }
 
@@ -174,6 +179,7 @@ export function resolveConfig(
       DEFAULT_CONFIG.show_astronomical_details,
     ),
     compact_mode: asBoolean(input.compact_mode, DEFAULT_CONFIG.compact_mode),
+    minimal_mode: minimalMode,
     card_style: asChoice(input.card_style, CONFIG_CHOICES.cardStyle, DEFAULT_CONFIG.card_style),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
     animations: asBoolean(input.animations, DEFAULT_CONFIG.animations),
@@ -200,10 +206,11 @@ export function resolveConfig(
 
 /** Löst die Kartenhöhe auf (`'auto'` → abhängig von der Breite). */
 export function resolveCardHeight(config: ResolvedConfig, width: number): number {
+  const range = cardHeightRange(config.minimal_mode);
   if (config.card_height === 'auto') {
-    return clamp(resolveAutoHeight(width), CARD_HEIGHT_RANGE[0], CARD_HEIGHT_RANGE[1]);
+    return clamp(resolveAutoHeight(width), range[0], range[1]);
   }
-  return clamp(config.card_height, CARD_HEIGHT_RANGE[0], CARD_HEIGHT_RANGE[1]);
+  return clamp(config.card_height, range[0], range[1]);
 }
 
 /** Erzeugt ein leeres Modell (wird bei fehlendem Standort verwendet). */
