@@ -1,6 +1,6 @@
 {
   "name": "ha-sun-moon-card",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Moderne Home Assistant Lovelace Card für Sonnenstand, Sonnenverlauf, Dämmerungsphasen und Monddaten.",
   "keywords": [
     "home-assistant",
