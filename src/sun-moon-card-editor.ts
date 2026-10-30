@@ -319,8 +319,42 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
           </div>
           ${minimal
             ? html`<div class="row">
-                <span class="hint">${this._t('editorMinimalModeHelp')}</span>
-              </div>`
+                  <span class="hint">${this._t('editorMinimalModeHelp')}</span>
+                </div>
+                <div class="row">
+                  <label for="minimal-times">${this._t('editorMinimalTimes')}</label>
+                  <div class="control">
+                    <span class="switch">
+                      <input
+                        id="minimal-times"
+                        type="checkbox"
+                        .checked=${this._value('minimal_show_times', true)}
+                        @change=${(event: Event) =>
+                          this._update({
+                            minimal_show_times: (event.target as HTMLInputElement).checked,
+                          })}
+                      />
+                      <span class="slider"></span>
+                    </span>
+                  </div>
+                </div>
+                <div class="row">
+                  <label for="minimal-zenith">${this._t('editorMinimalZenith')}</label>
+                  <div class="control">
+                    <span class="switch">
+                      <input
+                        id="minimal-zenith"
+                        type="checkbox"
+                        .checked=${this._value('minimal_show_zenith', true)}
+                        @change=${(event: Event) =>
+                          this._update({
+                            minimal_show_zenith: (event.target as HTMLInputElement).checked,
+                          })}
+                      />
+                      <span class="slider"></span>
+                    </span>
+                  </div>
+                </div>`
             : nothing}
         </div>
 

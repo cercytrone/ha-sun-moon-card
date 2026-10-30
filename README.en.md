@@ -53,6 +53,15 @@ images, and no additional Home Assistant integration is required.
   to **24 px** are possible, so the card also works as a narrow strip below 100 px and still shows
   where the sun stands in the day. A click (or `Enter` / `Space`) opens the full card with the same
   configuration in an overlay; `Escape`, a click outside or the close button dismisses it.
+- **Times above the minimal strip:** a twelve-pixel row names the **sunrise time on the left**,
+  the **zenith (culmination) time in the middle** and the **sunset time on the right** – in the
+  configured time format, with the full wording in their tooltips. Sunrise/sunset and the zenith
+  time can be **switched off separately** (`minimal_show_times`, `minimal_show_zenith`); if an
+  event does not exist (polar day, polar night) its entry is dropped rather than replaced by a
+  placeholder. The row needs 36 px of card height and is omitted below that.
+- **Larger sun in the minimal strip:** the sun marker is drawn noticeably bigger than in the full
+  card (radius 2.8–6 px instead of 3.5–6 px, i.e. a multiple of it on flat strips) so the position
+  in the day catches the eye even on a narrow strip.
 - **Sky view:** fisheye projection with cardinal directions, horizon and zenith; sun and moon are
   drawn **along their computed diurnal path** (altitude/azimuth), together with the moon disc
   showing the correct terminator for the current phase.
@@ -124,6 +133,8 @@ location_name: Garden house
 type: custom:sun-moon-card
 minimal_mode: true
 card_height: 48           # allowed from 24 px; a click opens the full card
+minimal_show_times: true  # sunrise on the left, sunset on the right
+minimal_show_zenith: true # culmination in the middle
 ```
 
 ```yaml
@@ -149,6 +160,8 @@ card_height: 320
 | `show_astronomical_details` | boolean | `false` | Culmination and maximum altitude, day length with change vs. yesterday, azimuth, azimuth at rise/set, “sun X° below the horizon”, extra twilight layers, moon age, moon distance with perigee/apogee, next full moon |
 | `compact_mode` | boolean | `false` | Compact layout (no header, sky view or detail row) |
 | `minimal_mode` | boolean | `false` | Minimal variant: the timeline only, without header, times row, details, footer and legend. Allows card heights from 24 px; a click opens the full card in an overlay |
+| `minimal_show_times` | boolean | `true` | Minimal variant: name the sunrise (left) and sunset (right) time above the timeline. Needs 36 px of card height |
+| `minimal_show_zenith` | boolean | `true` | Minimal variant: name the culmination time in the middle above the timeline. Needs 36 px of card height |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |

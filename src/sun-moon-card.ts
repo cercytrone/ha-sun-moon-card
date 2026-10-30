@@ -77,7 +77,7 @@ import { cardStyles } from './styles.js';
 // Der Editor wird mitgebündelt, damit `getConfigElement()` eine einzige
 // Datei ausreicht.
 import './sun-moon-card-editor.js';
-import { clamp, nextMinute } from './utils.js';
+import { clamp, nextMinute, round } from './utils.js';
 import type {
   CardModel,
   ConfigChangedEvent,
@@ -489,6 +489,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
               '--smc-palette-night': palette.night,
             })}
           >
+            ${this._renderMinimalTimes(model, context, layout, config)}
             <div
               class="chart-wrap minimal"
               style=${styleMap({ height: `${layout.chartHeight}px` })}
@@ -1308,6 +1309,63 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       : '';
     const setText = set ? `↓ ${formatTime(set.time, context)}${setSuffix}` : '↓ —';
     return `${riseText} · ${setText}`;
+  }
+
+  /**
+   * Zeile über dem Zeitstrahl der Minimalvariante: links der Sonnenaufgang,
+   * rechts der Sonnenuntergang, dazwischen die Kulmination (Zenit). Beide
+   * Gruppen sind getrennt abschaltbar; fehlt ein Ereignis (Polartag,
+   * Polarnacht), entfällt sein Eintrag statt einen Platzhalter zu zeigen.
+   */
+  private _renderMinimalTimes(
+    model: CardModel,
+    context: FormatContext,
+    layout: LayoutMetrics,
+    config: ResolvedConfig,
+  ): TemplateResult | typeof nothing {
+    if (layout.minimalTimesHeight <= 0) return nothing;
+    const t = context.t;
+    const entries: TemplateResult[] = [];
+
+    if (config.minimal_show_times && model.events.sunrise) {
+      const time = formatTime(model.events.sunrise, context);
+      entries.push(
+        html`<span class="minimal-time rise" title=${`${t('sunrise')} ${time}`}
+          >↑ ${time}</span
+        >`,
+      );
+    }
+    if (config.minimal_show_zenith && model.events.solarNoon) {
+      const time = formatTime(model.events.solarNoon, context);
+      // Auf schmalen Karten bleibt nur die Zeit – das Wort entfällt.
+      const text = layout.chartWidth < 250 ? time : `${t('zenith')} ${time}`;
+      entries.push(
+        html`<span class="minimal-time zenith" title=${`${t('zenith')} ${time}`}
+          >${text}</span
+        >`,
+      );
+    }
+    if (config.minimal_show_times && model.events.sunset) {
+      const time = formatTime(model.events.sunset, context);
+      entries.push(
+        html`<span class="minimal-time set" title=${`${t('sunset')} ${time}`}
+          >↓ ${time}</span
+        >`,
+      );
+    }
+    if (entries.length === 0) return nothing;
+
+    const fontSize = clamp(round(layout.minimalTimesHeight * 0.78, 1), 8, 12);
+    return html`<div
+      class="minimal-times"
+      style=${styleMap({
+        height: `${layout.minimalTimesHeight}px`,
+        fontSize: `${fontSize}px`,
+        lineHeight: `${layout.minimalTimesHeight}px`,
+      })}
+    >
+      ${entries}
+    </div>`;
   }
 
   /**

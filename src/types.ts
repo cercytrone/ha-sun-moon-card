@@ -66,6 +66,16 @@ export interface SunMoonCardConfig {
    * Karte öffnet die vollständige Variante in einem Overlay.
    */
   minimal_mode?: boolean;
+  /**
+   * Minimalmodus: Zeit des Sonnenaufgangs (links) und des Sonnenuntergangs
+   * (rechts) über dem Zeitstrahl nennen.
+   */
+  minimal_show_times?: boolean;
+  /**
+   * Minimalmodus: Zeit der Kulmination (Zenit) mittig über dem Zeitstrahl
+   * nennen.
+   */
+  minimal_show_zenith?: boolean;
 
   /** `'auto'` folgt dem Home-Assistant-Theme. */
   theme_mode?: 'auto' | 'light' | 'dark';

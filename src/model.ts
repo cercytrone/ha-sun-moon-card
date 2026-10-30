@@ -180,6 +180,14 @@ export function resolveConfig(
     ),
     compact_mode: asBoolean(input.compact_mode, DEFAULT_CONFIG.compact_mode),
     minimal_mode: minimalMode,
+    minimal_show_times: asBoolean(
+      input.minimal_show_times,
+      DEFAULT_CONFIG.minimal_show_times,
+    ),
+    minimal_show_zenith: asBoolean(
+      input.minimal_show_zenith,
+      DEFAULT_CONFIG.minimal_show_zenith,
+    ),
     card_style: asChoice(input.card_style, CONFIG_CHOICES.cardStyle, DEFAULT_CONFIG.card_style),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
     animations: asBoolean(input.animations, DEFAULT_CONFIG.animations),

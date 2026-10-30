@@ -86,6 +86,22 @@ describe('resolveConfig – Kartenhöhe', () => {
     );
   });
 
+  it('nennt Auf-/Untergang und Zenit im Minimalmodus standardmäßig', () => {
+    const { config } = resolveConfig({});
+    expect(config.minimal_show_times).toBe(true);
+    expect(config.minimal_show_zenith).toBe(true);
+    expect(config.minimal_mode).toBe(false);
+  });
+
+  it('lässt beide Zeitangaben des Minimalmodus getrennt abschalten', () => {
+    const onlyZenith = resolveConfig({ minimal_show_times: false }).config;
+    expect(onlyZenith.minimal_show_times).toBe(false);
+    expect(onlyZenith.minimal_show_zenith).toBe(true);
+    const onlyTimes = resolveConfig({ minimal_show_zenith: false }).config;
+    expect(onlyTimes.minimal_show_times).toBe(true);
+    expect(onlyTimes.minimal_show_zenith).toBe(false);
+  });
+
   it('nennt in der Warnung die Untergrenze des Minimalmodus', () => {
     const { warnings } = resolveConfig({ minimal_mode: true, card_height: 8 }, 'de');
     expect(warnings).toHaveLength(1);

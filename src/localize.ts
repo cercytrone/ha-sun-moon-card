@@ -194,7 +194,9 @@ const strings = {
     editorCardStyleHorizon: 'Horizont',
     editorMinimalMode: 'Minimalvariante (nur Zeitstrahl)',
     editorMinimalModeHelp:
-      'Zeigt ausschließlich den Zeitstrahl. Die Kartenhöhe darf dann bis auf 24 Pixel sinken; ein Klick öffnet die vollständige Karte.',
+      'Zeigt ausschließlich den Zeitstrahl. Die Kartenhöhe darf dann bis auf 24 Pixel sinken; ein Klick öffnet die vollständige Karte. Die Zeile mit Auf-/Untergangs- und Zenitzeit braucht 36 Pixel.',
+    editorMinimalTimes: 'Minimalvariante: Auf-/Untergangszeit',
+    editorMinimalZenith: 'Minimalvariante: Zenitzeit',
     editorThemeMode: 'Farbschema',
     editorThemeAuto: 'Automatisch (Theme)',
     editorThemeLight: 'Hell',
@@ -393,7 +395,9 @@ const strings = {
     editorCardStyleHorizon: 'Horizon',
     editorMinimalMode: 'Minimal variant (timeline only)',
     editorMinimalModeHelp:
-      'Shows the timeline only. The card height may then go down to 24 pixels; a click opens the full card.',
+      'Shows the timeline only. The card height may then go down to 24 pixels; a click opens the full card. The row with sunrise/sunset and zenith time needs 36 pixels.',
+    editorMinimalTimes: 'Minimal variant: sunrise/sunset time',
+    editorMinimalZenith: 'Minimal variant: zenith time',
     editorThemeMode: 'Colour scheme',
     editorThemeAuto: 'Automatic (theme)',
     editorThemeLight: 'Light',
