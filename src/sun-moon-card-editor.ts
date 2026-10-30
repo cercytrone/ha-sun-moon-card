@@ -21,6 +21,9 @@ import {
   DEFAULT_CONFIG,
   MIN_CARD_HEIGHT,
   MINIMAL_MIN_CARD_HEIGHT,
+  POPUP_HEIGHT_RANGE,
+  POPUP_WIDTH_RANGE,
+  SUN_MARKER_SIZE_RANGE,
   cardHeightRange,
   stubConfig,
 } from './const.js';
@@ -171,6 +174,17 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
               </span>
             </div>
           </div>
+
+          ${this._numberRow({
+            id: 'sun-marker',
+            labelKey: 'editorSunMarkerSize',
+            value: this._value('sun_marker_size', DEFAULT_CONFIG.sun_marker_size),
+            min: SUN_MARKER_SIZE_RANGE[0],
+            max: SUN_MARKER_SIZE_RANGE[1],
+            step: 0.5,
+            digits: 1,
+            set: (value) => this._update({ sun_marker_size: value }),
+          })}
 
           <div class="row">
             <label for="theme">${this._t('editorThemeMode')}</label>
@@ -354,7 +368,25 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                       <span class="slider"></span>
                     </span>
                   </div>
-                </div>`
+                </div>
+                ${this._numberRow({
+                  id: 'popup-width',
+                  labelKey: 'editorPopupWidth',
+                  value: this._value('popup_width', DEFAULT_CONFIG.popup_width),
+                  min: POPUP_WIDTH_RANGE[0],
+                  max: POPUP_WIDTH_RANGE[1],
+                  step: 20,
+                  set: (value) => this._update({ popup_width: Math.round(value) }),
+                })}
+                ${this._numberRow({
+                  id: 'popup-height',
+                  labelKey: 'editorPopupHeight',
+                  value: this._value('popup_height', DEFAULT_CONFIG.popup_height),
+                  min: POPUP_HEIGHT_RANGE[0],
+                  max: POPUP_HEIGHT_RANGE[1],
+                  step: 20,
+                  set: (value) => this._update({ popup_height: Math.round(value) }),
+                })}`
             : nothing}
         </div>
 
@@ -494,6 +526,54 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
             <button class="link" @click=${() => this._reset()}>${this._t('editorReset')}</button>
           </div>
           ${this._warnings()}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Zeile mit Schieberegler und Zahlenfeld für ein Maß – wie bei der
+   * Kartenhöhe: Der Regler stellt grob ein, das Feld genau.
+   */
+  private _numberRow(options: {
+    id: string;
+    labelKey: StringKey;
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    digits?: number;
+    set: (value: number) => void;
+  }): TemplateResult {
+    const { id, labelKey, value, min, max, step, digits = 0, set } = options;
+    const format = (input: number) =>
+      String(digits === 0 ? Math.round(input) : round(input, digits));
+    return html`
+      <div class="row">
+        <label for=${id}>${this._t(labelKey)}</label>
+        <div class="control height-control">
+          <input
+            id=${id}
+            type="range"
+            min=${min}
+            max=${max}
+            step=${step}
+            .value=${format(value)}
+            @input=${(event: Event) => set(Number((event.target as HTMLInputElement).value))}
+          />
+          <input
+            id="${id}-number"
+            type="number"
+            aria-label=${this._t(labelKey)}
+            min=${min}
+            max=${max}
+            step=${step}
+            .value=${format(value)}
+            @change=${(event: Event) => {
+              const parsed = toNumber((event.target as HTMLInputElement).value);
+              if (parsed !== null) set(clamp(parsed, min, max));
+            }}
+          />
         </div>
       </div>
     `;

@@ -50,12 +50,14 @@ export const MINIMAL_TIMES_HEIGHT = 12;
 export const MINIMAL_TIMES_MIN_HEIGHT = 36;
 
 /**
- * Höhe der vollständigen Variante im Overlay des Minimalmodus. Der Streifen
- * selbst ist zu flach, deshalb bekommt das Overlay eine eigene Höhe – nach
- * oben begrenzt, damit es auf kleinen Bildschirmen nicht aus dem Blickfeld
- * ragt.
+ * Radius des Sonnenmarkers im Zeitstrahl in Pixeln (Vorgabe und Grenzen).
+ * Der Marker wächst mit der Höhe des Verlaufs bis zur eingestellten Größe.
  */
-export const MINIMAL_POPUP_HEIGHT: [number, number] = [260, 520];
+export const SUN_MARKER_SIZE_RANGE: [number, number] = [2, 12];
+/** Breite des Overlays der Minimalvariante in Pixeln. */
+export const POPUP_WIDTH_RANGE: [number, number] = [320, 1200];
+/** Höhe des Overlays der Minimalvariante in Pixeln. */
+export const POPUP_HEIGHT_RANGE: [number, number] = [260, 800];
 
 /**
  * Zulässiger Höhenbereich der Karte. Im Minimalmodus beginnt er deutlich
@@ -82,6 +84,9 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   minimal_mode: false,
   minimal_show_times: true,
   minimal_show_zenith: true,
+  sun_marker_size: 6,
+  popup_width: 720,
+  popup_height: 460,
   card_style: 'glass',
   theme_mode: 'auto',
   animations: true,

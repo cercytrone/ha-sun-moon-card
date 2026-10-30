@@ -52,16 +52,18 @@ images, and no additional Home Assistant integration is required.
   no labels, no moon course, and of the altitude lines only the horizon remains). Card heights down
   to **24 px** are possible, so the card also works as a narrow strip below 100 px and still shows
   where the sun stands in the day. A click (or `Enter` / `Space`) opens the full card with the same
-  configuration in an overlay; `Escape`, a click outside or the close button dismisses it.
+  configuration in an overlay (720 × 460 px, adjustable with `popup_width` and `popup_height`);
+  `Escape`, a click outside or the close button dismisses it.
 - **Times above the minimal strip:** a twelve-pixel row names the **sunrise time on the left**,
   the **zenith (culmination) time in the middle** and the **sunset time on the right** – in the
   configured time format, with the full wording in their tooltips. Sunrise/sunset and the zenith
   time can be **switched off separately** (`minimal_show_times`, `minimal_show_zenith`); if an
   event does not exist (polar day, polar night) its entry is dropped rather than replaced by a
   placeholder. The row needs 36 px of card height and is omitted below that.
-- **Larger sun in the minimal strip:** the sun marker is drawn noticeably bigger than in the full
-  card (radius 2.8–6 px instead of 3.5–6 px, i.e. a multiple of it on flat strips) so the position
-  in the day catches the eye even on a narrow strip.
+- **One sun size for every view:** the sun marker follows the same rule in the minimal, compact
+  and full view: its radius grows with the plot height up to `sun_marker_size` (**default 6 px**,
+  adjustable **2–12 px**) and never drops below 2.8 px on very flat strips. The position in the day
+  therefore reads equally well everywhere – including where a 3.5 px dot used to sit.
 - **Sky view:** fisheye projection with cardinal directions, horizon and zenith; sun and moon are
   drawn **along their computed diurnal path** (altitude/azimuth), together with the moon disc
   showing the correct terminator for the current phase.
@@ -135,6 +137,9 @@ minimal_mode: true
 card_height: 48           # allowed from 24 px; a click opens the full card
 minimal_show_times: true  # sunrise on the left, sunset on the right
 minimal_show_zenith: true # culmination in the middle
+sun_marker_size: 6        # sun radius, 2–12 px, also applies to the full view
+popup_width: 720          # overlay width, 320–1200 px
+popup_height: 460         # overlay height, 260–800 px
 ```
 
 ```yaml
@@ -162,6 +167,9 @@ card_height: 320
 | `minimal_mode` | boolean | `false` | Minimal variant: the timeline only, without header, times row, details, footer and legend. Allows card heights from 24 px; a click opens the full card in an overlay |
 | `minimal_show_times` | boolean | `true` | Minimal variant: name the sunrise (left) and sunset (right) time above the timeline. Needs 36 px of card height |
 | `minimal_show_zenith` | boolean | `true` | Minimal variant: name the culmination time in the middle above the timeline. Needs 36 px of card height |
+| `sun_marker_size` | px (2–12) | `6` | Radius of the sun marker on the timeline. The marker grows with the plot height up to this value and stays at least 2.8 px on flat strips. Applies to the minimal, compact and full view alike |
+| `popup_width` | px (320–1200) | `720` | Width of the minimal variant’s overlay (capped at 92 % of the window width) |
+| `popup_height` | px (260–800) | `460` | Height of the minimal variant’s overlay – independent of `card_height` |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |

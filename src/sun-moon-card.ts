@@ -42,7 +42,8 @@ import {
   DEFAULT_CONFIG,
   DETAILS_HEIGHT_DETAILED,
   LIGHT_PALETTE,
-  MINIMAL_POPUP_HEIGHT,
+  POPUP_HEIGHT_RANGE,
+  POPUP_WIDTH_RANGE,
   MIN_CARD_HEIGHT,
   computeLayout,
   stubConfig,
@@ -223,7 +224,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
    *
    * Der Minimalstreifen ist zu flach, um Zahlen zu tragen. Ein Klick legt
    * daher dieselbe Karte – mit identischer Konfiguration, aber ohne
-   * Minimalmodus und mit ausreichender Höhe – in ein Overlay. Das Overlay
+   * Minimalmodus – in ein Overlay in der eingestellten Größe. Das Overlay
    * hängt an `document.body`, damit es über allen Dashboard-Elementen
    * liegt; es nutzt ausschließlich inline gesetzte Stile, weil dort keine
    * Stile dieser Karte gelten.
@@ -231,12 +232,16 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   private _openDetails(): void {
     if (!this._config || !this.hass || this._popup) return;
     const language = this._language();
-    const configured =
-      typeof this._config.card_height === 'number' ? this._config.card_height : 0;
+    // Maße des Overlays: konfigurierbar, auf das Sichtfeld begrenzt.
+    const width = clamp(
+      this._config.popup_width,
+      POPUP_WIDTH_RANGE[0],
+      POPUP_WIDTH_RANGE[1],
+    );
     const height = clamp(
-      configured || (DEFAULT_CONFIG.card_height as number),
-      MINIMAL_POPUP_HEIGHT[0],
-      MINIMAL_POPUP_HEIGHT[1],
+      this._config.popup_height,
+      POPUP_HEIGHT_RANGE[0],
+      POPUP_HEIGHT_RANGE[1],
     );
     const overlay = document.createElement('div');
     overlay.className = 'smc-popup';
@@ -261,8 +266,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     const panel = document.createElement('div');
     Object.assign(panel.style, {
       position: 'relative',
-      width: 'min(92vw, 620px)',
-      maxWidth: '620px',
+      width: `min(92vw, ${width}px)`,
+      maxWidth: `${width}px`,
       maxHeight: '92vh',
       overflow: 'auto',
       borderRadius: '12px',
@@ -510,6 +515,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                 cardStyle: config.card_style,
                 compact: false,
                 minimal: true,
+                sunMarkerSize: config.sun_marker_size,
                 uid: `${this._uid}-chart`,
                 showAstronomicalLayers: config.show_astronomical_details,
                 currentAltitude: model.sun.altitude,
@@ -573,6 +579,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                       cardStyle: config.card_style,
                       compact: layout.compact,
                       minimal: false,
+                      sunMarkerSize: config.sun_marker_size,
                       uid: `${this._uid}-chart`,
                       showAstronomicalLayers: config.show_astronomical_details,
                       currentAltitude: model.sun.altitude,

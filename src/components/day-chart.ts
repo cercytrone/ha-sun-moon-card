@@ -100,6 +100,12 @@ export interface DayChartOptions {
    * bleiben, damit erkennbar ist, wo die Sonne im Tag steht.
    */
   minimal: boolean;
+  /**
+   * Radius des Sonnenmarkers in Pixeln. Der Marker wächst mit der Höhe des
+   * Verlaufs bis zu diesem Wert; die Regel gilt in der vollen, der kompakten
+   * und der minimalen Darstellung gleichermaßen.
+   */
+  sunMarkerSize: number;
   /** Stabile IDs für SVG-Definitionen. */
   uid: string;
   /**
@@ -330,6 +336,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     animations,
     cardStyle,
     minimal,
+    sunMarkerSize,
     uid,
     showAstronomicalLayers,
     currentAltitude,
@@ -570,11 +577,17 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   // Der Sonnenmarker trägt die gesättigte Tagesfarbe, nicht die blasse Farbe
   // der Kurve – sonst verschwindet er auf der Linie, auf der er sitzt.
   const markerColor = palette.day;
-  // Im Minimalmodus ist die Sonne das einzige, was den Stand im Tag zeigt –
-  // sie fällt deshalb deutlich größer aus, auch auf Kosten der Feinheit.
-  const markerRadius = minimal
-    ? clamp(round(safeHeight * 0.16, 1), 2.8, 6)
-    : clamp(round(safeHeight * 0.045, 1), 3.5, 6);
+  /**
+   * Sonnenmarker: Er wächst mit der Höhe des Verlaufs bis zur eingestellten
+   * Größe. Auf sehr flachen Streifen bleibt er darunter, damit er die Kurve
+   * nicht zudeckt. Dieselbe Regel gilt für die volle, die kompakte und die
+   * minimale Darstellung.
+   */
+  const markerRadius = clamp(
+    round(safeHeight * 0.16, 1),
+    Math.min(2.8, sunMarkerSize),
+    sunMarkerSize,
+  );
   const markerRing = clamp(round(markerRadius * 0.22, 2), 0.8, 1.4);
   const moonRadius = clamp(round(markerRadius * 1.1, 1), 3.5, 7);
 

@@ -44,6 +44,8 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   minimalmode_notimes: { minimal_mode: true, minimal_show_times: false },
   minimalmode_nozenith: { minimal_mode: true, minimal_show_zenith: false },
   minimalmode_bare: { minimal_mode: true, minimal_show_times: false, minimal_show_zenith: false },
+  minimalmode_bigpopup: { minimal_mode: true, popup_width: 900, popup_height: 600 },
+  bigsun: { sun_marker_size: 12 },
   wide: { show_astronomical_details: true },
   nofooter: { show_footer: false },
 };

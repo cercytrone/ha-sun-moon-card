@@ -25,6 +25,7 @@ const strings = {
     missingSunEntity: 'Entität {entity} nicht gefunden – Berechnung erfolgt lokal.',
     invalidHeight: 'Ungültige Kartenhöhe {value}. Erlaubt: {min}–{max} Pixel oder "auto".',
     invalidNumber: 'Ungültiger Zahlenwert: {value}',
+    invalidRange: 'Wert {value} liegt außerhalb von {min}–{max} und wurde angepasst.',
 
     // Himmelsphasen
     phaseDay: 'Tag',
@@ -195,6 +196,9 @@ const strings = {
     editorMinimalMode: 'Minimalvariante (nur Zeitstrahl)',
     editorMinimalModeHelp:
       'Zeigt ausschließlich den Zeitstrahl. Die Kartenhöhe darf dann bis auf 24 Pixel sinken; ein Klick öffnet die vollständige Karte. Die Zeile mit Auf-/Untergangs- und Zenitzeit braucht 36 Pixel.',
+    editorSunMarkerSize: 'Größe der Sonne (px)',
+    editorPopupWidth: 'Breite des Overlays (px)',
+    editorPopupHeight: 'Höhe des Overlays (px)',
     editorMinimalTimes: 'Minimalvariante: Auf-/Untergangszeit',
     editorMinimalZenith: 'Minimalvariante: Zenitzeit',
     editorThemeMode: 'Farbschema',
@@ -238,6 +242,7 @@ const strings = {
     missingSunEntity: 'Entity {entity} not found – using local calculations.',
     invalidHeight: 'Invalid card height {value}. Allowed: {min}–{max} pixels or "auto".',
     invalidNumber: 'Invalid number: {value}',
+    invalidRange: 'Value {value} is outside {min}–{max} and was adjusted.',
 
     phaseDay: 'Daylight',
     phaseCivil: 'Civil twilight',
@@ -396,6 +401,9 @@ const strings = {
     editorMinimalMode: 'Minimal variant (timeline only)',
     editorMinimalModeHelp:
       'Shows the timeline only. The card height may then go down to 24 pixels; a click opens the full card. The row with sunrise/sunset and zenith time needs 36 pixels.',
+    editorSunMarkerSize: 'Sun marker size (px)',
+    editorPopupWidth: 'Overlay width (px)',
+    editorPopupHeight: 'Overlay height (px)',
     editorMinimalTimes: 'Minimal variant: sunrise/sunset time',
     editorMinimalZenith: 'Minimal variant: zenith time',
     editorThemeMode: 'Colour scheme',

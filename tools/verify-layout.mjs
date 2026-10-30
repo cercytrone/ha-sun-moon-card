@@ -969,11 +969,14 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     const common = 'loc=berlin&time=2026-10-26T12:00&theme=dark&w=620';
     const tiny = await radius(`${baseUrl}/shots.html?preset=minimalmode&${common}&h=24`);
     const strip = await radius(`${baseUrl}/shots.html?preset=minimalmode&${common}&h=96`);
+    const compact = await radius(`${baseUrl}/shots.html?preset=compact&${common}&h=160`);
     const full = await radius(`${baseUrl}/shots.html?${common}&h=340`);
+    const big = await radius(`${baseUrl}/shots.html?preset=bigsun&${common}&h=340`);
     record(
-      `Minimal: Sonnenmarke größer als in der vollständigen Karte (${strip} px vs. ${full} px)`,
-      strip > full,
+      `Sonnenmarke in Minimal-, Kompakt- und Volldarstellung gleich groß (${strip} / ${compact} / ${full} px)`,
+      strip === compact && compact === full && full === 6,
     );
+    record(`Sonnenmarke folgt der Einstellung (12 px → ${big} px)`, big === 12);
     record(`Minimal: Sonnenmarke auch bei 24 px erkennbar (${tiny} px)`, tiny >= 2.8);
   }
 
@@ -1001,11 +1004,16 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
         minimal: Boolean(card?.shadowRoot?.querySelector('ha-card.smc-minimal')),
         closeButton: Boolean(overlay.querySelector('button')),
         focus: document.activeElement?.tagName ?? '',
+        maxWidth: overlay.querySelector('div')?.style.maxWidth ?? '',
       };
     });
     record(
       `Minimal: Klick öffnet die vollständige Karte (${open.height} px, ${open.events} Ereignisse)`,
-      open.open && open.header && open.events >= 2 && open.height >= 260 && !open.minimal,
+      open.open && open.header && open.events >= 2 && open.height === 460 && !open.minimal,
+    );
+    record(
+      `Minimal: Overlay in der eingestellten Breite (max ${open.maxWidth})`,
+      open.maxWidth === '720px',
     );
     record(
       'Minimal: Overlay ist ein Dialog mit Schließen-Knopf und Fokus',
@@ -1021,6 +1029,37 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       `Minimal: Escape schließt das Overlay (Fokus zurück auf ${closed.focus})`,
       closed.overlays === 0 && closed.focus === 'SUN-MOON-CARD',
     );
+  }
+
+  // Overlay in eingestellter Größe
+  {
+    // Breit genug, damit das 900 px breite Overlay nicht am Fenster klebt.
+    await page.setViewport({ width: 1040, height: 900, deviceScaleFactor: 1 });
+    const url = `${baseUrl}/shots.html?preset=minimalmode_bigpopup&loc=berlin&time=2026-10-26T12:00&theme=dark&h=48&w=620`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForSelector('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await page.click('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const popup = await page.evaluate(() => {
+      const overlay = document.querySelector('.smc-popup');
+      if (!overlay) return { open: false };
+      const panel = overlay.querySelector('div');
+      const card = overlay.querySelector('sun-moon-card');
+      const inner = card?.shadowRoot?.querySelector('ha-card');
+      return {
+        open: true,
+        maxWidth: panel?.style.maxWidth ?? '',
+        height: inner ? Number.parseFloat(getComputedStyle(inner).height) : 0,
+        columns: Boolean(card?.shadowRoot?.querySelector('.body.columns')),
+      };
+    });
+    record(
+      `Minimal: Overlay 900 × 600 px (gemessen ${popup.maxWidth} / ${popup.height} px, zweispaltig: ${popup.columns})`,
+      popup.open && popup.maxWidth === '900px' && popup.height === 600 && popup.columns,
+    );
+    await page.keyboard.press('Escape');
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');

@@ -38,6 +38,9 @@ import {
   CONFIG_CHOICES,
   DEFAULT_CONFIG,
   HA_EVENT_TOLERANCE_MS,
+  POPUP_HEIGHT_RANGE,
+  POPUP_WIDTH_RANGE,
+  SUN_MARKER_SIZE_RANGE,
   cardHeightRange,
   resolveAutoHeight,
   MOON_FOLK_KEYS,
@@ -60,7 +63,7 @@ import type {
   ResolvedConfig,
   SunMoonCardConfig,
 } from './types.js';
-import { clamp, isFiniteNumber, toNumber } from './utils.js';
+import { clamp, isFiniteNumber, round, toNumber } from './utils.js';
 
 /** Ergebnis der Konfigurationsvalidierung. */
 export interface ConfigResult {
@@ -95,6 +98,34 @@ function asChoice<T extends string>(
  * sinnvoll – auf gültige Werte korrigiert. Nur strukturelle Fehler
  * (z. B. eine völlig unbrauchbare Kartenhöhe) werden als Fehler gemeldet.
  */
+/**
+ * Liest eine Zahl und begrenzt sie auf den zulässigen Bereich. Liegt der Wert
+ * außerhalb, wird er angepasst und eine Warnung vermerkt – die Karte
+ * erscheint in jedem Fall.
+ */
+function asNumberInRange(
+  value: unknown,
+  fallback: number,
+  range: [number, number],
+  language: Language,
+  warnings: string[],
+  digits = 0,
+): number {
+  const parsed = toNumber(value);
+  if (parsed === null) return fallback;
+  const limited = clamp(parsed, range[0], range[1]);
+  if (Math.abs(limited - parsed) > 1e-9) {
+    warnings.push(
+      localize(language, 'invalidRange', {
+        value: String(value),
+        min: String(range[0]),
+        max: String(range[1]),
+      }),
+    );
+  }
+  return digits === 0 ? Math.round(limited) : round(limited, digits);
+}
+
 export function resolveConfig(
   raw: SunMoonCardConfig | undefined,
   language: Language = 'en',
@@ -187,6 +218,28 @@ export function resolveConfig(
     minimal_show_zenith: asBoolean(
       input.minimal_show_zenith,
       DEFAULT_CONFIG.minimal_show_zenith,
+    ),
+    sun_marker_size: asNumberInRange(
+      input.sun_marker_size,
+      DEFAULT_CONFIG.sun_marker_size,
+      SUN_MARKER_SIZE_RANGE,
+      language,
+      warnings,
+      1,
+    ),
+    popup_width: asNumberInRange(
+      input.popup_width,
+      DEFAULT_CONFIG.popup_width,
+      POPUP_WIDTH_RANGE,
+      language,
+      warnings,
+    ),
+    popup_height: asNumberInRange(
+      input.popup_height,
+      DEFAULT_CONFIG.popup_height,
+      POPUP_HEIGHT_RANGE,
+      language,
+      warnings,
     ),
     card_style: asChoice(input.card_style, CONFIG_CHOICES.cardStyle, DEFAULT_CONFIG.card_style),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
