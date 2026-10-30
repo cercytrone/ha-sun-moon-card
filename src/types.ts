@@ -76,6 +76,16 @@ export interface SunMoonCardConfig {
    * nennen.
    */
   minimal_show_zenith?: boolean;
+  /**
+   * Radius des Sonnenmarkers im Zeitstrahl in Pixeln. Der Marker wächst mit
+   * der Höhe des Verlaufs bis zu diesem Wert; auf sehr flachen Streifen
+   * bleibt er kleiner, damit er den Verlauf nicht verdeckt.
+   */
+  sun_marker_size?: number;
+  /** Breite des Overlays der Minimalvariante in Pixeln. */
+  popup_width?: number;
+  /** Höhe des Overlays der Minimalvariante in Pixeln. */
+  popup_height?: number;
 
   /** `'auto'` folgt dem Home-Assistant-Theme. */
   theme_mode?: 'auto' | 'light' | 'dark';

@@ -102,6 +102,48 @@ describe('resolveConfig – Kartenhöhe', () => {
     expect(onlyTimes.minimal_show_zenith).toBe(false);
   });
 
+  it('setzt Sonnengröße und Overlay-Maße auf ihre Vorgaben', () => {
+    const { config, warnings } = resolveConfig({});
+    expect(warnings).toHaveLength(0);
+    expect(config.sun_marker_size).toBe(DEFAULT_CONFIG.sun_marker_size);
+    expect(config.popup_width).toBe(DEFAULT_CONFIG.popup_width);
+    expect(config.popup_height).toBe(DEFAULT_CONFIG.popup_height);
+  });
+
+  it('begrenzt Sonnengröße und Overlay-Maße', () => {
+    expect(resolveConfig({ sun_marker_size: 40 }).config.sun_marker_size).toBe(12);
+    expect(resolveConfig({ sun_marker_size: 0.4 }).config.sun_marker_size).toBe(2);
+    expect(resolveConfig({ popup_width: 10 }).config.popup_width).toBe(320);
+    expect(resolveConfig({ popup_width: 4000 }).config.popup_width).toBe(1200);
+    expect(resolveConfig({ popup_height: 80 }).config.popup_height).toBe(260);
+    expect(resolveConfig({ popup_height: 5000 }).config.popup_height).toBe(800);
+  });
+
+  it('warnt, wenn ein Maß angepasst wurde', () => {
+    const { warnings } = resolveConfig({ sun_marker_size: 40 }, 'de');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('12');
+    expect(
+      resolveConfig({ popup_height: 5000 }, 'de').warnings.some((text) =>
+        text.includes('800'),
+      ),
+    ).toBe(true);
+  });
+
+  it('nimmt Zeichenketten für die Maße an', () => {
+    expect(
+      resolveConfig({ popup_width: '900' } as unknown as SunMoonCardConfig).config.popup_width,
+    ).toBe(900);
+    expect(
+      resolveConfig({ sun_marker_size: '7.5' } as unknown as SunMoonCardConfig).config
+        .sun_marker_size,
+    ).toBe(7.5);
+    expect(
+      resolveConfig({ sun_marker_size: 'groß' } as unknown as SunMoonCardConfig).config
+        .sun_marker_size,
+    ).toBe(DEFAULT_CONFIG.sun_marker_size);
+  });
+
   it('nennt in der Warnung die Untergrenze des Minimalmodus', () => {
     const { warnings } = resolveConfig({ minimal_mode: true, card_height: 8 }, 'de');
     expect(warnings).toHaveLength(1);

@@ -634,6 +634,49 @@ describe('Editor', () => {
     expect(events.at(-1)?.minimal_show_zenith).toBe(false);
   });
 
+  it('stellt die Größe der Sonne ein', async () => {
+    const editor = await mountEditor({ type: 'custom:sun-moon-card' });
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const sun = editor.shadowRoot!.querySelector<HTMLInputElement>('#sun-marker')!;
+    expect(sun.min).toBe('2');
+    expect(sun.max).toBe('12');
+    expect(sun.value).toBe('6');
+    sun.value = '9';
+    sun.dispatchEvent(new Event('input'));
+    expect(events.at(-1)?.sun_marker_size).toBe(9);
+  });
+
+  it('zeigt die Maße des Overlays nur im Minimalmodus', async () => {
+    const plain = await mountEditor({ type: 'custom:sun-moon-card' });
+    expect(plain.shadowRoot!.querySelector('#popup-width')).toBeNull();
+
+    const editor = await mountEditor({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const width = editor.shadowRoot!.querySelector<HTMLInputElement>('#popup-width')!;
+    const height = editor.shadowRoot!.querySelector<HTMLInputElement>('#popup-height')!;
+    expect(width.value).toBe('720');
+    expect(height.value).toBe('460');
+    expect(width.min).toBe('320');
+    expect(height.max).toBe('800');
+
+    width.value = '900';
+    width.dispatchEvent(new Event('input'));
+    expect(events.at(-1)?.popup_width).toBe(900);
+    height.value = '520';
+    height.dispatchEvent(new Event('input'));
+    expect(events.at(-1)?.popup_height).toBe(520);
+  });
+
   it('schaltet die Minimalvariante', async () => {
     const editor = await mountEditor({ type: 'custom:sun-moon-card', card_height: 200 });
     const events: SunMoonCardConfig[] = [];
@@ -724,8 +767,13 @@ describe('Minimalvariante', () => {
     await full.updateComplete;
     expect(full.shadowRoot!.querySelector('.header')).not.toBeNull();
     expect(full.shadowRoot!.querySelectorAll('.event-tile').length).toBeGreaterThan(0);
-    // Der Streifen selbst ist zu flach – das Overlay bekommt eine eigene Höhe.
-    expect(full.shadowRoot!.querySelector('ha-card')!.getAttribute('style')).toContain('260px');
+    // Der Streifen selbst ist zu flach – das Overlay bekommt seine eigenen
+    // Maße (Vorgabe 720 × 460 px).
+    expect(full.shadowRoot!.querySelector('ha-card')!.getAttribute('style')).toContain(
+      '460px',
+    );
+    const panel = document.querySelector<HTMLElement>('.smc-popup > div')!;
+    expect(panel.style.maxWidth).toBe('720px');
     expect(full.shadowRoot!.querySelector('ha-card.smc-minimal')).toBeNull();
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -834,7 +882,7 @@ describe('Minimalvariante', () => {
     );
   });
 
-  it('zeichnet die Sonne in der Minimalvariante größer', async () => {
+  it('zeichnet die Sonne in Minimal-, Kompakt- und Volldarstellung gleich groß', async () => {
     const radius = (card: SunMoonCard) =>
       Number(card.shadowRoot!.querySelector('.now-sun circle')!.getAttribute('r'));
     const minimal = await mountCard({
@@ -842,15 +890,67 @@ describe('Minimalvariante', () => {
       minimal_mode: true,
       card_height: 96,
     });
+    const compact = await mountCard({
+      type: 'custom:sun-moon-card',
+      compact_mode: true,
+      card_height: 160,
+    });
     const full = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 });
-    expect(radius(minimal)).toBeGreaterThan(radius(full));
-    // Auch auf dem schmalsten Streifen bleibt sie erkennbar.
+    // Dieselbe Regel überall: bis zur eingestellten Größe (Vorgabe 6 px).
+    expect(radius(minimal)).toBe(6);
+    expect(radius(compact)).toBe(6);
+    expect(radius(full)).toBe(6);
+  });
+
+  it('richtet die Sonnengröße nach der Einstellung', async () => {
+    const radius = (card: SunMoonCard) =>
+      Number(card.shadowRoot!.querySelector('.now-sun circle')!.getAttribute('r'));
+    const big = await mountCard({
+      type: 'custom:sun-moon-card',
+      card_height: 340,
+      sun_marker_size: 12,
+    });
+    expect(radius(big)).toBe(12);
+    const small = await mountCard({
+      type: 'custom:sun-moon-card',
+      card_height: 340,
+      sun_marker_size: 3,
+    });
+    expect(radius(small)).toBe(3);
+    // Auf dem schmalsten Streifen bleibt die Sonne unter dem eingestellten
+    // Maß, damit sie den Verlauf nicht zudeckt.
     const tiny = await mountCard({
       type: 'custom:sun-moon-card',
       minimal_mode: true,
       card_height: 24,
+      sun_marker_size: 12,
     });
+    expect(radius(tiny)).toBeLessThan(12);
     expect(radius(tiny)).toBeGreaterThanOrEqual(2.8);
+  });
+
+  it('richtet das Overlay nach den eingestellten Maßen', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+      popup_width: 900,
+      popup_height: 600,
+    });
+    card
+      .shadowRoot!.querySelector('ha-card')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    const panel = document.querySelector<HTMLElement>('.smc-popup > div')!;
+    expect(panel.style.maxWidth).toBe('900px');
+    expect(panel.style.width).toContain('900px');
+    const full = document.querySelector('.smc-popup sun-moon-card') as SunMoonCard;
+    await full.updateComplete;
+    expect(full.shadowRoot!.querySelector('ha-card')!.getAttribute('style')).toContain(
+      '600px',
+    );
+    card.remove();
+    expect(document.querySelector('.smc-popup')).toBeNull();
   });
 
   it('meldet dem Dashboard eine Zeile als Mindesthöhe', async () => {

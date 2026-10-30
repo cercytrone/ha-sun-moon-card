@@ -88,7 +88,8 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   Höhenlinien bleibt der Horizont). Die Kartenhöhe darf damit **bis auf 24 px** sinken – auch
   unter 100 px bleibt ablesbar, wo die Sonne im Tag steht. Ein Klick (oder die Taste
   `Eingabe`/`Leertaste`) öffnet die vollständige Karte mit derselben Konfiguration in einem
-  Overlay; `Escape`, ein Klick daneben oder der Schließen-Knopf beenden es
+  Overlay (720 × 460 px, einstellbar mit `popup_width` und `popup_height`); `Escape`, ein Klick
+  daneben oder der Schließen-Knopf beenden es
 - **Zeiten über dem Minimalstreifen:** Eine zwölf Pixel hohe Zeile nennt **links die Zeit des
   Sonnenaufgangs**, **in der Mitte die des Zenits** (Kulmination) und **rechts die des
   Sonnenuntergangs** – im eingestellten Zeitformat, mit den vollständigen Bezeichnungen im
@@ -96,10 +97,11 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   abschalten** (`minimal_show_times`, `minimal_show_zenith`); fehlt ein Ereignis (Polartag,
   Polarnacht), entfällt sein Eintrag statt einen Platzhalter zu zeigen. Die Zeile braucht
   36 px Kartenhöhe, darunter bleibt sie weg
-- **Größere Sonne im Minimalstreifen:** Der Sonnenmarker fällt in der Minimalvariante deutlich
-  größer aus als in der vollständigen Karte (Radius 2,8–6 px statt 3,5–6 px, auf flachen Streifen
-  also ein Mehrfaches), damit der Stand im Tag auch auf einem schmalen Streifen sofort ins Auge
-  fällt
+- **Sonnengröße für alle Darstellungen:** Der Sonnenmarker wird in Minimal-, Kompakt- und
+  Volldarstellung nach derselben Regel gezeichnet: Sein Radius wächst mit der Höhe des Verlaufs
+  bis auf `sun_marker_size` (**Standard 6 px**, einstellbar **2–12 px**) und bleibt auf sehr
+  flachen Streifen bei mindestens 2,8 px. Damit ist der Stand im Tag überall gleich gut erkennbar
+  – auch dort, wo früher nur ein Punkt von 3,5 px saß
 
 **Zweite Ansicht: aktueller Himmel**
 
@@ -229,6 +231,9 @@ card_height: 48   # möglich ab 24 px; ein Klick öffnet die vollständige Karte
 # Zeile über dem Streifen: links Aufgang, mittig Zenit, rechts Untergang
 minimal_show_times: true    # Auf- und Untergangszeit
 minimal_show_zenith: true   # Zenitzeit
+sun_marker_size: 6          # Radius der Sonne, 2–12 px, gilt auch für die Volldarstellung
+popup_width: 720            # Overlay: Breite, 320–1200 px
+popup_height: 460           # Overlay: Höhe, 260–800 px
 ```
 
 **Feste Sprache und Zeitformat, helles Theme**
@@ -284,6 +289,9 @@ cards:
 | `minimal_mode` | `true` / `false` | `false` | Minimalvariante: nur der Zeitstrahl, ohne Kopfzeile, Zeitenleiste, Details, Fußzeile und Legende. Erlaubt Kartenhöhen ab 24 px; ein Klick öffnet die vollständige Karte in einem Overlay |
 | `minimal_show_times` | `true` / `false` | `true` | Minimalvariante: Zeit von Sonnenaufgang (links) und Sonnenuntergang (rechts) über dem Zeitstrahl nennen. Braucht 36 px Kartenhöhe |
 | `minimal_show_zenith` | `true` / `false` | `true` | Minimalvariante: Zeit der Kulmination mittig über dem Zeitstrahl nennen. Braucht 36 px Kartenhöhe |
+| `sun_marker_size` | Zahl in px (2–12) | `6` | Radius des Sonnenmarkers im Verlauf. Der Marker wächst mit der Höhe des Verlaufs bis auf diesen Wert und bleibt auf flachen Streifen bei mindestens 2,8 px. Gilt für Minimal-, Kompakt- und Volldarstellung gleichermaßen |
+| `popup_width` | Zahl in px (320–1200) | `720` | Breite des Overlays der Minimalvariante (nach oben auf 92 % der Fensterbreite begrenzt) |
+| `popup_height` | Zahl in px (260–800) | `460` | Höhe des Overlays der Minimalvariante – unabhängig von `card_height` |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
@@ -313,7 +321,8 @@ Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
 
 - **Darstellung** – Kartenhöhe (Schieberegler und Zahlenfeld), automatische Höhe, Farbschema,
   Zeitformat, Sprache, Animationen, Kompaktmodus, Minimalvariante mit Auf-/Untergangszeit und
-  Zenitzeit, Dämmerungsgrenze
+  Zenitzeit, Größe der Sonne, Breite und Höhe des Overlays (beide nur in der Minimalvariante),
+  Dämmerungsgrenze
 - **Bereiche** – Schalter für Sonne, Mond, Dämmerung, astronomische Details, Kopfzeile,
   Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang
 - **Verhalten** – Sonnen- und Mond-Entität
