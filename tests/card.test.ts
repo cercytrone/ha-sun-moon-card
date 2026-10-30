@@ -328,7 +328,9 @@ describe('Darstellung', () => {
     expect(moon).not.toBeNull();
 
     // Höhe in Grad und Himmelsrichtung: bei der Sonne als Hauptwert und
-    // Azimut, beim Mond in der Stellungszeile unter der Beleuchtung.
+    // Azimut. Beim Mond entscheidet die verfügbare Breite über die Zeile –
+    // `_fitLabel()` kürzt die Himmelsrichtung heraus, wenn die Kachel schmal
+    // ist; sie bleibt dann im Tooltip erhalten („Höhe … · Azimut …“).
     const height = /-?\d{1,3}(?:[.,]\d)?\s?°/;
     const direction = /\d{1,3}°\s[NSEWO]{1,3}/;
     const sunText = sun!.textContent ?? '';
@@ -336,7 +338,10 @@ describe('Darstellung', () => {
     expect(sunText).toMatch(direction);
     const moonText = moon!.textContent ?? '';
     expect(moonText).toMatch(height);
-    expect(moonText).toMatch(direction);
+    const moonTitles = [...moon!.querySelectorAll('[title]')]
+      .map((node) => node.getAttribute('title') ?? '')
+      .join(' · ');
+    expect(`${moonText} · ${moonTitles}`).toMatch(direction);
   });
 
   it('zeichnet den Höhenverlauf des Mondes als zweite Kurve', async () => {
@@ -604,6 +609,31 @@ describe('Editor', () => {
     expect(number.value).toBe('48');
   });
 
+  it('schaltet die Zeitangaben der Minimalvariante getrennt', async () => {
+    const editor = await mountEditor({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const times = editor.shadowRoot!.querySelector<HTMLInputElement>('#minimal-times')!;
+    const zenith = editor.shadowRoot!.querySelector<HTMLInputElement>('#minimal-zenith')!;
+    expect(times.checked).toBe(true);
+    expect(zenith.checked).toBe(true);
+
+    times.checked = false;
+    times.dispatchEvent(new Event('change'));
+    expect(events.at(-1)?.minimal_show_times).toBe(false);
+    expect(events.at(-1)?.minimal_show_zenith).toBeUndefined();
+
+    zenith.checked = false;
+    zenith.dispatchEvent(new Event('change'));
+    expect(events.at(-1)?.minimal_show_zenith).toBe(false);
+  });
+
   it('schaltet die Minimalvariante', async () => {
     const editor = await mountEditor({ type: 'custom:sun-moon-card', card_height: 200 });
     const events: SunMoonCardConfig[] = [];
@@ -714,6 +744,113 @@ describe('Minimalvariante', () => {
     expect(document.querySelector('.smc-popup')).not.toBeNull();
     card.remove();
     expect(document.querySelector('.smc-popup')).toBeNull();
+  });
+
+  it('nennt Aufgang, Zenit und Untergang über dem Zeitstrahl', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const row = card.shadowRoot!.querySelector('.minimal-times')!;
+    const rise = row.querySelector('.minimal-time.rise')!;
+    const zenith = row.querySelector('.minimal-time.zenith')!;
+    const set = row.querySelector('.minimal-time.set')!;
+    const time = /\d{1,2}[:.]\d{2}/;
+
+    expect(rise.textContent ?? '').toMatch(time);
+    expect(set.textContent ?? '').toMatch(time);
+    expect(zenith.textContent ?? '').toMatch(time);
+    expect(zenith.textContent).toContain('Zenit');
+
+    // Links der Aufgang, mittig der Zenit, rechts der Untergang.
+    const order = [...row.children];
+    expect(order.indexOf(rise)).toBeLessThan(order.indexOf(zenith));
+    expect(order.indexOf(zenith)).toBeLessThan(order.indexOf(set));
+
+    // Die vollständigen Bezeichnungen stehen im Tooltip.
+    expect(rise.getAttribute('title')).toContain('Sonnenaufgang');
+    expect(set.getAttribute('title')).toContain('Sonnenuntergang');
+    expect(zenith.getAttribute('title')).toContain('Zenit');
+
+    // 12 px Zeile, der Rest gehört dem Verlauf: 48 − 2 × 4 − 12 = 28 px.
+    expect((row as HTMLElement).style.height).toBe('12px');
+    expect(card.shadowRoot!.querySelector('.chart-wrap')!.getAttribute('style')).toContain(
+      '28px',
+    );
+  });
+
+  it('lässt Auf-/Untergang und Zenit getrennt abschalten', async () => {
+    const onlyZenith = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+      minimal_show_times: false,
+    });
+    expect(onlyZenith.shadowRoot!.querySelector('.minimal-time.rise')).toBeNull();
+    expect(onlyZenith.shadowRoot!.querySelector('.minimal-time.set')).toBeNull();
+    expect(onlyZenith.shadowRoot!.querySelector('.minimal-time.zenith')).not.toBeNull();
+
+    const onlyTimes = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+      minimal_show_zenith: false,
+    });
+    expect(onlyTimes.shadowRoot!.querySelector('.minimal-time.zenith')).toBeNull();
+    expect(onlyTimes.shadowRoot!.querySelector('.minimal-time.rise')).not.toBeNull();
+    expect(onlyTimes.shadowRoot!.querySelector('.minimal-time.set')).not.toBeNull();
+
+    const none = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+      minimal_show_times: false,
+      minimal_show_zenith: false,
+    });
+    expect(none.shadowRoot!.querySelector('.minimal-times')).toBeNull();
+    // Ohne Zeile gehört die frei gewordene Höhe dem Verlauf: 48 − 8 = 40 px.
+    expect(none.shadowRoot!.querySelector('.chart-wrap')!.getAttribute('style')).toContain(
+      '40px',
+    );
+  });
+
+  it('zeigt die Zeitzzeile erst ab 36 px Kartenhöhe', async () => {
+    const small = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 24,
+    });
+    expect(small.shadowRoot!.querySelector('.minimal-times')).toBeNull();
+    const large = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 36,
+    });
+    expect(large.shadowRoot!.querySelector('.minimal-times')).not.toBeNull();
+    // Rand (2 × 4 px) + Zeile (12 px) + kleinster Verlauf (16 px) = 36 px.
+    expect(large.shadowRoot!.querySelector('.chart-wrap')!.getAttribute('style')).toContain(
+      '16px',
+    );
+  });
+
+  it('zeichnet die Sonne in der Minimalvariante größer', async () => {
+    const radius = (card: SunMoonCard) =>
+      Number(card.shadowRoot!.querySelector('.now-sun circle')!.getAttribute('r'));
+    const minimal = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 96,
+    });
+    const full = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 });
+    expect(radius(minimal)).toBeGreaterThan(radius(full));
+    // Auch auf dem schmalsten Streifen bleibt sie erkennbar.
+    const tiny = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 24,
+    });
+    expect(radius(tiny)).toBeGreaterThanOrEqual(2.8);
   });
 
   it('meldet dem Dashboard eine Zeile als Mindesthöhe', async () => {

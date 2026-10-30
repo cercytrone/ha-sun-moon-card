@@ -41,6 +41,9 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   // Minimalvariante: ausschließlich der Zeitstrahl, Höhen ab 24 px
   minimalmode: { minimal_mode: true },
   minimalmode_horizon: { minimal_mode: true, card_style: 'horizon' },
+  minimalmode_notimes: { minimal_mode: true, minimal_show_times: false },
+  minimalmode_nozenith: { minimal_mode: true, minimal_show_zenith: false },
+  minimalmode_bare: { minimal_mode: true, minimal_show_times: false, minimal_show_zenith: false },
   wide: { show_astronomical_details: true },
   nofooter: { show_footer: false },
 };

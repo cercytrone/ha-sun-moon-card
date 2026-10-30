@@ -39,6 +39,17 @@ export const MINIMAL_MIN_CHART_HEIGHT = 16;
 /** Außenabstand der Karte im Minimalmodus. */
 export const MINIMAL_PADDING = 4;
 /**
+ * Höhe der Zeile mit Auf-/Untergangs- und Zenitzeit in der Minimalvariante.
+ * Sie liegt oberhalb des Zeitstrahls und wird von der Kartenhöhe abgezogen.
+ */
+export const MINIMAL_TIMES_HEIGHT = 12;
+/**
+ * Kleinste Kartenhöhe, in der diese Zeile Platz findet: Rand (2 × 4 px),
+ * Zeile (12 px) und kleinster Zeitstrahl (16 px) ergeben 36 px.
+ */
+export const MINIMAL_TIMES_MIN_HEIGHT = 36;
+
+/**
  * Höhe der vollständigen Variante im Overlay des Minimalmodus. Der Streifen
  * selbst ist zu flach, deshalb bekommt das Overlay eine eigene Höhe – nach
  * oben begrenzt, damit es auf kleinen Bildschirmen nicht aus dem Blickfeld
@@ -69,6 +80,8 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   show_astronomical_details: false,
   compact_mode: false,
   minimal_mode: false,
+  minimal_show_times: true,
+  minimal_show_zenith: true,
   card_style: 'glass',
   theme_mode: 'auto',
   animations: true,
@@ -242,6 +255,11 @@ export interface LayoutMetrics {
   chartHeight: number;
   /** Minimalmodus: nur der Zeitstrahl, ohne jeden weiteren Bereich. */
   minimal: boolean;
+  /**
+   * Höhe der Zeile mit Auf-/Untergangs- und Zenitzeit im Minimalmodus.
+   * `0` = die Zeile entfällt (abgeschaltet oder zu wenig Platz).
+   */
+  minimalTimesHeight: number;
   /** Kompakte Schriftgrößen. */
   compact: boolean;
 }
@@ -329,12 +347,19 @@ export function computeLayout(
   // Höhenhaushalt zu verteilen – Höhe abzüglich Rand gehört dem Verlauf.
   // Deshalb sind hier auch Höhen unter 100 px darstellbar.
   if (config.minimal_mode) {
+    // Zeile mit Auf-/Untergangs- und Zenitzeit: Sie steht über dem
+    // Zeitstrahl und kostet ihn Höhe. Unter MINIMAL_TIMES_MIN_HEIGHT bliebe
+    // für den Verlauf zu wenig – dann entfällt sie.
+    const wantTimes = config.minimal_show_times || config.minimal_show_zenith;
+    const minimalTimesHeight =
+      wantTimes && height >= MINIMAL_TIMES_MIN_HEIGHT ? MINIMAL_TIMES_HEIGHT : 0;
     const minimalChartHeight = Math.max(
       MINIMAL_MIN_CHART_HEIGHT,
-      height - 2 * MINIMAL_PADDING,
+      height - 2 * MINIMAL_PADDING - minimalTimesHeight,
     );
     return {
       padding: MINIMAL_PADDING,
+      minimalTimesHeight,
       showHeader: false,
       showEvents: false,
       showDetails: false,
@@ -483,6 +508,7 @@ export function computeLayout(
     legendHeight,
     chartHeight,
     minimal: false,
+    minimalTimesHeight: 0,
     compact,
   };
 }

@@ -203,6 +203,31 @@ export const cardStyles = css`
     overflow: hidden;
   }
 
+  /* Zeile mit Auf-/Untergangs- und Zenitzeit über dem Zeitstrahl. */
+  .minimal-times {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--smc-muted-color);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .minimal-time {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .minimal-time.zenith {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
   /* ---------- Kopfzeile ---------- */
 
   .header {

@@ -786,20 +786,63 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
           : null,
         role: haCard.getAttribute('role'),
         aria: haCard.getAttribute('aria-label') ?? '',
+        times: (() => {
+          const row = root.querySelector('.minimal-times');
+          if (!row) return null;
+          const text = (selector) =>
+            row.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+          return {
+            height: Math.round(row.getBoundingClientRect().height * 10) / 10,
+            rise: text('.minimal-time.rise'),
+            zenith: text('.minimal-time.zenith'),
+            set: text('.minimal-time.set'),
+            titles: [
+              row.querySelector('.minimal-time.rise')?.getAttribute('title') ?? '',
+              row.querySelector('.minimal-time.zenith')?.getAttribute('title') ?? '',
+              row.querySelector('.minimal-time.set')?.getAttribute('title') ?? '',
+            ],
+          };
+        })(),
       };
     });
     page.off('console', onConsole);
     page.off('pageerror', onErrorUnused);
 
     const label = `Minimal ${height} px`;
+    const expectedRow = height >= 36 ? 12 : 0;
     record(
       `${label}: Kartenhöhe eingehalten (${report.cardHeight} px)`,
       Math.abs(report.cardHeight - height) <= 0.6,
     );
     record(
       `${label}: Verlauf füllt die Karte (${report.svgHeight} px, ${report.distanceToBottom} px Rand)`,
-      report.svgHeight === height - 8 && Math.abs(report.distanceToBottom - 4) <= 0.6,
+      report.svgHeight === height - 8 - expectedRow &&
+        Math.abs(report.distanceToBottom - 4) <= 0.6,
     );
+    record(
+      expectedRow
+        ? `${label}: Zeile mit Auf-/Untergang und Zenit (${report.times?.height ?? 0} px)`
+        : `${label}: keine Zeile unter 36 px`,
+      expectedRow
+        ? report.times !== null && Math.abs(report.times.height - expectedRow) <= 0.6
+        : report.times === null,
+    );
+    if (expectedRow) {
+      const zeit = report.times ?? { rise: '', zenith: '', set: '', titles: [] };
+      record(
+        `${label}: Aufgang links, Zenit mittig, Untergang rechts (${zeit.rise} | ${zeit.zenith} | ${zeit.set})`,
+        /↑\s?\d{1,2}:\d{2}/.test(zeit.rise ?? '') &&
+          /\d{1,2}:\d{2}/.test(zeit.zenith ?? '') &&
+          (zeit.zenith ?? '').includes('Zenit') &&
+          /↓\s?\d{1,2}:\d{2}/.test(zeit.set ?? ''),
+      );
+      record(
+        `${label}: Tooltips nennen die Ereignisse`,
+        (zeit.titles ?? []).some((title) => title.includes('Sonnenaufgang')) &&
+          (zeit.titles ?? []).some((title) => title.includes('Sonnenuntergang')) &&
+          (zeit.titles ?? []).some((title) => title.includes('Zenit')),
+      );
+    }
     record(
       `${label}: keine weiteren Bereiche (${JSON.stringify(report.sections)})`,
       report.sections.header === 0 &&
@@ -808,7 +851,8 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
         report.sections.footer === 0 &&
         report.sections.legend === 0 &&
         report.sections.sky === 0 &&
-        report.sections.rootChildren === 1,
+        // Wurzel: Zeitzeile (falls sichtbar) und Zeitstrahl, mehr nicht.
+        report.sections.rootChildren === (expectedRow ? 2 : 1),
     );
     record(
       `${label}: Zeitstrahl abgespeckt (Raster ${report.decorations.grid}, Beschriftung ${report.decorations.labels}, Zenit ${report.decorations.zenith}, Mondgang ${report.decorations.moonCurve}, Höhenlinien ${report.decorations.referenceLines})`,
@@ -842,6 +886,95 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       errors.length === 0,
       errors.slice(0, 2).join(' | '),
     );
+  }
+
+  // Zeitangaben getrennt abschalten
+  {
+    const variants = [
+      {
+        preset: 'minimalmode_notimes',
+        name: 'nur Zenit',
+        rise: false,
+        zenith: true,
+        set: false,
+        row: 12,
+      },
+      {
+        preset: 'minimalmode_nozenith',
+        name: 'nur Auf-/Untergang',
+        rise: true,
+        zenith: false,
+        set: true,
+        row: 12,
+      },
+      {
+        preset: 'minimalmode_bare',
+        name: 'beide Zeitangaben aus',
+        rise: false,
+        zenith: false,
+        set: false,
+        row: 0,
+      },
+    ];
+    for (const variant of variants) {
+      const query = `${baseUrl}/shots.html?preset=${variant.preset}&loc=berlin&time=2026-10-26T12:00&theme=dark&h=48&w=620`;
+      await page.goto(query, { waitUntil: 'networkidle0' });
+      await page.waitForFunction(
+        () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+        { timeout: 20000 },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const report = await page.evaluate(() => {
+        const root = document.querySelector('sun-moon-card').shadowRoot;
+        const row = root.querySelector('.minimal-times');
+        const wrap = root.querySelector('.chart-wrap');
+        return {
+          row: row ? Math.round(row.getBoundingClientRect().height) : 0,
+          rise: Boolean(row?.querySelector('.minimal-time.rise')),
+          zenith: Boolean(row?.querySelector('.minimal-time.zenith')),
+          set: Boolean(row?.querySelector('.minimal-time.set')),
+          chartHeight: wrap ? Math.round(wrap.getBoundingClientRect().height) : 0,
+        };
+      });
+      record(
+        `Minimal: ${variant.name} (Zeile ${report.row} px, Verlauf ${report.chartHeight} px)`,
+        report.rise === variant.rise &&
+          report.zenith === variant.zenith &&
+          report.set === variant.set &&
+          report.row === variant.row &&
+          report.chartHeight === 48 - 8 - report.row,
+      );
+    }
+  }
+
+  // Sonnenmarke der Minimalvariante
+  {
+    const radius = async (url) => {
+      await page.goto(url, { waitUntil: 'networkidle0' });
+      await page.waitForFunction(
+        () =>
+          Boolean(
+            document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart'),
+          ),
+        { timeout: 20000 },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return page.evaluate(() => {
+        const svg = document
+          .querySelector('sun-moon-card')
+          .shadowRoot.querySelector('svg.day-chart');
+        return Number(svg.querySelector('.now-sun circle').getAttribute('r'));
+      });
+    };
+    const common = 'loc=berlin&time=2026-10-26T12:00&theme=dark&w=620';
+    const tiny = await radius(`${baseUrl}/shots.html?preset=minimalmode&${common}&h=24`);
+    const strip = await radius(`${baseUrl}/shots.html?preset=minimalmode&${common}&h=96`);
+    const full = await radius(`${baseUrl}/shots.html?${common}&h=340`);
+    record(
+      `Minimal: Sonnenmarke größer als in der vollständigen Karte (${strip} px vs. ${full} px)`,
+      strip > full,
+    );
+    record(`Minimal: Sonnenmarke auch bei 24 px erkennbar (${tiny} px)`, tiny >= 2.8);
   }
 
   // Klick öffnet die vollständige Variante im Overlay

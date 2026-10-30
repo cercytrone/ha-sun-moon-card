@@ -570,8 +570,10 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
   // Der Sonnenmarker trägt die gesättigte Tagesfarbe, nicht die blasse Farbe
   // der Kurve – sonst verschwindet er auf der Linie, auf der er sitzt.
   const markerColor = palette.day;
+  // Im Minimalmodus ist die Sonne das einzige, was den Stand im Tag zeigt –
+  // sie fällt deshalb deutlich größer aus, auch auf Kosten der Feinheit.
   const markerRadius = minimal
-    ? clamp(round(safeHeight * 0.09, 1), 1.8, 4)
+    ? clamp(round(safeHeight * 0.16, 1), 2.8, 6)
     : clamp(round(safeHeight * 0.045, 1), 3.5, 6);
   const markerRing = clamp(round(markerRadius * 0.22, 2), 0.8, 1.4);
   const moonRadius = clamp(round(markerRadius * 1.1, 1), 3.5, 7);

@@ -89,6 +89,17 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   unter 100 px bleibt ablesbar, wo die Sonne im Tag steht. Ein Klick (oder die Taste
   `Eingabe`/`Leertaste`) öffnet die vollständige Karte mit derselben Konfiguration in einem
   Overlay; `Escape`, ein Klick daneben oder der Schließen-Knopf beenden es
+- **Zeiten über dem Minimalstreifen:** Eine zwölf Pixel hohe Zeile nennt **links die Zeit des
+  Sonnenaufgangs**, **in der Mitte die des Zenits** (Kulmination) und **rechts die des
+  Sonnenuntergangs** – im eingestellten Zeitformat, mit den vollständigen Bezeichnungen im
+  Tooltip. Aufgang und Untergang einerseits und die Zenitzeit andererseits lassen sich **getrennt
+  abschalten** (`minimal_show_times`, `minimal_show_zenith`); fehlt ein Ereignis (Polartag,
+  Polarnacht), entfällt sein Eintrag statt einen Platzhalter zu zeigen. Die Zeile braucht
+  36 px Kartenhöhe, darunter bleibt sie weg
+- **Größere Sonne im Minimalstreifen:** Der Sonnenmarker fällt in der Minimalvariante deutlich
+  größer aus als in der vollständigen Karte (Radius 2,8–6 px statt 3,5–6 px, auf flachen Streifen
+  also ein Mehrfaches), damit der Stand im Tag auch auf einem schmalen Streifen sofort ins Auge
+  fällt
 
 **Zweite Ansicht: aktueller Himmel**
 
@@ -215,6 +226,9 @@ show_header: false
 type: custom:sun-moon-card
 minimal_mode: true
 card_height: 48   # möglich ab 24 px; ein Klick öffnet die vollständige Karte
+# Zeile über dem Streifen: links Aufgang, mittig Zenit, rechts Untergang
+minimal_show_times: true    # Auf- und Untergangszeit
+minimal_show_zenith: true   # Zenitzeit
 ```
 
 **Feste Sprache und Zeitformat, helles Theme**
@@ -268,6 +282,8 @@ cards:
 | `show_astronomical_details` | `true` / `false` | `false` | Zusätzliche Details: Kulmination mit maximaler Höhe, Tageslänge mit Änderung zum Vortag, Azimut, Azimut bei Auf-/Untergang, „Sonne X° unter dem Horizont“, nautische/astronomische Dämmerung, Mondalter, Mondentfernung mit Erdferne/-nähe, nächster Vollmond |
 | `compact_mode` | `true` / `false` | `false` | Kompakte Darstellung ohne Kopfzeile, Himmelsansicht und Detailzeile |
 | `minimal_mode` | `true` / `false` | `false` | Minimalvariante: nur der Zeitstrahl, ohne Kopfzeile, Zeitenleiste, Details, Fußzeile und Legende. Erlaubt Kartenhöhen ab 24 px; ein Klick öffnet die vollständige Karte in einem Overlay |
+| `minimal_show_times` | `true` / `false` | `true` | Minimalvariante: Zeit von Sonnenaufgang (links) und Sonnenuntergang (rechts) über dem Zeitstrahl nennen. Braucht 36 px Kartenhöhe |
+| `minimal_show_zenith` | `true` / `false` | `true` | Minimalvariante: Zeit der Kulmination mittig über dem Zeitstrahl nennen. Braucht 36 px Kartenhöhe |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
@@ -296,7 +312,8 @@ Visual Editor zeigt den Grund dann an.
 Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
 
 - **Darstellung** – Kartenhöhe (Schieberegler und Zahlenfeld), automatische Höhe, Farbschema,
-  Zeitformat, Sprache, Animationen, Kompaktmodus, Minimalvariante, Dämmerungsgrenze
+  Zeitformat, Sprache, Animationen, Kompaktmodus, Minimalvariante mit Auf-/Untergangszeit und
+  Zenitzeit, Dämmerungsgrenze
 - **Bereiche** – Schalter für Sonne, Mond, Dämmerung, astronomische Details, Kopfzeile,
   Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang
 - **Verhalten** – Sonnen- und Mond-Entität
@@ -434,13 +451,14 @@ Verlaufshöhe = Kartenhöhe`.
 Es gibt keine versteckte Mindesthöhe: auch bei 120 px wird nichts abgeschnitten, und bei 800 px
 entsteht keine ungenutzte Fläche, weil der Tagesverlauf den verbleibenden Platz einnimmt.
 
-**Minimalvariante.** Mit `minimal_mode: true` entfällt diese Rechnung: Der Zeitstrahl ist die
-ganze Karte, die Höhe gehört allein ihm (`2 × 4 px Rand + Verlauf = Kartenhöhe`). Der
-Schwellenwert von 120 px gilt dann nicht – geprüft sind Höhen von 24 px bis 800 px. Der
-Höhenbereich des Verlaufs richtet sich in der Minimalvariante nach der Sonne allein, damit die
-Kurve die wenigen Pixel voll ausnutzt. Der Streifen ist eine Schaltfläche: Er ist per Tastatur
-erreichbar, im Screenreader als Karte mit Auf- und Untergangszeit beschrieben und öffnet die
-vollständige Variante.
+**Minimalvariante.** Mit `minimal_mode: true` entfällt diese Rechnung weitgehend: Der Zeitstrahl
+bekommt die ganze Karte bis auf Rand und Zeitzeile (`2 × 4 px Rand + 12 px Zeitzeile + Verlauf =
+Kartenhöhe`). Der Schwellenwert von 120 px gilt dann nicht – geprüft sind Höhen von 24 px bis
+800 px. Unter 36 px entfällt die Zeitzeile, weil sonst zu wenig Verlauf übrig bliebe; der
+Zeitstrahl bleibt davon unberührt. Der Höhenbereich des Verlaufs richtet sich in der
+Minimalvariante nach der Sonne allein, damit die Kurve die wenigen Pixel voll ausnutzt. Der
+Streifen ist eine Schaltfläche: Er ist per Tastatur erreichbar, im Screenreader als Karte mit
+Auf- und Untergangszeit beschrieben und öffnet die vollständige Variante.
 
 ---
 

@@ -27,6 +27,8 @@ import {
   MINIMAL_MIN_CARD_HEIGHT,
   MINIMAL_MIN_CHART_HEIGHT,
   MINIMAL_PADDING,
+  MINIMAL_TIMES_HEIGHT,
+  MINIMAL_TIMES_MIN_HEIGHT,
   PADDING_COMPACT,
   PADDING_REGULAR,
   ROOT_GAP,
@@ -364,12 +366,14 @@ describe('computeLayout – Minimalmodus', () => {
     }
   });
 
-  it('gibt die gesamte Höhe abzüglich des Randes an den Zeitstrahl', () => {
+  it('gibt die gesamte Höhe abzüglich Rand und Zeitzeile an den Zeitstrahl', () => {
     for (const height of heights) {
       const layout = layoutFor({ minimal_mode: true }, height);
       expect(layout.gaps).toBe(0);
       expect(layout.padding).toBe(MINIMAL_PADDING);
-      expect(layout.chartHeight + 2 * layout.padding).toBe(height);
+      expect(
+        layout.chartHeight + 2 * layout.padding + layout.minimalTimesHeight,
+      ).toBe(height);
     }
   });
 
@@ -379,8 +383,10 @@ describe('computeLayout – Minimalmodus', () => {
       expect(config.card_height).toBe(height);
       const layout = computeLayout(height, 620, config);
       expect(layout.minimal).toBe(true);
-      expect(layout.chartHeight).toBe(height - 2 * MINIMAL_PADDING);
       expect(layout.chartHeight).toBeGreaterThanOrEqual(MINIMAL_MIN_CHART_HEIGHT);
+      expect(
+        layout.chartHeight + 2 * layout.padding + layout.minimalTimesHeight,
+      ).toBe(height);
     }
   });
 
@@ -397,10 +403,43 @@ describe('computeLayout – Minimalmodus', () => {
     expect(layout.chartHeight).toBe(MINIMAL_MIN_CHART_HEIGHT);
   });
 
+  it('zieht die Zeitzeile vom Zeitstrahl ab', () => {
+    for (const height of [MINIMAL_TIMES_MIN_HEIGHT, 48, 96, 340, 800]) {
+      const layout = layoutFor({ minimal_mode: true }, height);
+      expect(layout.minimalTimesHeight).toBe(MINIMAL_TIMES_HEIGHT);
+      expect(layout.chartHeight).toBe(height - 2 * MINIMAL_PADDING - MINIMAL_TIMES_HEIGHT);
+      expect(layout.chartHeight).toBeGreaterThanOrEqual(MINIMAL_MIN_CHART_HEIGHT);
+    }
+  });
+
+  it('lässt die Zeitzeile unter 36 px weg', () => {
+    for (const height of [24, 28, 32, 35]) {
+      const layout = layoutFor({ minimal_mode: true }, height);
+      expect(layout.minimalTimesHeight).toBe(0);
+      expect(layout.chartHeight).toBe(height - 2 * MINIMAL_PADDING);
+    }
+  });
+
+  it('folgt den beiden Schaltern für die Zeitangaben', () => {
+    expect(
+      layoutFor(
+        { minimal_mode: true, minimal_show_times: false, minimal_show_zenith: false },
+        48,
+      ).minimalTimesHeight,
+    ).toBe(0);
+    expect(
+      layoutFor({ minimal_mode: true, minimal_show_times: false }, 48).minimalTimesHeight,
+    ).toBe(MINIMAL_TIMES_HEIGHT);
+    expect(
+      layoutFor({ minimal_mode: true, minimal_show_zenith: false }, 48).minimalTimesHeight,
+    ).toBe(MINIMAL_TIMES_HEIGHT);
+  });
+
   it('bleibt ohne Minimalmodus unverändert', () => {
     for (const height of HEIGHTS) {
       const layout = layoutFor({}, height);
       expect(layout.minimal).toBe(false);
+      expect(layout.minimalTimesHeight).toBe(0);
       expect(layout.chartHeight).toBeGreaterThanOrEqual(56);
     }
   });
