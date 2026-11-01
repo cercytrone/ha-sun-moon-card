@@ -8,9 +8,16 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { HA_MOON_PHASES, buildModel, emptyExtras, resolveConfig } from '../src/model.js';
+import {
+  HA_MOON_PHASES,
+  buildModel,
+  clearModelCache,
+  emptyExtras,
+  getModel,
+  resolveConfig,
+} from '../src/model.js';
 import { zonedTimeToUtc } from '../src/timezone.js';
-import type { HomeAssistant } from '../src/types.js';
+import type { HomeAssistant, SunMoonCardConfig } from '../src/types.js';
 
 function hassWith(
   options: {
@@ -357,5 +364,48 @@ describe('Mondphasen-Zuordnung', () => {
       expect(model.moon.haPhaseName).toBe(key);
     }
     expect(Object.keys(HA_MOON_PHASES)).toHaveLength(8);
+  });
+});
+
+describe('getModel – Zwischenspeicher', () => {
+  it('gibt für gleiche Eingaben dasselbe Modell zurück', () => {
+    clearModelCache();
+    const hass = hassWith();
+    const { config } = resolveConfig({});
+    expect(getModel(config, hass, NOON)).toBe(getModel(config, hass, NOON));
+  });
+
+  it('berechnet neu, wenn eine Änderung das Modell betrifft', () => {
+    clearModelCache();
+    const hass = hassWith();
+    const now = new Date();
+    const base = resolveConfig({}).config;
+    const first = getModel(base, hass, now);
+    // Alle Felder, die `buildModel` liest, müssen im Schlüssel stehen –
+    // sonst bliebe ein zwischengespeichertes Modell veraltet zurück.
+    const variants: SunMoonCardConfig[] = [
+      { language: 'en' },
+      { show_moon: false },
+      { location_name: 'Gartenhaus' },
+      { twilight_level: 'nautical' },
+      { entity: 'sun. sonne' },
+      { moon_entity: 'sensor.mondphase' },
+    ];
+    expect(variants.length).toBeGreaterThan(0);
+    for (const variant of variants) {
+      const config = resolveConfig(variant).config;
+      expect(getModel(config, hass, now)).not.toBe(first);
+    }
+  });
+
+  it('bleibt bei Änderungen ohne Einfluss auf das Modell im Cache', () => {
+    clearModelCache();
+    const hass = hassWith();
+    const now = new Date();
+    const base = resolveConfig({ card_height: 340 }).config;
+    const first = getModel(base, hass, now);
+    // Die Höhe verändert nur die Darstellung, nicht das Modell.
+    const taller = resolveConfig({ card_height: 480 }).config;
+    expect(getModel(taller, hass, now)).toBe(first);
   });
 });

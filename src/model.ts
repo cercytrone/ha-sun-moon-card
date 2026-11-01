@@ -41,6 +41,7 @@ import {
   POPUP_HEIGHT_RANGE,
   POPUP_WIDTH_RANGE,
   SUN_MARKER_SIZE_RANGE,
+  SUPPORTED_ACTIONS,
   cardHeightRange,
   resolveAutoHeight,
   MOON_FOLK_KEYS,
@@ -54,6 +55,7 @@ import {
   startOfLocalDay,
 } from './timezone.js';
 import type {
+  ActionConfig,
   AltAzPoint,
   CardExtras,
   CardModel,
@@ -124,6 +126,32 @@ function asNumberInRange(
     );
   }
   return digits === 0 ? Math.round(limited) : round(limited, digits);
+}
+
+/**
+ * Liest eine Klick-Aktion im Home-Assistant-Standard.
+ *
+ * Fehlt das Feld `action` oder ist es unbekannt, wird die Aktion verworfen
+ * und eine Warnung vermerkt: Eine stillschweigend wirkungslose Aktion wäre
+ * schwerer zu finden als ein Hinweis auf der Karte.
+ */
+function asAction(value: unknown, language: Language, warnings: string[]): ActionConfig | null {
+  if (value === undefined || value === null) return null;
+  const candidate =
+    typeof value === 'object' && !Array.isArray(value)
+      ? (value as Partial<ActionConfig>)
+      : undefined;
+  const action = candidate?.action;
+  if (typeof action !== 'string' || action.trim() === '') {
+    warnings.push(localize(language, 'invalidAction', { value: String(value) }));
+    return null;
+  }
+  const name = action.trim();
+  if (!SUPPORTED_ACTIONS.includes(name)) {
+    warnings.push(localize(language, 'invalidAction', { value: name }));
+    return null;
+  }
+  return { ...candidate, action: name };
 }
 
 export function resolveConfig(
@@ -241,6 +269,9 @@ export function resolveConfig(
       language,
       warnings,
     ),
+    tap_action: asAction(input.tap_action, language, warnings),
+    hold_action: asAction(input.hold_action, language, warnings),
+    double_tap_action: asAction(input.double_tap_action, language, warnings),
     card_style: asChoice(input.card_style, CONFIG_CHOICES.cardStyle, DEFAULT_CONFIG.card_style),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
     animations: asBoolean(input.animations, DEFAULT_CONFIG.animations),
@@ -677,6 +708,13 @@ function configSignature(config: ResolvedConfig): string {
     config.latitude,
     config.longitude,
     config.twilight_level,
+    // Vom Modell ebenfalls gelesen: Sprache (`language`) für Hinweise im
+    // Modell, der Anzeigename (`location_name`) und der Mond (`show_moon`
+    // entscheidet über den Mondgang). Ohne sie wäre ein zwischengespeichertes
+    // Modell nach einer Änderung veraltet.
+    config.language,
+    config.location_name,
+    String(config.show_moon),
   ].join('|');
 }
 
@@ -689,6 +727,8 @@ function hassSignature(config: ResolvedConfig, hass: HomeAssistant | undefined):
     hass.config?.time_zone ?? '',
     hass.config?.latitude ?? '',
     hass.config?.longitude ?? '',
+    // Der Anzeigename fällt auf den Namen der Installation zurück.
+    hass.config?.location_name ?? '',
     sun?.attributes?.next_rising ?? sun?.last_updated ?? '',
     sun?.attributes?.next_setting ?? '',
     sun?.attributes?.next_dawn ?? '',

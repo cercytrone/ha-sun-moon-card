@@ -13,7 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockHass } from '../dev/mock-hass.js';
 import '../src/sun-moon-card.js';
 import { SunMoonCard } from '../src/sun-moon-card.js';
-import { DEFAULT_CARD_HEIGHT } from '../src/const.js';
+import { getModel, resolveConfig } from '../src/model.js';
+import { DEFAULT_CARD_HEIGHT, DOUBLE_TAP_DELAY, HOLD_DELAY } from '../src/const.js';
 import type { HomeAssistant, SunMoonCardConfig } from '../src/types.js';
 
 const WIDTH = 620;
@@ -117,6 +118,18 @@ describe('setConfig', () => {
     const card = document.createElement('sun-moon-card') as SunMoonCard;
     expect(() => card.setConfig({ type: 'custom:sun-moon-card', card_height: 9999 })).not.toThrow();
     expect(consoleWarn).toHaveBeenCalled();
+  });
+
+  it('protokolliert dieselbe Korrektur nur einmal – auch im Editor', () => {
+    const card = document.createElement('sun-moon-card') as SunMoonCard;
+    consoleWarn.mockClear();
+    card.setConfig({ type: 'custom:sun-moon-card', card_height: 10 });
+    card.setConfig({ type: 'custom:sun-moon-card', card_height: 10 });
+    card.setConfig({ type: 'custom:sun-moon-card', card_height: 10 });
+    expect(consoleWarn).toHaveBeenCalledTimes(1);
+    // Eine andere Korrektur wird wieder gemeldet.
+    card.setConfig({ type: 'custom:sun-moon-card', card_height: 20 });
+    expect(consoleWarn).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -485,6 +498,46 @@ describe('Aktualisierung', () => {
     card.setConfig({ type: 'custom:sun-moon-card', show_events: false });
     await card.updateComplete;
     expect(card.shadowRoot!.querySelectorAll('.event-tile')).toHaveLength(0);
+  });
+
+  it('führt ein geöffnetes Overlay mit dem neuen `hass` mit', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    card
+      .shadowRoot!.querySelector('ha-card')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const full = document.querySelector('.smc-popup sun-moon-card') as SunMoonCard;
+    await full.updateComplete;
+    expect(full.hass).toBe(card.hass);
+
+    card.hass = mockHass('sydney');
+    await card.updateComplete;
+    await full.updateComplete;
+    // Sonst bliebe das Overlay auf dem Stand beim Öffnen stehen.
+    expect(full.hass).toBe(card.hass);
+    expect(full.shadowRoot!.textContent).toContain('Sydney');
+    card.remove();
+  });
+
+  it('bemerkt einen Sprachwechsel, den nur `hass.language` trägt', async () => {
+    // Ältere Oberflächen füllen `hass.locale` nicht; die Sprache steckt dann
+    // unmittelbar an `hass`.
+    const base = mockHass();
+    const german = { ...base, locale: undefined, language: 'de' } as HomeAssistant;
+    const english = { ...base, locale: undefined, language: 'en' } as HomeAssistant;
+    const card = await mountCard({ type: 'custom:sun-moon-card' }, { hass: german });
+    // Erst ein zweites, inhaltsgleiches `hass` – danach steht die Signatur,
+    // mit der die Karte weitere Änderungen vergleicht.
+    card.hass = { ...german };
+    await card.updateComplete;
+    const before = card.shadowRoot!.querySelector('.footer')?.textContent ?? '';
+    card.hass = english;
+    await card.updateComplete;
+    const after = card.shadowRoot!.querySelector('.footer')?.textContent ?? '';
+    expect(after).not.toBe(before);
   });
 });
 
@@ -961,5 +1014,443 @@ describe('Minimalvariante', () => {
     });
     expect(card.getCardSize()).toBe(1);
     expect(card.getGridOptions().min_rows).toBe(1);
+  });
+});
+
+describe('Gestaltung', () => {
+  it('setzt die Gestaltungsklassen vor dem ersten Rendern', async () => {
+    const card = document.createElement('sun-moon-card') as SunMoonCard;
+    const original = card.render.bind(card);
+    const seen: string[] = [];
+    // Die Klassen steuern die CSS-Variablen. Stünden sie erst nach dem
+    // Rendern, blitzte die Karte im hellen Theme dunkel auf.
+    (card as unknown as { render: () => unknown }).render = () => {
+      seen.push(card.className);
+      return original();
+    };
+    card.setConfig({ type: 'custom:sun-moon-card' });
+    card.hass = mockHass();
+    document.body.append(card);
+    await card.updateComplete;
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]).toContain('smc-dark');
+    expect(seen[0]).toContain('smc-glass');
+  });
+});
+
+describe('Klick-Aktionen', () => {
+  /** Erzeugt einen Minimalstreifen; `config` ergänzt die Konfiguration. */
+  async function mountStrip(
+    config: SunMoonCardConfig = {},
+    hass: HomeAssistant | undefined = undefined,
+  ): Promise<{ card: SunMoonCard; strip: HTMLElement }> {
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', minimal_mode: true, card_height: 48, ...config },
+      hass ? { hass } : {},
+    );
+    return { card, strip: card.shadowRoot!.querySelector('ha-card')! };
+  }
+
+  /** Sammelt Ereignisse eines Namens, die beim Dokument ankommen. */
+  function collect(target: EventTarget, type: string): CustomEvent[] {
+    const events: CustomEvent[] = [];
+    target.addEventListener(type, (event) => events.push(event as CustomEvent));
+    return events;
+  }
+
+  it('öffnet ohne konfigurierte Aktion weiter das Overlay', async () => {
+    const { card, strip } = await mountStrip();
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('.smc-popup')).not.toBeNull();
+    card.remove();
+  });
+
+  it('öffnet das Overlay auf Wunsch ausdrücklich', async () => {
+    const { card, strip } = await mountStrip({ tap_action: { action: 'open-popup' } });
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('.smc-popup')).not.toBeNull();
+    card.remove();
+  });
+
+  it('tut bei `none` nichts', async () => {
+    const { card, strip } = await mountStrip({ tap_action: { action: 'none' } });
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('.smc-popup')).toBeNull();
+    card.remove();
+  });
+
+  it('meldet `more-info` für die Sonnen-Entität', async () => {
+    const { card, strip } = await mountStrip({ tap_action: { action: 'more-info' } });
+    const events = collect(document, 'hass-more-info');
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail).toEqual({ entityId: 'sun.sun' });
+    expect(document.querySelector('.smc-popup')).toBeNull();
+    card.remove();
+  });
+
+  it('meldet `more-info` für eine benannte Entität', async () => {
+    const { card, strip } = await mountStrip({
+      tap_action: { action: 'more-info', entity: 'weather.home' },
+    });
+    const events = collect(document, 'hass-more-info');
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(events[0]!.detail).toEqual({ entityId: 'weather.home' });
+    card.remove();
+  });
+
+  it('wechselt bei `navigate` die Seite', async () => {
+    const before = window.location.pathname;
+    const { card, strip } = await mountStrip({
+      tap_action: { action: 'navigate', navigation_path: '/lovelace/wetter' },
+    });
+    const events = collect(window, 'location-changed');
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail).toEqual({ replace: false });
+    expect(window.location.pathname).toBe('/lovelace/wetter');
+    history.pushState(null, '', before);
+    card.remove();
+  });
+
+  it('öffnet bei `url` eine Adresse', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { card, strip } = await mountStrip({
+      tap_action: { action: 'url', url_path: 'https://example.org/wetter' },
+    });
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(open).toHaveBeenCalledWith('https://example.org/wetter', '_blank');
+    open.mockRestore();
+    card.remove();
+  });
+
+  it('ruft bei `call-service` einen Dienst', async () => {
+    const hass = mockHass();
+    const callService = vi.fn();
+    hass.callService = callService;
+    const { card, strip } = await mountStrip(
+      {
+        tap_action: {
+          action: 'call-service',
+          service: 'light.turn_on',
+          data: { brightness: 120 },
+          target: { entity_id: 'light.wohnzimmer' },
+        },
+      },
+      hass,
+    );
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      'light',
+      'turn_on',
+      { brightness: 120 },
+      { entity_id: 'light.wohnzimmer' },
+    );
+    card.remove();
+  });
+
+  it('versteht `perform-action` als neueren Namen', async () => {
+    const hass = mockHass();
+    const callService = vi.fn();
+    hass.callService = callService;
+    const { card, strip } = await mountStrip(
+      { tap_action: { action: 'perform-action', perform_action: 'light.turn_off' } },
+      hass,
+    );
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(callService).toHaveBeenCalledWith('light', 'turn_off', undefined, undefined);
+    card.remove();
+  });
+
+  it('schaltet bei `toggle` die Entität', async () => {
+    const hass = mockHass();
+    const callService = vi.fn();
+    hass.callService = callService;
+    const { card, strip } = await mountStrip(
+      { tap_action: { action: 'toggle', entity: 'light.flur' } },
+      hass,
+    );
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(callService).toHaveBeenCalledWith(
+      'homeassistant',
+      'toggle',
+      { entity_id: 'light.flur' },
+      undefined,
+    );
+    card.remove();
+  });
+
+  it('reicht `fire-dom-event` an Erweiterungen weiter', async () => {
+    const { card, strip } = await mountStrip({
+      tap_action: { action: 'fire-dom-event', browser_mod: { service: 'browser_mod.popup' } },
+    });
+    const events = collect(window, 'll-custom');
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail.action).toBe('fire-dom-event');
+    card.remove();
+  });
+
+  it('führt die Halte-Aktion nach der Haltezeit aus', async () => {
+    vi.useFakeTimers();
+    const { card, strip } = await mountStrip({
+      hold_action: { action: 'more-info', entity: 'weather.home' },
+    });
+    const events = collect(document, 'hass-more-info');
+    strip.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(events).toHaveLength(0);
+    vi.advanceTimersByTime(HOLD_DELAY + 20);
+    expect(events).toHaveLength(1);
+    strip.dispatchEvent(new Event('pointerup', { bubbles: true }));
+    // Der Klick, der dem Halten folgt, gehört nicht zur Antipp-Aktion.
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('.smc-popup')).toBeNull();
+    expect(events).toHaveLength(1);
+    vi.useRealTimers();
+    card.remove();
+  });
+
+  it('bricht die Halte-Aktion ab, wenn die Berührung vorher endet', async () => {
+    vi.useFakeTimers();
+    const { card, strip } = await mountStrip({ hold_action: { action: 'more-info' } });
+    const events = collect(document, 'hass-more-info');
+    strip.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    vi.advanceTimersByTime(HOLD_DELAY - 200);
+    strip.dispatchEvent(new Event('pointerup', { bubbles: true }));
+    vi.advanceTimersByTime(HOLD_DELAY + 100);
+    expect(events).toHaveLength(0);
+    vi.useRealTimers();
+    card.remove();
+  });
+
+  it('führt die Doppeltipp-Aktion aus und wartet dafür ab', async () => {
+    vi.useFakeTimers();
+    const { card, strip } = await mountStrip({
+      tap_action: { action: 'more-info', entity: 'sun.sun' },
+      double_tap_action: { action: 'more-info', entity: 'weather.home' },
+    });
+    const events = collect(document, 'hass-more-info');
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(events).toHaveLength(0);
+    vi.advanceTimersByTime(50);
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail).toEqual({ entityId: 'weather.home' });
+    vi.useRealTimers();
+    card.remove();
+  });
+
+  it('führt beim einfachen Antippen die Antipp-Aktion aus', async () => {
+    vi.useFakeTimers();
+    const { card, strip } = await mountStrip({
+      tap_action: { action: 'more-info', entity: 'sun.sun' },
+      double_tap_action: { action: 'none' },
+    });
+    const events = collect(document, 'hass-more-info');
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(events).toHaveLength(0);
+    vi.advanceTimersByTime(DOUBLE_TAP_DELAY + 20);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail).toEqual({ entityId: 'sun.sun' });
+    vi.useRealTimers();
+    card.remove();
+  });
+
+  it('meldet eine unbekannte Aktion statt sie still zu verwerfen', async () => {
+    consoleWarn.mockClear();
+    const { card, strip } = await mountStrip({ tap_action: { action: 'tanzen' } });
+    expect(consoleWarn.mock.calls.flat().join(' ')).toContain('tanzen');
+    // Die Aktion ist verworfen – der Streifen bleibt beim Overlay.
+    strip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('.smc-popup')).not.toBeNull();
+    card.remove();
+  });
+
+  it('löst die Antipp-Aktion auch per Tastatur aus', async () => {
+    const { card, strip } = await mountStrip({
+      tap_action: { action: 'more-info', entity: 'weather.home' },
+    });
+    const events = collect(document, 'hass-more-info');
+    strip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(events).toHaveLength(1);
+    expect(document.querySelector('.smc-popup')).toBeNull();
+    card.remove();
+  });
+});
+
+describe('Overlay', () => {
+  /** Öffnet das Overlay eines Minimalstreifens. */
+  async function openPopup(): Promise<SunMoonCard> {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    card
+      .shadowRoot!.querySelector('ha-card')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return card;
+  }
+
+  it('sperrt das Scrollen im Hintergrund und gibt es wieder frei', async () => {
+    document.body.style.overflow = 'auto';
+    const card = await openPopup();
+    expect(document.body.style.overflow).toBe('hidden');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.body.style.overflow).toBe('auto');
+    document.body.style.overflow = '';
+    card.remove();
+  });
+
+  it('hält den Fokus im Dialog', async () => {
+    // `document.activeElement` meldet bei Fokus in einer Schattenwurzel den
+    // Host – für die Prüfung lösen wir eine Ebene auf.
+    const active = (): Element | null => {
+      const element = document.activeElement as HTMLElement | null;
+      return element?.shadowRoot?.activeElement ?? element;
+    };
+    const card = await openPopup();
+    const overlay = document.querySelector('.smc-popup')!;
+    const close = overlay.querySelector('button')!;
+    const full = overlay.querySelector('sun-moon-card') as SunMoonCard;
+    const inner = full.shadowRoot!.querySelector<HTMLElement>('ha-card[tabindex]')!;
+
+    // Nach dem Öffnen liegt der Fokus auf dem Schließen-Knopf.
+    expect(active()).toBe(close);
+
+    // Vom Schließen-Knopf – dem letzten Element – geht es an den Anfang.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(active()).toBe(inner);
+
+    // Mit Rückwärts-Tab vom Anfang wieder ans Ende.
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }),
+    );
+    expect(active()).toBe(close);
+
+    // Ist der Fokus abgewandert, holt ihn die Falle zurück.
+    (document.body as HTMLElement).focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(active()).toBe(inner);
+    card.remove();
+  });
+
+  it('trägt im Overlay keine eigenen Aktionen ein', async () => {
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+      tap_action: { action: 'open-popup' },
+      hold_action: { action: 'more-info' },
+    });
+    card
+      .shadowRoot!.querySelector('ha-card')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const overlay = document.querySelector('.smc-popup');
+    // Ohne Overlay gäbe es gar nichts zu prüfen.
+    expect(overlay).not.toBeNull();
+    const full = overlay!.querySelector('sun-moon-card') as SunMoonCard;
+    await full.updateComplete;
+    const inner = full.shadowRoot!.querySelector('ha-card')!;
+    const events: CustomEvent[] = [];
+    document.addEventListener('hass-more-info', (event) => events.push(event as CustomEvent));
+    inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // Die vollständige Karte im Overlay kennt keine Klick-Aktionen – sonst
+    // öffnete ein Klick hinein ein zweites Overlay.
+    expect(events).toHaveLength(0);
+    expect(document.querySelectorAll('.smc-popup')).toHaveLength(1);
+    card.remove();
+  });
+});
+
+describe('Uhr', () => {
+  /** Zeitmesser der Karte (privat, deshalb über das Objekt beobachtet). */
+  function clockSpies(card: SunMoonCard): {
+    start: ReturnType<typeof vi.spyOn>;
+    stop: ReturnType<typeof vi.spyOn>;
+  } {
+    const internals = card as unknown as { _startClock: () => void; _stopClock: () => void };
+    const start = vi.spyOn(internals, '_startClock');
+    const stop = vi.spyOn(internals, '_stopClock');
+    start.mockClear();
+    stop.mockClear();
+    return { start, stop };
+  }
+
+  it('hält die Uhr an, wenn das Dokument in den Hintergrund wechselt', async () => {
+    const card = await mountCard();
+    const hidden = vi.spyOn(document, 'hidden', 'get');
+    const { start, stop } = clockSpies(card);
+
+    hidden.mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(stop).toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(start).toHaveBeenCalled();
+
+    hidden.mockRestore();
+    card.remove();
+  });
+
+  it('hält die Uhr an, wenn die Karte aus dem Sichtfeld wandert', async () => {
+    const callbacks: IntersectionObserverCallback[] = [];
+    class FakeObserver implements IntersectionObserver {
+      public readonly root = null;
+      public readonly rootMargin = '';
+      public readonly thresholds: readonly number[] = [];
+      public constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(callback);
+      }
+      public observe(): void {}
+      public unobserve(): void {}
+      public disconnect(): void {}
+      public takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    }
+    const globals = globalThis as { IntersectionObserver?: unknown };
+    globals.IntersectionObserver = FakeObserver;
+
+    const card = await mountCard();
+    const { start, stop } = clockSpies(card);
+    expect(callbacks).toHaveLength(1);
+
+    callbacks[0]!(
+      [{ isIntersecting: false } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
+    expect(stop).toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+
+    callbacks[0]!(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
+    expect(start).toHaveBeenCalled();
+
+    delete globals.IntersectionObserver;
+    card.remove();
+  });
+});
+
+describe('Modell-Cache', () => {
+  it('überlebt die Konfiguration einer zweiten Karte', async () => {
+    const card = await mountCard();
+    const hass = mockHass();
+    const { config } = resolveConfig({ type: 'custom:sun-moon-card' }, 'de');
+    const now = new Date();
+    const first = getModel(config, hass, now);
+    expect(getModel(config, hass, now)).toBe(first);
+
+    // Früher leerte `setConfig()` den gemeinsamen Cache aller Karten.
+    const other = document.createElement('sun-moon-card') as SunMoonCard;
+    other.setConfig({ type: 'custom:sun-moon-card', card_height: 260 });
+    document.body.append(other);
+    expect(getModel(config, hass, now)).toBe(first);
+    other.remove();
+    card.remove();
   });
 });

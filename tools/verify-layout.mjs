@@ -1062,6 +1062,133 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
+  // Overlay: Fokus-Falle, Scroll-Sperre und nachgeführtes hass
+  {
+    await page.setViewport({ width: 900, height: 700, deviceScaleFactor: 1 });
+    const url = `${baseUrl}/shots.html?preset=minimalmode&loc=berlin&time=2026-10-26T12:00&theme=dark&h=48&w=620`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForSelector('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await page.click('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    /** Aktives Element – bei Fokus in einer Schattenwurzel das innere. */
+    const activeInfo = () =>
+      page.evaluate(() => {
+        const outer = document.activeElement;
+        const element = outer && outer.shadowRoot ? outer.shadowRoot.activeElement : outer;
+        const overlay = document.querySelector('.smc-popup');
+        return {
+          tag: element ? element.tagName : '',
+          inside: Boolean(overlay && outer && overlay.contains(outer)),
+        };
+      });
+
+    const startFocus = await activeInfo();
+    await page.keyboard.press('Tab');
+    const tab1 = await activeInfo();
+    await page.keyboard.press('Tab');
+    const tab2 = await activeInfo();
+    await page.keyboard.down('Shift');
+    await page.keyboard.press('Tab');
+    await page.keyboard.up('Shift');
+    const tabBack = await activeInfo();
+    record(
+      `Overlay: Fokus bleibt im Dialog (${startFocus.tag} → ${tab1.tag} → ${tab2.tag}, zurück ${tabBack.tag})`,
+      startFocus.inside &&
+        tab1.inside &&
+        tab2.inside &&
+        tabBack.inside &&
+        tab1.tag !== tab2.tag &&
+        tabBack.tag === tab1.tag,
+    );
+
+    const locked = await page.evaluate(() => document.body.style.overflow);
+    record(`Overlay: sperrt das Scrollen im Hintergrund (overflow: „${locked}“)`, locked === 'hidden');
+
+    const followed = await page.evaluate(async () => {
+      const card = document.querySelector('sun-moon-card');
+      const hass = card.hass;
+      card.hass = { ...hass, config: { ...hass.config, location_name: 'Sydney' } };
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const full = document.querySelector('.smc-popup sun-moon-card');
+      if (full && full.updateComplete) await full.updateComplete;
+      const title = full && full.shadowRoot ? full.shadowRoot.querySelector('.title') : null;
+      return {
+        same: Boolean(full) && full.hass === card.hass,
+        title: title ? title.textContent.trim() : '',
+      };
+    });
+    record(
+      `Overlay: folgt einem neuen hass (Titel „${followed.title}“)`,
+      followed.same && followed.title.includes('Sydney'),
+    );
+
+    await page.keyboard.press('Escape');
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const restored = await page.evaluate(() => document.body.style.overflow);
+    record(`Overlay: gibt das Scrollen wieder frei (overflow: „${restored}“)`, restored === '');
+  }
+
+  // Klick-Aktionen am Minimalstreifen
+  {
+    await page.setViewport({ width: 700, height: 420, deviceScaleFactor: 1 });
+    const common = 'loc=berlin&time=2026-10-26T12:00&theme=dark&h=48&w=620';
+    const listen = () =>
+      page.evaluate(() => {
+        window.__smcActions = [];
+        document.addEventListener('hass-more-info', (event) => {
+          window.__smcActions.push(event.detail);
+        });
+      });
+
+    await page.goto(`${baseUrl}/shots.html?preset=minimalmode_moreinfo&${common}`, {
+      waitUntil: 'networkidle0',
+    });
+    await page.waitForSelector('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await listen();
+    await page.click('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const tapped = await page.evaluate(() => ({
+      actions: window.__smcActions,
+      overlays: document.querySelectorAll('.smc-popup').length,
+    }));
+    record(
+      `Minimal: Antippen löst more-info aus (${tapped.actions.length} Ereignis(se), ${tapped.overlays} Overlay(s))`,
+      tapped.actions.length === 1 &&
+        tapped.actions[0] &&
+        tapped.actions[0].entityId === 'sun.sun' &&
+        tapped.overlays === 0,
+    );
+
+    // Gedrückthalten: echter Zeiger, die Taste bleibt unten
+    await page.goto(`${baseUrl}/shots.html?preset=minimalmode_hold&${common}`, {
+      waitUntil: 'networkidle0',
+    });
+    await page.waitForSelector('sun-moon-card');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await listen();
+    const box = await page.evaluate(() => {
+      const rect = document.querySelector('sun-moon-card').getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    });
+    await page.mouse.move(box.x, box.y);
+    await page.mouse.down();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const during = await page.evaluate(() => window.__smcActions.length);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const held = await page.evaluate(() => ({
+      count: window.__smcActions.length,
+      overlays: document.querySelectorAll('.smc-popup').length,
+    }));
+    await page.mouse.up();
+    record(
+      `Minimal: Gedrückthalten löst nach 400 ms aus (nach 150 ms: ${during}, nach 550 ms: ${held.count})`,
+      during === 0 && held.count === 1 && held.overlays === 0,
+    );
+  }
+
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');
   await page.setViewport({ width: 700, height: 420, deviceScaleFactor: 1 });
   for (const time of ['2026-10-26T06:00', '2026-10-26T12:00', '2026-10-26T18:00', '2026-10-26T23:30']) {

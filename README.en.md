@@ -60,6 +60,10 @@ images, and no additional Home Assistant integration is required.
   time can be **switched off separately** (`minimal_show_times`, `minimal_show_zenith`); if an
   event does not exist (polar day, polar night) its entry is dropped rather than replaced by a
   placeholder. The row needs 36 px of card height and is omitted below that.
+- **Tap actions on the minimal strip:** tap, hold and double tap can be bound with `tap_action`,
+  `hold_action` and `double_tap_action` – Home Assistant’s standard actions (`more-info`,
+  `navigate`, `url`, `call-service`, `toggle`, `fire-dom-event`, `none`) plus `open-popup` for the
+  overlay. Without any configuration a tap still opens the overlay.
 - **One sun size for every view:** the sun marker follows the same rule in the minimal, compact
   and full view: its radius grows with the plot height up to `sun_marker_size` (**default 6 px**,
   adjustable **2–12 px**) and never drops below 2.8 px on very flat strips. The position in the day
@@ -143,6 +147,29 @@ popup_height: 460         # overlay height, 260–800 px
 ```
 
 ```yaml
+# Tap actions on the minimal strip
+type: custom:sun-moon-card
+minimal_mode: true
+card_height: 48
+tap_action:
+  action: more-info        # default: open-popup (open the overlay)
+  entity: weather.home     # defaults to sun.sun
+hold_action:
+  action: navigate
+  navigation_path: /lovelace/weather
+double_tap_action:
+  action: call-service
+  perform_action: light.turn_on
+  target:
+    entity_id: light.hallway
+```
+
+Supported actions are `none`, `more-info`, `navigate`, `url`, `call-service` (alias
+`perform-action`), `toggle`, `fire-dom-event` and the card’s own `open-popup`. They follow the
+Home Assistant standard so they can be copied from other cards; they act on the minimal strip and
+are configured in YAML only. An unknown action is dropped and reported on the card.
+
+```yaml
 # Own coordinates, English, 12-hour clock
 type: custom:sun-moon-card
 latitude: 78.2232
@@ -170,6 +197,9 @@ card_height: 320
 | `sun_marker_size` | px (2–12) | `6` | Radius of the sun marker on the timeline. The marker grows with the plot height up to this value and stays at least 2.8 px on flat strips. Applies to the minimal, compact and full view alike |
 | `popup_width` | px (320–1200) | `720` | Width of the minimal variant’s overlay (capped at 92 % of the window width) |
 | `popup_height` | px (260–800) | `460` | Height of the minimal variant’s overlay – independent of `card_height` |
+| `tap_action` | action | opens the overlay | Action when the minimal strip is tapped |
+| `hold_action` | action | – | Action when the strip is held (from 400 ms) |
+| `double_tap_action` | action | – | Action on a double tap (within 250 ms). When set, a single tap waits for that window |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |

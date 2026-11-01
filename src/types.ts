@@ -23,6 +23,40 @@ import type {
 } from './astronomy.js';
 
 /** Konfiguration der Karte (YAML bzw. visueller Editor). */
+/**
+ * Klick-Aktion im Home-Assistant-Standard.
+ *
+ * Unterstützt werden `more-info`, `navigate`, `url`, `call-service`
+ * (alias `perform-action`), `toggle`, `fire-dom-event` und `none`.
+ * Dazu kommt `open-popup`, das Overlay der Minimalvariante – die
+ * Voreinstellung, wenn keine Aktion angegeben ist.
+ *
+ * Die Felder entsprechen dem HA-Standard, damit sich Aktionen aus anderen
+ * Karten unverändert übernehmen lassen.
+ */
+export interface ActionConfig {
+  /** Name der Aktion, z. B. `more-info`. */
+  action: string;
+  /** Ziel bei `more-info` und `toggle`; ohne Angabe gilt `sun.sun`. */
+  entity?: string;
+  /** Zielpfad bei `navigate`. */
+  navigation_path?: string;
+  /** Adresse bei `url`. */
+  url_path?: string;
+  /** Dienst bei `call-service`, z. B. `light.turn_on`. */
+  service?: string;
+  /** Neuerer Name von `service` (HA 2024.8+). */
+  perform_action?: string;
+  /** Daten des Dienstaufrufs. */
+  data?: Record<string, unknown>;
+  /** Ziel des Dienstaufrufs (`entity_id`, `device_id`, …). */
+  target?: Record<string, unknown>;
+  /** Fenster beim Öffnen einer Adresse. */
+  url_target?: string;
+  /** Zusätzliche Felder (z. B. `confirmation`) werden weitergereicht. */
+  [key: string]: unknown;
+}
+
 export interface SunMoonCardConfig {
   /**
    * Kartentyp (`custom:sun-moon-card`). Home Assistant setzt den Wert
@@ -124,11 +158,28 @@ export interface SunMoonCardConfig {
   latitude?: number;
   /** Längengrad; Standard: aus Home Assistant (`hass.config`). */
   longitude?: number;
+
+  /** Aktion beim Antippen des Minimalstreifens; Standard: Overlay öffnen. */
+  tap_action?: ActionConfig;
+  /** Aktion bei langem Drücken des Minimalstreifens; Standard: keine. */
+  hold_action?: ActionConfig;
+  /** Aktion bei doppeltem Antippen des Minimalstreifens; Standard: keine. */
+  double_tap_action?: ActionConfig;
 }
 
 /** Vollständig aufgelöste Konfiguration mit allen Standardwerten. */
 export type ResolvedConfig = Required<
-  Omit<SunMoonCardConfig, 'entity' | 'moon_entity' | 'location_name' | 'latitude' | 'longitude'>
+  Omit<
+    SunMoonCardConfig,
+    | 'entity'
+    | 'moon_entity'
+    | 'location_name'
+    | 'latitude'
+    | 'longitude'
+    | 'tap_action'
+    | 'hold_action'
+    | 'double_tap_action'
+  >
 > & {
   entity: string;
   moon_entity: string;
@@ -136,6 +187,10 @@ export type ResolvedConfig = Required<
   latitude: number | null;
   longitude: number | null;
   type: string;
+  /** Aufgelöste Aktionen; `null` bedeutet „nicht konfiguriert“. */
+  tap_action: ActionConfig | null;
+  hold_action: ActionConfig | null;
+  double_tap_action: ActionConfig | null;
 };
 
 
@@ -234,6 +289,13 @@ export interface HomeAssistant {
     theme?: string;
   } | null;
   language?: string;
+  /** Dienst aufrufen – von Home Assistant bereitgestellt. */
+  callService?: (
+    domain: string,
+    service: string,
+    data?: Record<string, unknown>,
+    target?: Record<string, unknown>,
+  ) => Promise<unknown> | void;
 }
 
 /** Ergebnis von `getConfigElement()` – der visuelle Editor. */
