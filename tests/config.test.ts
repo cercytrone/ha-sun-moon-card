@@ -144,6 +144,42 @@ describe('resolveConfig – Kartenhöhe', () => {
     ).toBe(DEFAULT_CONFIG.sun_marker_size);
   });
 
+  it('nimmt Klick-Aktionen im Home-Assistant-Standard an', () => {
+    const { config, warnings } = resolveConfig({
+      tap_action: { action: 'more-info', entity: 'weather.home' },
+      hold_action: { action: 'navigate', navigation_path: '/lovelace/0' },
+      double_tap_action: { action: 'call-service', service: 'light.turn_on' },
+    });
+    expect(warnings).toHaveLength(0);
+    expect(config.tap_action).toEqual({ action: 'more-info', entity: 'weather.home' });
+    expect(config.hold_action?.action).toBe('navigate');
+    expect(config.double_tap_action?.action).toBe('call-service');
+  });
+
+  it('führt ohne konfigurierte Aktionen keine aus', () => {
+    const { config } = resolveConfig({});
+    expect(config.tap_action).toBeNull();
+    expect(config.hold_action).toBeNull();
+    expect(config.double_tap_action).toBeNull();
+  });
+
+  it('verwirft unbekannte Aktionen mit einem Hinweis', () => {
+    const { config, warnings } = resolveConfig({ tap_action: { action: 'tanzen' } });
+    expect(config.tap_action).toBeNull();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('tanzen');
+  });
+
+  it('verwirft Aktionen ohne Namen', () => {
+    const { config, warnings } = resolveConfig({
+      tap_action: { entity: 'sun.sun' } as unknown as { action: string },
+      hold_action: 'more-info' as unknown as { action: string },
+    });
+    expect(config.tap_action).toBeNull();
+    expect(config.hold_action).toBeNull();
+    expect(warnings).toHaveLength(2);
+  });
+
   it('nennt in der Warnung die Untergrenze des Minimalmodus', () => {
     const { warnings } = resolveConfig({ minimal_mode: true, card_height: 8 }, 'de');
     expect(warnings).toHaveLength(1);

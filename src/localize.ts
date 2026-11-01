@@ -26,6 +26,7 @@ const strings = {
     invalidHeight: 'Ungültige Kartenhöhe {value}. Erlaubt: {min}–{max} Pixel oder "auto".',
     invalidNumber: 'Ungültiger Zahlenwert: {value}',
     invalidRange: 'Wert {value} liegt außerhalb von {min}–{max} und wurde angepasst.',
+    invalidAction: 'Aktion „{value}“ wird nicht unterstützt und wurde verworfen.',
 
     // Himmelsphasen
     phaseDay: 'Tag',
@@ -243,6 +244,7 @@ const strings = {
     invalidHeight: 'Invalid card height {value}. Allowed: {min}–{max} pixels or "auto".',
     invalidNumber: 'Invalid number: {value}',
     invalidRange: 'Value {value} is outside {min}–{max} and was adjusted.',
+    invalidAction: 'Action “{value}” is not supported and was ignored.',
 
     phaseDay: 'Daylight',
     phaseCivil: 'Civil twilight',

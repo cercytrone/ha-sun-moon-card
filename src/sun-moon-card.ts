@@ -35,12 +35,15 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { renderDayChart } from './components/day-chart.js';
 import { renderMoonDisc } from './components/moon-disc.js';
 import { renderSkyView } from './components/sky-view.js';
+import { runAction } from './actions.js';
 import {
   CARD_ELEMENT_NAME,
   CARD_TYPE,
   DARK_PALETTE,
   DEFAULT_CONFIG,
   DETAILS_HEIGHT_DETAILED,
+  DOUBLE_TAP_DELAY,
+  HOLD_DELAY,
   LIGHT_PALETTE,
   POPUP_HEIGHT_RANGE,
   POPUP_WIDTH_RANGE,
@@ -71,7 +74,7 @@ import {
   type Language,
   type StringKey,
 } from './localize.js';
-import { clearModelCache, getModel, resolveCardHeight, resolveConfig } from './model.js';
+import { getModel, resolveCardHeight, resolveConfig } from './model.js';
 import { localDayIndex } from './timezone.js';
 import { cardStyles } from './styles.js';
 
@@ -80,6 +83,7 @@ import { cardStyles } from './styles.js';
 import './sun-moon-card-editor.js';
 import { clamp, nextMinute, round } from './utils.js';
 import type {
+  ActionConfig,
   CardModel,
   ConfigChangedEvent,
   HomeAssistant,
@@ -106,8 +110,26 @@ interface EventTile {
 
 @customElement(CARD_ELEMENT_NAME)
 export class SunMoonCard extends LitElement implements LovelaceCard {
-  /** Von Home Assistant gesetzt. */
-  @property({ attribute: false }) public hass?: HomeAssistant;
+  /**
+   * Von Home Assistant gesetzt.
+   *
+   * Der Setter reicht das Objekt an ein geöffnetes Overlay weiter. Sonst
+   * bliebe die vollständige Karte dort auf dem Stand beim Öffnen stehen –
+   * Theme, Sprache und die Werte der Sonnen-Entität würden nicht nachgeführt.
+   */
+  @property({ attribute: false })
+  public set hass(value: HomeAssistant | undefined) {
+    const previous = this._hass;
+    this._hass = value;
+    this.requestUpdate('hass', previous);
+    if (this._popupCard) this._popupCard.hass = value;
+  }
+
+  public get hass(): HomeAssistant | undefined {
+    return this._hass;
+  }
+
+  private _hass?: HomeAssistant;
 
   @state() private _config?: ResolvedConfig;
   @state() private _width = 0;
@@ -116,9 +138,25 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   private _uid = `smc-${Math.random().toString(36).slice(2, 9)}`;
   /** Overlay mit der vollständigen Variante (nur im Minimalmodus). */
   private _popup: HTMLElement | null = null;
+  /** Karte im Overlay – erhält jedes neue `hass` (siehe `hass`). */
+  private _popupCard: SunMoonCard | null = null;
+  /** Scroll-Verhalten des Dokuments, bevor das Overlay es sperrte. */
+  private _previousOverflow = '';
   private _timer?: ReturnType<typeof setTimeout>;
   private _resizeObserver?: ResizeObserver;
+  /** Beobachtet, ob die Karte im Sichtfeld liegt. */
+  private _visibilityObserver?: IntersectionObserver;
+  /** Liegt die Karte im Sichtfeld (Standard: ja)? */
+  private _visible = true;
   private _hassSignature = '';
+  /** Letzte protokollierte Warnung, damit sie sich nicht wiederholt. */
+  private _warned = '';
+  /** Zeitmessung für „gehalten“ und „doppelt getippt“. */
+  private _holdTimer?: ReturnType<typeof setTimeout>;
+  private _tapTimer?: ReturnType<typeof setTimeout>;
+  private _tapCount = 0;
+  /** Nach einer Halte-Aktion den folgenden Klick verschlucken. */
+  private _held = false;
 
   static override styles = cardStyles;
 
@@ -143,11 +181,15 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     }
     if (warnings.length > 0) {
       // Korrekturen an der Konfiguration werden protokolliert, stören aber
-      // die Darstellung nicht.
-      console.warn(`[sun-moon-card] ${warnings.join(' ')}`);
+      // die Darstellung nicht. Wiederholt wird nur, was sich verändert hat:
+      // Der Editor ruft `setConfig()` bei jedem Tastendruck auf.
+      const text = warnings.join(' ');
+      if (text !== this._warned) {
+        this._warned = text;
+        console.warn(`[sun-moon-card] ${text}`);
+      }
     }
     this._config = resolved;
-    clearModelCache();
   }
 
   /** Höhe in Dashboard-Zeilen (ältere Home-Assistant-Versionen). */
@@ -183,18 +225,19 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
    * für Glas/Flach und hell/dunkel von dort in alle Bereiche – einschließlich
    * der SVG-Darstellungen – vererbt werden.
    */
-  protected override updated(changed: PropertyValues): void {
+  protected override willUpdate(changed: PropertyValues): void {
+    super.willUpdate(changed);
     const dark = this._isDark();
     this.classList.toggle('smc-dark', dark);
     this.classList.toggle('smc-light', !dark);
     this.classList.toggle('smc-flat', this._config?.card_style === 'flat');
     this.classList.toggle('smc-glass', this._config?.card_style !== 'flat');
-    void changed;
   }
 
   override connectedCallback(): void {
     super.connectedCallback();
     this._startClock();
+    this._watchVisibility();
     if (typeof ResizeObserver !== 'undefined') {
       this._resizeObserver = new ResizeObserver(() => {
         const width = Math.round(this.getBoundingClientRect().width);
@@ -216,6 +259,11 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     this._stopClock();
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
+    this._visibilityObserver?.disconnect();
+    this._visibilityObserver = undefined;
+    document.removeEventListener('visibilitychange', this._onVisibilityChange);
+    this._clearHoldTimer();
+    this._clearTapTimer();
     this._closeDetails();
   }
 
@@ -305,6 +353,11 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       location_name: resolved.location_name ?? undefined,
       minimal_mode: false,
       card_height: height,
+      // Aktionen gehören an den Streifen, nicht in die vollständige Karte:
+      // Dort würde ein Klick sonst das Overlay erneut öffnen.
+      tap_action: undefined,
+      hold_action: undefined,
+      double_tap_action: undefined,
     };
     const card = document.createElement(CARD_ELEMENT_NAME) as SunMoonCard;
     card.hass = this.hass;
@@ -314,11 +367,15 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       // Ungültige Konfiguration: Das Overlay erscheint dennoch und zeigt
       // die Fehlermeldung der Karte.
     }
+    this._popupCard = card;
     panel.append(card, close);
     overlay.append(panel);
     overlay.addEventListener('click', (event) => {
       if (event.target === overlay) this._closeDetails();
     });
+    // Der Hintergrund bleibt stehen, solange das Overlay offen ist.
+    this._previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     document.body.append(overlay);
     document.addEventListener('keydown', this._onPopupKeydown, true);
     this._popup = overlay;
@@ -330,24 +387,186 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     if (!this._popup) return;
     this._popup.remove();
     this._popup = null;
+    this._popupCard = null;
+    document.body.style.overflow = this._previousOverflow;
     document.removeEventListener('keydown', this._onPopupKeydown, true);
     const card = this.renderRoot?.querySelector?.('ha-card') as HTMLElement | null;
     card?.focus();
   }
 
-  /** Escape schließt das Overlay. */
+  /**
+   * Escape schließt das Overlay, `Tab` bleibt darin.
+   *
+   * Ohne Fokus-Falle würde die Tab-Taste hinter dem Dialog durch das
+   * Dashboard wandern, das der Dialog mit `aria-modal` gerade ausblendet.
+   */
   private _onPopupKeydown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && this._popup) {
+    if (!this._popup) return;
+    if (event.key === 'Escape') {
       event.stopPropagation();
       this._closeDetails();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = this._popupFocusable();
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    const active = this._activeElement();
+    const index = active ? focusable.indexOf(active) : -1;
+    if (index === -1) {
+      // Der Fokus ist abgewandert (oder liegt tiefer in einem Schattenbaum):
+      // Zurück in den Dialog – bei Rückwärts-Tab an sein Ende.
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+      return;
+    }
+    if (event.shiftKey && index === 0) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && index === focusable.length - 1) {
+      event.preventDefault();
+      first.focus();
     }
   };
+
+  /**
+   * Aktives Element – bei Fokus in einer Schattenwurzel das innere Element.
+   *
+   * Der Browser meldet für Elemente in Schattenwurzeln den Host; für die
+   * Reihenfolge im Dialog brauchen wir aber das eigentlich fokussierte
+   * Element.
+   */
+  private _activeElement(): HTMLElement | null {
+    const active = document.activeElement as HTMLElement | null;
+    if (!active) return null;
+    const deeper = active.shadowRoot?.activeElement;
+    return deeper instanceof HTMLElement ? deeper : active;
+  }
+
+  /**
+   * Bedienbare Elemente des Overlays in Dokumentreihenfolge.
+   *
+   * Die Karte selbst steht am Anfang: Ihre eigenen Bedienelemente liegen in
+   * der Schattenwurzel und sind von außen nicht erreichbar – der Browser
+   * meldet bei Fokus darin aber den Karten-Host als aktives Element.
+   */
+  private _popupFocusable(): HTMLElement[] {
+    if (!this._popup) return [];
+    const found: HTMLElement[] = [];
+    // Die Karte liegt mit ihrem Inhalt in einer Schattenwurzel; deren
+    // Wurzelelement trägt `tabindex` und ist damit die erste Station.
+    const inner = this._popupCard?.shadowRoot?.querySelector<HTMLElement>('ha-card[tabindex]');
+    if (inner) found.push(inner);
+    const selector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    for (const element of this._popup.querySelectorAll<HTMLElement>(selector)) {
+      if (!element.hasAttribute('disabled')) found.push(element);
+    }
+    return found;
+  }
 
   /** Tastaturbedienung des Minimalstreifens. */
   private _handleMinimalKey(event: KeyboardEvent): void {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      this._openDetails();
+      const node = event.currentTarget;
+      if (node instanceof HTMLElement) this._runTap(node);
+    }
+  }
+
+  /** Startet die Zeitmessung für „gehalten“. */
+  private _onMinimalPointerDown = (): void => {
+    this._clearHoldTimer();
+    const action = this._config?.hold_action;
+    if (!action) return;
+    this._holdTimer = setTimeout(() => {
+      this._holdTimer = undefined;
+      this._held = true;
+      this._runAction(action, false);
+    }, HOLD_DELAY);
+  };
+
+  /** Beendet die Zeitmessung für „gehalten“. */
+  private _onMinimalPointerUp = (): void => {
+    this._clearHoldTimer();
+  };
+
+  /** Berührung abgebrochen (z. B. Wischen): keine Halte-Aktion. */
+  private _onMinimalPointerCancel = (): void => {
+    this._clearHoldTimer();
+  };
+
+  /** Antippen – und Abwarten, ob ein zweites folgt. */
+  private _onMinimalClick = (event: MouseEvent): void => {
+    if (this._held) {
+      // Nach einer Halte-Aktion senden viele Browser zusätzlich einen Klick;
+      // der gehört nicht mehr zur Antipp-Aktion.
+      this._held = false;
+      return;
+    }
+    const node = event.currentTarget;
+    if (!(node instanceof HTMLElement)) return;
+    if (!this._config?.double_tap_action) {
+      this._runTap(node);
+      return;
+    }
+    this._tapCount += 1;
+    this._clearTapTimer();
+    if (this._tapCount >= 2) {
+      this._tapCount = 0;
+      this._runAction(this._config.double_tap_action, false, node);
+      return;
+    }
+    // Erst wenn im Zeitfenster kein zweites Antippen folgt, gilt das erste.
+    this._tapTimer = setTimeout(() => {
+      this._tapTimer = undefined;
+      this._tapCount = 0;
+      this._runTap(node);
+    }, DOUBLE_TAP_DELAY);
+  };
+
+  /** Antipp-Aktion – ohne Konfiguration öffnet sich das Overlay. */
+  private _runTap(node: HTMLElement): void {
+    this._runAction(this._config?.tap_action ?? null, true, node);
+  }
+
+  /**
+   * Führt eine Klick-Aktion aus.
+   *
+   * @param action  Auszuführende Aktion.
+   * @param withFallback Ohne Aktion (oder mit `open-popup`) öffnet sich das
+   *                 Overlay – das bisherige Verhalten des Streifens.
+   * @param node    Auslösendes Element (Quelle der Ereignisse).
+   */
+  private _runAction(
+    action: ActionConfig | null,
+    withFallback: boolean,
+    node?: HTMLElement,
+  ): void {
+    const config = this._config;
+    if (!config) return;
+    const target =
+      node ?? (this.renderRoot?.querySelector('ha-card') as HTMLElement | null) ?? this;
+    runAction(
+      target,
+      this.hass,
+      config,
+      action,
+      withFallback ? () => this._openDetails() : undefined,
+    );
+  }
+
+  private _clearHoldTimer(): void {
+    if (this._holdTimer) {
+      clearTimeout(this._holdTimer);
+      this._holdTimer = undefined;
+    }
+  }
+
+  private _clearTapTimer(): void {
+    if (this._tapTimer) {
+      clearTimeout(this._tapTimer);
+      this._tapTimer = undefined;
     }
   }
 
@@ -367,6 +586,41 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       return true;
     }
     return true;
+  }
+
+  /**
+   * Beobachtet, ob die Karte zu sehen ist.
+   *
+   * Im Hintergrund (anderer Reiter, minimiertes Fenster) oder außerhalb des
+   * Sichtfelds läuft die Uhr nicht weiter: Ein Dashboard mit mehreren Karten
+   * muss dann nicht im Minutentakt neu zeichnen. Beim Wiederauftauchen wird
+   * sofort nachgezogen.
+   */
+  private _watchVisibility(): void {
+    if (typeof IntersectionObserver !== 'undefined') {
+      this._visibilityObserver = new IntersectionObserver((entries) => {
+        const visible = entries.some((entry) => entry.isIntersecting);
+        if (visible === this._visible) return;
+        this._visible = visible;
+        this._syncClock();
+      });
+      this._visibilityObserver.observe(this);
+    }
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
+  }
+
+  private _onVisibilityChange = (): void => {
+    this._syncClock();
+  };
+
+  /** Startet oder pausiert die Uhr – je nach Sichtbarkeit. */
+  private _syncClock(): void {
+    this._stopClock();
+    if (!this._visible || document.hidden) return;
+    // Nach dem Wiederauftauchen sofort neu zeichnen, statt bis zur nächsten
+    // Minute auf dem alten Stand zu bleiben.
+    this._tick += 1;
+    this._startClock();
   }
 
   private _startClock(): void {
@@ -400,6 +654,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       hass.config?.longitude ?? '',
       hass.config?.location_name ?? '',
       hass.locale?.language ?? '',
+      // Ältere Oberflächen tragen die Sprache nur hier.
+      hass.language ?? '',
       hass.locale?.time_format ?? '',
       hass.selectedTheme?.dark ?? hass.themes?.darkMode ?? '',
       sun?.attributes?.next_rising ?? sun?.last_updated ?? '',
@@ -481,7 +737,10 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
           role="button"
           tabindex="0"
           aria-label=${this._minimalAriaLabel(model, context)}
-          @click=${this._openDetails}
+          @pointerdown=${this._onMinimalPointerDown}
+          @pointerup=${this._onMinimalPointerUp}
+          @pointercancel=${this._onMinimalPointerCancel}
+          @click=${this._onMinimalClick}
           @keydown=${this._handleMinimalKey}
         >
           <div

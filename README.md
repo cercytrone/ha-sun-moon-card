@@ -97,6 +97,11 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   abschalten** (`minimal_show_times`, `minimal_show_zenith`); fehlt ein Ereignis (Polartag,
   Polarnacht), entfällt sein Eintrag statt einen Platzhalter zu zeigen. Die Zeile braucht
   36 px Kartenhöhe, darunter bleibt sie weg
+- **Klick-Aktionen am Minimalstreifen:** Antippen, Gedrückthalten und doppeltes Antippen lassen
+  sich mit `tap_action`, `hold_action` und `double_tap_action` belegen – im
+  Home-Assistant-Standard (`more-info`, `navigate`, `url`, `call-service`, `toggle`,
+  `fire-dom-event`, `none`) und zusätzlich mit `open-popup` für das Overlay. Ohne Angabe öffnet
+  das Antippen weiter das Overlay
 - **Sonnengröße für alle Darstellungen:** Der Sonnenmarker wird in Minimal-, Kompakt- und
   Volldarstellung nach derselben Regel gezeichnet: Sein Radius wächst mit der Höhe des Verlaufs
   bis auf `sun_marker_size` (**Standard 6 px**, einstellbar **2–12 px**) und bleibt auf sehr
@@ -236,6 +241,31 @@ popup_width: 720            # Overlay: Breite, 320–1200 px
 popup_height: 460           # Overlay: Höhe, 260–800 px
 ```
 
+**Klick-Aktionen am Minimalstreifen**
+
+```yaml
+type: custom:sun-moon-card
+minimal_mode: true
+card_height: 48
+tap_action:
+  action: more-info         # Voreinstellung: open-popup (Overlay öffnen)
+  entity: weather.home      # ohne Angabe gilt sun.sun
+hold_action:
+  action: navigate
+  navigation_path: /lovelace/wetter
+double_tap_action:
+  action: call-service
+  perform_action: light.turn_on
+  target:
+    entity_id: light.flur
+```
+
+Unterstützt werden `none`, `more-info`, `navigate`, `url`, `call-service`
+(alias `perform-action`), `toggle`, `fire-dom-event` und das karteneigene `open-popup`.
+Die Aktionen liegen im Home-Assistant-Standard und lassen sich aus anderen Karten
+unverändert übernehmen; sie wirken am Minimalstreifen und sind nur in der YAML
+einstellbar. Eine unbekannte Aktion wird verworfen und auf der Karte gemeldet.
+
 **Feste Sprache und Zeitformat, helles Theme**
 
 ```yaml
@@ -292,6 +322,9 @@ cards:
 | `sun_marker_size` | Zahl in px (2–12) | `6` | Radius des Sonnenmarkers im Verlauf. Der Marker wächst mit der Höhe des Verlaufs bis auf diesen Wert und bleibt auf flachen Streifen bei mindestens 2,8 px. Gilt für Minimal-, Kompakt- und Volldarstellung gleichermaßen |
 | `popup_width` | Zahl in px (320–1200) | `720` | Breite des Overlays der Minimalvariante (nach oben auf 92 % der Fensterbreite begrenzt) |
 | `popup_height` | Zahl in px (260–800) | `460` | Höhe des Overlays der Minimalvariante – unabhängig von `card_height` |
+| `tap_action` | Aktion | Overlay öffnen | Aktion beim Antippen des Minimalstreifens |
+| `hold_action` | Aktion | – | Aktion beim Gedrückthalten (ab 400 ms) |
+| `double_tap_action` | Aktion | – | Aktion beim doppelten Antippen (innerhalb von 250 ms). Ist sie gesetzt, wartet das einfache Antippen das Zeitfenster ab |
 | `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
@@ -486,11 +519,15 @@ Auf- und Untergangszeit beschrieben und öffnet die vollständige Variante.
   `title` mit vollständiger Bezeichnung. Der Minimalstreifen ist eine Schaltfläche: `Eingabe`
   oder `Leertaste` öffnen das Overlay, `Escape` schließt es und gibt den Fokus an die Karte
   zurück. Das Overlay ist als `role="dialog"` mit `aria-modal` gekennzeichnet und trägt einen
-  beschrifteten Schließen-Knopf.
+  beschrifteten Schließen-Knopf. Solange es offen ist, bleibt der Fokus darin (`Tab` und
+  `Umschalt+Tab` laufen im Kreis) und der Hintergrund scrollt nicht mit.
 - **Performance:** astronomische Berechnungen werden nur einmal pro Minute (bzw. bei relevanten
-  Änderungen) ausgeführt und zwischengespeichert. Ein `ResizeObserver` aktualisiert die Breite,
-  die Uhr tickt minutengenau zum Zeitpunkt des Minutenwechsels; ohne Änderung erfolgen keine
-  DOM-Aktualisierungen.
+  Änderungen) ausgeführt und zwischengespeichert. Der Schlüssel des Zwischenspeichers deckt alle
+  Eingaben ab, die das Modell beeinflussen, mehrere Karten teilen ihn sich. Ein `ResizeObserver`
+  aktualisiert die Breite, die Uhr tickt minutengenau zum Zeitpunkt des Minutenwechsels; ohne
+  Änderung erfolgen keine DOM-Aktualisierungen. Liegt die Karte nicht im Sichtfeld – anderer
+  Reiter, minimiertes Fenster, weggeScrollt – pausiert die Uhr und zieht beim Wiederauftauchen
+  sofort nach.
 - **Datenschutz:** keine Netzwerkzugriffe, kein Telemetrie, keine externen Schriften oder Bilder.
   Alle Grafiken sind SVG, alle Berechnungen lokal.
 - **Größe:** das Bundle (`dist/sun-moon-card.js`) enthält Lit und wiegt rund 95 kB

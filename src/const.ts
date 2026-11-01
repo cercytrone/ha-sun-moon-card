@@ -102,7 +102,34 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   location_name: '',
   latitude: null,
   longitude: null,
+  tap_action: null,
+  hold_action: null,
+  double_tap_action: null,
 };
+
+/**
+ * Namen der unterstützten Klick-Aktionen.
+ *
+ * `open-popup` ist die karten eigene Aktion: Sie öffnet in der
+ * Minimalvariante das Overlay mit der vollständigen Karte.
+ */
+export const SUPPORTED_ACTIONS: readonly string[] = [
+  'none',
+  'more-info',
+  'navigate',
+  'url',
+  'call-service',
+  'perform-action',
+  'toggle',
+  'fire-dom-event',
+  'open-popup',
+];
+
+/** Dauer in ms, ab der ein Drücken als „gehalten“ gilt (HA-Standard). */
+export const HOLD_DELAY = 400;
+
+/** Zeitfenster in ms, in dem zwei Antipper als Doppeltipp gelten. */
+export const DOUBLE_TAP_DELAY = 250;
 
 /**
  * Maximale Abweichung, mit der ein Ereignis aus der
