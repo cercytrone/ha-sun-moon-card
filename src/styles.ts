@@ -304,6 +304,19 @@ export const cardStyles = css`
     font-variant-numeric: tabular-nums;
   }
 
+  /* Restzeit: Das Symbol nennt den Körper (Sonne, Dämmerung, Mond), der Text
+     die Richtung und die Dauer. */
+  .countdown-chip {
+    gap: 4px;
+    padding-left: 7px;
+  }
+
+  .countdown-chip svg {
+    flex: 0 0 auto;
+    display: block;
+    opacity: 0.9;
+  }
+
   .phase-dot,
   .legend-dot {
     width: 7px;

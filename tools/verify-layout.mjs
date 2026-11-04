@@ -1276,7 +1276,58 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     );
   }
 
-  // 3) Abgeschaltet verschwindet jede Restzeit – auch aus Kopfzeile und
+  // 3) Der Chip muss erkennen lassen, welcher Körper gemeint ist: „Aufgang“
+  //    allein ließe Sonne und Mond offen. Das Symbol und – für Screenreader –
+  //    die vollständige Bezeichnung tragen die Aussage.
+  for (const probe of [
+    { preset: 'default', time: '2026-10-26T15:00', body: 'moon', label: 'Mond' },
+    { preset: 'default', time: '2026-10-26T06:00', body: 'twilight', label: 'Dämmerung' },
+    { preset: 'sunonly', time: '2026-10-26T15:00', body: 'sun', label: 'Sonne' },
+  ]) {
+    const url =
+      `${baseUrl}/shots.html?loc=berlin&time=${probe.time}&theme=dark&h=280&w=900` +
+      `&preset=${probe.preset}`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const chip = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const node = [...root.querySelectorAll('.header .meta-chip')].find((entry) =>
+        (entry.textContent || '').includes(' in '),
+      );
+      if (!node) return null;
+      const icon = node.querySelector('svg');
+      const iconBox = icon ? icon.getBoundingClientRect() : null;
+      return {
+        body: node.getAttribute('data-body'),
+        text: node.textContent.trim(),
+        aria: node.getAttribute('aria-label'),
+        hasIcon: Boolean(icon),
+        iconSize: iconBox ? Math.round(Math.min(iconBox.width, iconBox.height)) : 0,
+        clipped: node.scrollWidth > node.clientWidth + 1,
+      };
+    });
+    const ok =
+      Boolean(chip) &&
+      chip.body === probe.body &&
+      chip.hasIcon &&
+      chip.iconSize >= 10 &&
+      !chip.clipped &&
+      / in \d{1,2}:\d{2}$/.test(chip.text) &&
+      /^\S+ in \d/.test(chip.aria ?? '');
+    record(
+      `Restzeit-Chip nennt den Körper (${probe.label})`,
+      ok,
+      chip
+        ? `${chip.body}, Symbol ${chip.iconSize} px, Text „${chip.text}“, Label „${chip.aria}“`
+        : 'kein Chip',
+    );
+  }
+
+  // 4) Abgeschaltet verschwindet jede Restzeit – auch aus Kopfzeile und
   //    Minimalstreifen.
   for (const preset of ['nocountdown']) {
     const url = `${baseUrl}/shots.html?loc=berlin&time=2026-10-26T15:00&theme=dark&h=420&w=900&preset=${preset}`;

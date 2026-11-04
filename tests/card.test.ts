@@ -1506,6 +1506,9 @@ describe('Restzeiten', () => {
     const chip = card.shadowRoot!.querySelector('.header .meta-chip');
     expect((chip?.textContent ?? '').trim()).toMatch(/^Untergang in \d{1,2}:\d{2}$/);
     expect(chip?.getAttribute('title')).toMatch(/^Sonnenuntergang \d{1,2}:\d{2}$/);
+    expect(chip?.getAttribute('data-body')).toBe('sun');
+    expect(chip?.querySelector('svg')).not.toBeNull();
+    expect(chip?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in \d+ h \d+ min$/);
     expect(readout(card).some((row) => /^Sonnenuntergang in \d+ h \d+ min$/.test(row))).toBe(true);
   });
 
@@ -1528,6 +1531,9 @@ describe('Restzeiten', () => {
     );
     const chip = card.shadowRoot!.querySelector('.header .meta-chip');
     expect(chip?.getAttribute('title')).toMatch(/^Mond(auf|unter)gang \d{1,2}:\d{2}/);
+    expect(chip?.getAttribute('data-body')).toBe('moon');
+    expect(chip?.querySelector('svg')).not.toBeNull();
+    expect(chip?.getAttribute('aria-label')).toMatch(/^Mond(auf|unter)gang in \d+ h \d+ min$/);
   });
 
   it('zeigt keine Restzeit, wenn sie abgeschaltet ist', async () => {
@@ -1605,6 +1611,32 @@ describe('Restzeiten', () => {
     const chip = card.shadowRoot!.querySelector('.header .meta-chip');
     expect(chip?.getAttribute('title')).toMatch(/^Sunset \d{1,2}:\d{2}/);
     expect(readout(card).some((row) => /^Sunset in \d+ h \d+ min$/.test(row))).toBe(true);
+  });
+
+  it('nennt am Chip, welcher Körper als Nächstes kommt', async () => {
+    // „Aufgang in …“ allein ist nicht eindeutig – der Chip trägt deshalb das
+    // Symbol des Körpers und nennt ihn für Screenreader beim Namen.
+    freeze('2026-10-26T15:00:00+01:00'); // Der Mond geht vor der Sonne auf.
+    const chipOf = async (config: Partial<SunMoonCardConfig>): Promise<Element | null> => {
+      const card = await mountCard(
+        { type: 'custom:sun-moon-card', card_height: 340, ...config },
+        { width: 900 },
+      );
+      return card.shadowRoot!.querySelector('.header .meta-chip');
+    };
+
+    const both = await chipOf({});
+    expect(both?.getAttribute('data-body')).toBe('moon');
+    expect((both?.textContent ?? '').trim()).toMatch(/^Aufgang in \d{1,2}:\d{2}$/);
+    expect(both?.getAttribute('aria-label')).toMatch(/^Mondaufgang in /);
+
+    const sunOnly = await chipOf({ show_moon: false, show_twilight: false });
+    expect(sunOnly?.getAttribute('data-body')).toBe('sun');
+    expect(sunOnly?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in /);
+
+    const twilightOnly = await chipOf({ show_sun: false, show_moon: false });
+    expect(twilightOnly?.getAttribute('data-body')).toBe('twilight');
+    expect(twilightOnly?.getAttribute('aria-label')).toMatch(/^Abenddämmerung in /);
   });
 
   it('erfindet in der Polarnacht keine Restzeit', async () => {

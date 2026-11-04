@@ -75,8 +75,10 @@ images, and no additional Home Assistant integration is required.
   direction – in the detail tiles and as a readout beneath the sky view (“Sun: 42.1° · 180° S”).
   Below the horizon the card names the depth and, where space allows, keeps the direction.
 - **Time until the next rise or set:** a chip in the header counts down to the **next** event –
-  sunset, sunrise, twilight limit or the moon (“Sunset in 2:15”); the tooltip names the event and
-  its clock time and adds “(tomorrow)” when it falls on the following day. Beneath the sky view
+  sunset, sunrise, twilight limit or the moon (“Sunset in 2:15”). An **icon shows which body is
+  meant**, because “rise” alone would leave sun and moon open; screen readers get the full name
+  instead (“Moonrise in 1 h 21 min”). The tooltip names the event and its clock time and adds
+  “(tomorrow)” when it falls on the following day. Beneath the sky view
   the pending countdowns are spelled out (“Sunset in 2 h 15 min”), as many as the space allows –
   the sky dome never shrinks below 72 px. On the minimal strip the countdown appears in the
   tooltip and in the screen-reader text. It is computed from the card’s own altitude curve, not

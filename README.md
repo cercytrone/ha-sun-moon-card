@@ -133,11 +133,13 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   untergang mit Azimut und Tagesversatz, **nächster Vollmond** mit Datum, Uhrzeit und
   Tagesabstand
 - **Restzeit bis zum nächsten Auf- oder Untergang:** Ein Chip in der Kopfzeile nennt, wie lange es
-  noch dauert („Untergang in 2:15“); der Tooltip nennt Ereignis und Uhrzeit und, liegt der
-  Zeitpunkt erst am Folgetag, „(morgen)“. Unter der Himmelsansicht stehen die ausstehenden
-  Restzeiten ausgeschrieben („Sonnenuntergang in 2 h 15 min“), so viele, wie der Platz zulässt –
-  die Himmelskuppel bleibt dabei mindestens 72 px groß. Im Minimalstreifen steht die Restzeit in
-  Tooltip und Screenreader-Text
+  noch dauert („Untergang in 2:15“). Ein **Symbol zeigt, welcher Körper gemeint ist** – Sonne,
+  Dämmerung oder Mond –, denn „Aufgang“ allein ließe das offen; Screenreader erhalten stattdessen
+  die vollständige Bezeichnung („Mondaufgang in 1 h 21 min“). Der Tooltip nennt Ereignis und
+  Uhrzeit und, liegt der Zeitpunkt erst am Folgetag, „(morgen)“. Unter der Himmelsansicht stehen
+  die ausstehenden Restzeiten ausgeschrieben („Sonnenuntergang in 2 h 15 min“), so viele, wie der
+  Platz zulässt – die Himmelskuppel bleibt dabei mindestens 72 px groß. Im Minimalstreifen steht
+  die Restzeit in Tooltip und Screenreader-Text
 - Gerechnet wird die Restzeit aus dem eigenen Höhenverlauf, nicht aus den Attributen der
   `sun`-Entität: Findet sich im Fenster von 48 Stunden kein Ereignis (Polartag, Polarnacht),
   entfällt die Angabe, statt eine erfundene Zeit zu zeigen. Abgeschaltet wird sie mit
