@@ -782,6 +782,49 @@ export function buildDayProfile(
   };
 }
 
+/**
+ * Nächstes Ereignis, bei dem die Sonne eine bestimmte Höhe überschreitet.
+ *
+ * `buildDayProfile()` liefert die Ereignisse **eines** lokalen Tages. Für
+ * eine Restzeit genügt das nicht: Nach Sonnenuntergang ist der nächste
+ * Sonnenaufgang der des folgenden Tages. Diese Funktion sucht deshalb von
+ * `from` an vorwärts. Die Schrittweite dient nur dem Finden des Intervalls –
+ * die Genauigkeit kommt aus der Bisektion in `findCrossings()`.
+ */
+export interface ElevationEvent {
+  /** Zeitpunkt des Ereignisses. */
+  time: Date;
+  /** `true`, wenn die Sonne dabei steigt (Aufgang, Beginn der Dämmerung). */
+  rising: boolean;
+}
+
+/**
+ * Sucht die nächste Überschreitung von `targetElevation` ab `from`.
+ *
+ * @param maxHours Suchfenster. Liegt darin kein Ereignis – Polartag,
+ *                 Polarnacht – folgt `null`; es wird dann keine Zeit
+ *                 erfunden.
+ */
+export function findNextElevationEvent(
+  location: GeoLocation,
+  from: Date | number,
+  targetElevation: number,
+  maxHours = 48,
+): ElevationEvent | null {
+  const startMs = typeof from === 'number' ? from : from.getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(targetElevation)) return null;
+  const altitudeAt = (time: number): number => sunAltitude(time, location);
+  const next = findCrossings(
+    startMs,
+    startMs + maxHours * 60 * 60 * 1000,
+    SEARCH_STEP_MS,
+    altitudeAt,
+    targetElevation,
+  )[0];
+  if (!next) return null;
+  return { time: new Date(next.time), rising: next.rising };
+}
+
 /** Höhenprofil eines Himmelskörpers über den lokalen Tag. */
 export interface BodyProfile {
   /** Abtastwerte: Zeitstempel (ms) und Höhe in Grad. */

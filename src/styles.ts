@@ -366,7 +366,7 @@ export const cardStyles = css`
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    gap: 4px;
+    gap: 4px; /* SKY_READOUT_GAP in const.ts */
     /* 4 von 12 Spalten, höchstens 260 px breit */
     flex: 1 1 0;
     max-width: 260px;
@@ -416,7 +416,7 @@ export const cardStyles = css`
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1px;
+    gap: 1px; /* mit line-height 15px = SKY_READOUT_ROW_HEIGHT in const.ts */
     font-size: 10px;
     color: var(--smc-muted-color);
     font-variant-numeric: tabular-nums;

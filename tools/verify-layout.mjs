@@ -126,7 +126,7 @@ async function checkCard(page, url, label) {
 
     // Abgeschnittene Texte (horizontal)
     for (const element of root.querySelectorAll(
-      '.title, .subtitle, .phase-chip, .event-label, .event-time, .detail-title, .detail-value, .detail-sub',
+      '.title, .subtitle, .meta-chip, .phase-chip, .event-label, .event-time, .detail-title, .detail-value, .detail-sub',
     )) {
       if (element.scrollWidth > element.clientWidth + 1 && element.clientWidth > 0) {
         clipped.push({
@@ -1187,6 +1187,113 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       `Minimal: Gedrückthalten löst nach 400 ms aus (nach 150 ms: ${during}, nach 550 ms: ${held.count})`,
       during === 0 && held.count === 1 && held.overlays === 0,
     );
+  }
+
+  console.log('\n— Restzeiten: Sonne, Dämmerung, Mond —');
+  await page.setViewport({ width: 1000, height: 560, deviceScaleFactor: 1 });
+
+  // 1) Der Chip in der Kopfzeile nennt eine Dauer; ihr Tooltip den zugehörigen
+  //    Zeitpunkt. Beides muss zusammenpassen – auch über Mitternacht hinaus,
+  //    wenn der nächste Aufgang erst am folgenden Tag stattfindet.
+  for (const time of ['2026-10-26T06:00', '2026-10-26T15:00', '2026-10-26T22:30']) {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=${time}&theme=dark&h=280&w=900`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const chip = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const node = [...root.querySelectorAll('.header .meta-chip')].find((entry) =>
+        (entry.textContent || '').includes(' in '),
+      );
+      return node ? { text: node.textContent.trim(), title: node.getAttribute('title') || '' } : null;
+    });
+
+    // Alle Prüfzeiten liegen in der Mitteleuropäischen Winterzeit (+01:00).
+    const shown = chip && / in (\d{1,2}):(\d{2})$/.exec(chip.text);
+    const named = chip && /(\d{1,2}):(\d{2})/.exec(chip.title);
+    const laterDay = chip ? /\((morgen|Folgetag)\)/.test(chip.title) : false;
+    let ok = Boolean(chip && shown && named);
+    let details = chip ? `„${chip.text}“ / „${chip.title}“` : 'kein Chip';
+    if (ok) {
+      const [datePart, timePart] = time.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hour, minute] = timePart.split(':').map(Number);
+      const start = Date.UTC(year, month - 1, day, hour - 1, minute);
+      const target = Date.UTC(
+        year,
+        month - 1,
+        day + (laterDay ? 1 : 0),
+        Number(named[1]) - 1,
+        Number(named[2]),
+      );
+      const expected = Math.round((target - start) / 60000);
+      const actual = Number(shown[1]) * 60 + Number(shown[2]);
+      ok = Math.abs(actual - expected) <= 1 && actual > 0;
+      details = `„${chip.text}“ → ${actual} min, genannter Zeitpunkt → ${expected} min`;
+      if (!ok) details += ` (Titel „${chip.title}“)`;
+    }
+    record(`Restzeit ${time}: Chip und Zeitpunkt stimmen überein`, ok, details);
+  }
+
+  // 2) Die Ablesung unter der Himmelsansicht teilt sich die Spalte mit der
+  //    Kuppel. Sie darf die Kuppel nicht erdrücken: Ab 72 px bleibt sie
+  //    stehen, weitere Restzeiten entfallen.
+  for (const height of [340, 420, 520]) {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=2026-10-26T15:00&theme=dark&h=${height}&w=900`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.sky-view')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const data = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const svg = root.querySelector('svg.sky-view');
+      const dome = svg ? svg.querySelector(':scope > circle[fill^="url(#"]') : null;
+      const domeBox = dome ? dome.getBoundingClientRect() : null;
+      const readout = root.querySelector('.sky-readout');
+      const column = root.querySelector('.sky-column');
+      const rows = readout
+        ? [...readout.querySelectorAll('span')]
+            .map((node) => (node.textContent || '').trim())
+            .filter((text) => text.includes(' in '))
+        : [];
+      return {
+        rows,
+        dome: domeBox ? Math.round(Math.min(domeBox.width, domeBox.height)) : 0,
+        readoutBottom: readout ? readout.getBoundingClientRect().bottom : 0,
+        columnBottom: column ? column.getBoundingClientRect().bottom : 0,
+      };
+    });
+    const fits = data.readoutBottom <= data.columnBottom + 0.6;
+    record(
+      `Restzeit unter der Himmelsansicht ${height}px (${data.rows.length} Zeilen, Kuppel ${data.dome} px)`,
+      data.rows.length >= 1 && data.rows.length <= 3 && data.dome >= 72 && fits,
+      `Zeilen: ${data.rows.join(' | ') || 'keine'}${fits ? '' : ' – Ablesung läuft aus der Spalte'}`,
+    );
+  }
+
+  // 3) Abgeschaltet verschwindet jede Restzeit – auch aus Kopfzeile und
+  //    Minimalstreifen.
+  for (const preset of ['nocountdown']) {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=2026-10-26T15:00&theme=dark&h=420&w=900&preset=${preset}`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const left = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const texts = [...root.querySelectorAll('.meta-chip, .sky-readout span')].map((node) =>
+        (node.textContent || '').trim(),
+      );
+      return texts.filter((text) => / in \d/.test(text));
+    });
+    record(`Restzeit abgeschaltet (${preset})`, left.length === 0, left.join(' | '));
   }
 
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');

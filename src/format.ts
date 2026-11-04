@@ -195,6 +195,29 @@ export function formatDurationCompact(minutes: number): string {
 }
 
 /**
+ * Restzeit in Worten.
+ *
+ * Unter einer Stunde genügen die Minuten („48 min“), unter einem Tag Stunden
+ * und Minuten („3 h 12 min“), darüber Tage und Stunden („1 d 3 h“). Der
+ * letzte Fall tritt nur in hohen Breiten auf, wenn ein Ereignis mehr als
+ * einen Tag ausbleibt.
+ */
+export function formatCountdown(
+  minutes: number,
+  t: (key: StringKey, replacements?: Record<string, string | number>) => string,
+): string {
+  const total = Math.max(0, Math.round(minutes));
+  if (total < 60) return t('countdownMinutes', { minutes: String(total) });
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  if (hours < 24) return t('countdownHours', { hours: String(hours), minutes: String(mins) });
+  return t('countdownDays', {
+    days: String(Math.floor(hours / 24)),
+    hours: String(hours % 24),
+  });
+}
+
+/**
  * Bezeichnung eines Tagesbezugs: 0 → „heute“, 1 → „morgen“,
  * sonst → „Folgetag“.
  */

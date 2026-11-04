@@ -463,8 +463,10 @@ describe('Darstellung', () => {
     const rows = [...card.shadowRoot!.querySelectorAll('.sky-readout span')].map((node) =>
       (node.textContent ?? '').trim(),
     );
-    expect(rows).toHaveLength(2);
-    for (const row of rows) {
+    // Die ersten beiden Zeilen nennen Höhe und Richtung von Sonne und Mond;
+    // danach folgen die Restzeiten.
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    for (const row of rows.slice(0, 2)) {
       expect(row).toMatch(/-?\d{1,3}(?:[.,]\d)?\s?°/);
       expect(row).toMatch(/\d{1,3}°\s[NSEWO]{1,3}/);
     }
@@ -583,6 +585,21 @@ describe('Editor', () => {
     checkbox.checked = false;
     checkbox.dispatchEvent(new Event('change'));
     expect(events.at(-1)?.show_moon).toBe(false);
+  });
+
+  it('bietet einen Schalter für die Restzeit', async () => {
+    const editor = await mountEditor();
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+
+    const checkbox = editor.shadowRoot!.querySelector<HTMLInputElement>('#show_remaining_time')!;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(true); // = Standardwert
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event('change'));
+    expect(events.at(-1)?.show_remaining_time).toBe(false);
   });
 
   it('begrenzt die Kartenhöhe', async () => {
@@ -1452,5 +1469,151 @@ describe('Modell-Cache', () => {
     expect(getModel(config, hass, now)).toBe(first);
     other.remove();
     card.remove();
+  });
+});
+
+describe('Restzeiten', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Friert die Uhr ein, damit die Restzeit bestimmbar bleibt. */
+  function freeze(iso: string): void {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  }
+
+  /** Alle Chips der Kopfzeile als Text. */
+  function chips(card: SunMoonCard): string[] {
+    return [...card.shadowRoot!.querySelectorAll('.header .meta-chip')].map((node) =>
+      (node.textContent ?? '').trim(),
+    );
+  }
+
+  /** Alle Zeilen der Ablesung unter der Himmelsansicht. */
+  function readout(card: SunMoonCard): string[] {
+    return [...card.shadowRoot!.querySelectorAll('.sky-readout span')].map((node) =>
+      (node.textContent ?? '').trim(),
+    );
+  }
+
+  it('nennt die Restzeit bis zum Sonnenuntergang', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_moon: false, show_twilight: false },
+      { width: 900 },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .meta-chip');
+    expect((chip?.textContent ?? '').trim()).toMatch(/^Untergang in \d{1,2}:\d{2}$/);
+    expect(chip?.getAttribute('title')).toMatch(/^Sonnenuntergang \d{1,2}:\d{2}$/);
+    expect(readout(card).some((row) => /^Sonnenuntergang in \d+ h \d+ min$/.test(row))).toBe(true);
+  });
+
+  it('nennt nach Sonnenuntergang den Aufgang des Folgetages', async () => {
+    freeze('2026-10-26T22:00:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_moon: false, show_twilight: false },
+      { width: 900 },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .meta-chip');
+    expect((chip?.textContent ?? '').trim()).toMatch(/^Aufgang in \d{1,2}:\d{2}$/);
+    expect(chip?.getAttribute('title')).toMatch(/^Sonnenaufgang \d{1,2}:\d{2} \(morgen\)$/);
+  });
+
+  it('nennt die Restzeit bis zum nächsten Mondereignis', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_sun: false, show_twilight: false },
+      { width: 900 },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .meta-chip');
+    expect(chip?.getAttribute('title')).toMatch(/^Mond(auf|unter)gang \d{1,2}:\d{2}/);
+  });
+
+  it('zeigt keine Restzeit, wenn sie abgeschaltet ist', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_remaining_time: false },
+      { width: 900 },
+    );
+    expect(chips(card).some((text) => text.includes(' in '))).toBe(false);
+    expect(readout(card).filter((row) => row.includes(' in '))).toHaveLength(0);
+  });
+
+  it('zeigt im Kompaktmodus keine Restzeit', async () => {
+    // Der Kompaktmodus lässt Kopfzeile, Himmelsansicht und Fußzeile weg –
+    // und damit auch die Restzeit. Erfinden darf die Karte hier nichts.
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, compact_mode: true },
+      { width: 900 },
+    );
+    expect(card.shadowRoot!.querySelector('.header')).toBeNull();
+    expect(card.shadowRoot!.querySelector('.footer')).toBeNull();
+    expect(card.shadowRoot!.textContent ?? '').not.toMatch(/\bin \d+ h \d+ min\b/);
+  });
+
+  it('nennt die Restzeit im Tooltip des Minimalstreifens', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+      show_moon: false,
+      show_twilight: false,
+    });
+    const title = card.shadowRoot!.querySelector('ha-card')?.getAttribute('title') ?? '';
+    const label = card.shadowRoot!.querySelector('ha-card')?.getAttribute('aria-label') ?? '';
+    expect(title).toMatch(/Sonnenuntergang in \d+ h \d+ min/);
+    expect(label).toMatch(/Sonnenuntergang in \d+ h \d+ min/);
+  });
+
+  it('beschränkt die Restzeiten auf den Platz der Himmelsansicht', async () => {
+    // Jede Zeile verkleinert die Himmelskuppel. Bei viel Höhe stehen alle
+    // drei Restzeiten, bei wenig Höhe bleibt nur die nächste.
+    freeze('2026-10-26T15:00:00+01:00');
+    const countdownRows = (card: SunMoonCard): string[] =>
+      readout(card).filter((row) => / in \d/.test(row));
+
+    const tall = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 420 },
+      { width: 720 },
+    );
+    expect(countdownRows(tall)).toHaveLength(3);
+
+    const short = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340 },
+      { width: 900 },
+    );
+    expect(countdownRows(short)).toHaveLength(1);
+    // Übrig bleibt die nächste Restzeit – dieselbe wie in der hohen Karte.
+    expect(countdownRows(short)[0]).toBe(countdownRows(tall)[0]);
+  });
+
+  it('nennt die Restzeit auf Englisch', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard(
+      {
+        type: 'custom:sun-moon-card',
+        card_height: 340,
+        language: 'en',
+        show_moon: false,
+        show_twilight: false,
+      },
+      { width: 900, hass: mockHass('berlin', { language: 'en' }) },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .meta-chip');
+    expect(chip?.getAttribute('title')).toMatch(/^Sunset \d{1,2}:\d{2}/);
+    expect(readout(card).some((row) => /^Sunset in \d+ h \d+ min$/.test(row))).toBe(true);
+  });
+
+  it('erfindet in der Polarnacht keine Restzeit', async () => {
+    freeze('2026-12-21T12:00:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_moon: false, show_twilight: false },
+      { width: 900, hass: mockHass('longyearbyen') },
+    );
+    expect(chips(card).some((text) => text.includes(' in '))).toBe(false);
+    expect(readout(card).filter((row) => row.includes(' in '))).toHaveLength(0);
   });
 });

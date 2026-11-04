@@ -401,6 +401,7 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
           ${this._switch('show_sky_view', 'editorShowSkyView')}
           ${this._switch('show_events', 'editorShowEvents')}
           ${this._switch('show_moon_times', 'editorShowMoonTimes')}
+          ${this._switch('show_remaining_time', 'editorRemainingTime')}
           ${this._switch('show_footer', 'editorShowFooter')}
         </div>
 

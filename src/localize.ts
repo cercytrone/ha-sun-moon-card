@@ -58,6 +58,11 @@ const strings = {
     noEvent: '—',
     noSunrise: 'kein Aufgang',
     noSunset: 'kein Untergang',
+    // Restzeit: „{event} in {duration}“ – z. B. „Untergang in 3:12“
+    untilFormat: '{event} in {duration}',
+    countdownMinutes: '{minutes} min',
+    countdownHours: '{hours} h {minutes} min',
+    countdownDays: '{days} d {hours} h',
 
     // Sonne
     sun: 'Sonne',
@@ -218,6 +223,7 @@ const strings = {
     editorShowSkyView: 'Himmelsansicht',
     editorShowEvents: 'Zeitenleiste',
     editorShowMoonTimes: 'Mondauf-/Untergang',
+    editorRemainingTime: 'Restzeit bis Auf-/Untergang',
     editorShowFooter: 'Fußzeile',
     editorTwilightLevel: 'Dämmerungsgrenze',
     editorTwilightCivil: 'Bürgerlich (−6°)',
@@ -274,6 +280,10 @@ const strings = {
     noEvent: '—',
     noSunrise: 'no sunrise',
     noSunset: 'no sunset',
+    untilFormat: '{event} in {duration}',
+    countdownMinutes: '{minutes} min',
+    countdownHours: '{hours} h {minutes} min',
+    countdownDays: '{days} d {hours} h',
 
     sun: 'Sun',
     sunAltitude: 'Solar elevation',
@@ -424,6 +434,7 @@ const strings = {
     editorShowSkyView: 'Sky view',
     editorShowEvents: 'Event bar',
     editorShowMoonTimes: 'Moonrise / moonset',
+    editorRemainingTime: 'Time until rise/set',
     editorShowFooter: 'Footer',
     editorTwilightLevel: 'Twilight limit',
     editorTwilightCivil: 'Civil (−6°)',
