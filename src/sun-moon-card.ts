@@ -71,7 +71,16 @@ import {
   resolveHour12,
   type FormatContext,
 } from './format.js';
-import { iconDawn, iconDusk, iconSun, iconSunrise, iconSunset, iconWarning } from './icons.js';
+import {
+  iconDawn,
+  iconDusk,
+  iconMoonrise,
+  iconMoonset,
+  iconSun,
+  iconSunrise,
+  iconSunset,
+  iconWarning,
+} from './icons.js';
 import {
   localize,
   resolveLanguage,
@@ -98,6 +107,9 @@ import type {
   SunMoonCardConfig,
 } from './types.js';
 
+/** Himmelskörper, auf den sich eine Restzeit bezieht. */
+type CountdownBody = 'sun' | 'twilight' | 'moon';
+
 /** Eine ausstehende Restzeit (Sonne, Dämmerung oder Mond). */
 interface CountdownEntry {
   /** Restzeit in Minuten. */
@@ -108,7 +120,19 @@ interface CountdownEntry {
   long: string;
   /** Titel: Ereignis mit Uhrzeit und Tagesbezug. */
   title: string;
+  /**
+   * Symbol des Körpers. Erst es macht den Chip eindeutig: „Aufgang“ allein
+   * ließe offen, ob die Sonne oder der Mond gemeint ist.
+   */
+  icon: TemplateResult;
+  /** Körper; steht als `data-body` am Chip und erlaubt eigenes Styling. */
+  body: CountdownBody;
 }
+
+/** Kantenlänge des Symbols im Restzeit-Chip. */
+const COUNTDOWN_ICON_SIZE = 12;
+/** Platzbedarf des Symbols im Chip: Kante plus Abstand zum Text. */
+const COUNTDOWN_ICON_WIDTH = 17;
 
 /** Eintrag der Ereignisleiste. */
 interface EventTile {
@@ -958,11 +982,19 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     const nextCountdown = this._countdowns(model, context)[0];
     let countdownChip: TemplateResult | typeof nothing = nothing;
     if (nextCountdown) {
-      const chipWidth = estimateChip(nextCountdown.compact);
+      const chipWidth = estimateChip(nextCountdown.compact) + COUNTDOWN_ICON_WIDTH;
       if (chipWidth <= budget) {
         budget -= chipWidth;
-        countdownChip = html`<span class="meta-chip" title=${nextCountdown.title}
-          >${nextCountdown.compact}</span
+        // Das Symbol trägt die Aussage: „Aufgang“ allein ließe offen, ob die
+        // Sonne oder der Mond gemeint ist. Screenreader erhalten statt des
+        // kurzen Textes die vollständige Bezeichnung.
+        countdownChip = html`<span
+          class="meta-chip countdown-chip"
+          data-body=${nextCountdown.body}
+          role="img"
+          aria-label=${nextCountdown.long}
+          title=${nextCountdown.title}
+          >${nextCountdown.icon}<span>${nextCountdown.compact}</span></span
         >`;
       }
     }
@@ -1029,6 +1061,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       event: NextEventDetail | null,
       longKey: StringKey,
       shortKey: StringKey | null,
+      icon: TemplateResult,
+      body: CountdownBody,
     ): void => {
       if (!event) return;
       const minutes = (event.time.getTime() - now) / 60_000;
@@ -1046,11 +1080,19 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         title: `${context.t(longKey)} ${formatTime(event.time, context)}${
           event.dayOffset > 0 ? ` (${formatDayOffset(event.dayOffset, context.t)})` : ''
         }`,
+        icon,
+        body,
       });
     };
 
     const sun = model.extras.nextSunEvent;
-    add(sun, sun?.rising ? 'sunrise' : 'sunset', sun?.rising ? 'sunriseShort' : 'sunsetShort');
+    add(
+      sun,
+      sun?.rising ? 'sunrise' : 'sunset',
+      sun?.rising ? 'sunriseShort' : 'sunsetShort',
+      sun?.rising ? iconSunrise(COUNTDOWN_ICON_SIZE) : iconSunset(COUNTDOWN_ICON_SIZE),
+      'sun',
+    );
 
     const twilight = model.extras.nextTwilightEvent;
     if (twilight) {
@@ -1059,11 +1101,19 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         twilight,
         twilight.rising ? keys.dawn : keys.dusk,
         twilight.rising ? keys.dawnShort : keys.duskShort,
+        twilight.rising ? iconDawn(COUNTDOWN_ICON_SIZE) : iconDusk(COUNTDOWN_ICON_SIZE),
+        'twilight',
       );
     }
 
     const moon = model.extras.nextMoonEvent;
-    add(moon, moon?.rising ? 'moonrise' : 'moonset', moon?.rising ? 'moonriseShort' : 'moonsetShort');
+    add(
+      moon,
+      moon?.rising ? 'moonrise' : 'moonset',
+      moon?.rising ? 'moonriseShort' : 'moonsetShort',
+      moon?.rising ? iconMoonrise(COUNTDOWN_ICON_SIZE) : iconMoonset(COUNTDOWN_ICON_SIZE),
+      'moon',
+    );
 
     return entries.sort((a, b) => a.minutes - b.minutes);
   }

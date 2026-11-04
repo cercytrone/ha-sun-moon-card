@@ -62,6 +62,46 @@ export function iconDusk(size = 16, color = 'currentColor'): TemplateResult {
   `;
 }
 
+/** Sichel: Kreis minus versetzten Kreis (even-odd), also eine glatte Mondsichel. */
+const CRESCENT =
+  'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z M13.6 5a6.2 6.2 0 1 0 0 12.4 6.2 6.2 0 0 0 0-12.4Z';
+
+/** Mondaufgang: Sichel über dem Horizont, Pfeil nach oben. */
+export function iconMoonrise(size = 16, color = 'currentColor'): TemplateResult {
+  return svg`
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 18h16" stroke="${color}" stroke-width="1.6" stroke-linecap="round" opacity="0.75" />
+      <path
+        d=${CRESCENT}
+        fill="${color}"
+        fill-rule="evenodd"
+        transform="translate(5.6 7.2) scale(0.53)"
+        opacity="0.95"
+      />
+      <path d="M12 2.6v2.4M12 2.6l-1.8 1.6M12 2.6l1.8 1.6" stroke="${color}" stroke-width="1.5"
+        stroke-linecap="round" opacity="0.85" />
+    </svg>
+  `;
+}
+
+/** Monduntergang: Sichel unter dem Horizont, Pfeil nach unten. */
+export function iconMoonset(size = 16, color = 'currentColor'): TemplateResult {
+  return svg`
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 12h16" stroke="${color}" stroke-width="1.6" stroke-linecap="round" opacity="0.75" />
+      <path
+        d=${CRESCENT}
+        fill="${color}"
+        fill-rule="evenodd"
+        transform="translate(6.6 11.1) scale(0.45)"
+        opacity="0.95"
+      />
+      <path d="M12 20.6v1.8M9.9 22.4h4.2" stroke="${color}" stroke-width="1.5"
+        stroke-linecap="round" opacity="0.7" />
+    </svg>
+  `;
+}
+
 /** Sonne (Strahlenkranz). */
 export function iconSun(size = 20, color = 'currentColor'): TemplateResult {
   return svg`
