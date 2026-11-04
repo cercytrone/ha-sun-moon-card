@@ -15,8 +15,13 @@
  */
 
 import {
+  ELEVATION_ASTRONOMICAL,
+  ELEVATION_CIVIL,
+  ELEVATION_NAUTICAL,
+  ELEVATION_SUNRISE_SUNSET,
   azimuthAt,
   buildDayProfile,
+  findNextElevationEvent,
   buildMoonPath,
   findFullMoons,
   findMoonEvents,
@@ -28,6 +33,7 @@ import {
   sunAltitude,
   sunPosition,
   type DayProfile,
+  type ElevationEvent,
   type GeoLocation,
   type MoonEvents,
   type MoonPhaseInfo,
@@ -57,6 +63,7 @@ import {
 import type {
   ActionConfig,
   AltAzPoint,
+  NextEventDetail,
   CardExtras,
   CardModel,
   HomeAssistant,
@@ -269,6 +276,10 @@ export function resolveConfig(
       language,
       warnings,
     ),
+    show_remaining_time: asBoolean(
+      input.show_remaining_time,
+      DEFAULT_CONFIG.show_remaining_time,
+    ),
     tap_action: asAction(input.tap_action, language, warnings),
     hold_action: asAction(input.hold_action, language, warnings),
     double_tap_action: asAction(input.double_tap_action, language, warnings),
@@ -412,6 +423,9 @@ export function emptyExtras(timeZone: string, locale: string): CardExtras {
     moonDistance: null,
     moonRise: null,
     moonSet: null,
+    nextSunEvent: null,
+    nextTwilightEvent: null,
+    nextMoonEvent: null,
   };
 }
 
@@ -647,6 +661,48 @@ export function buildModel(
       : null;
 
   const nextFullMoon = findNextFullMoon(now);
+
+  // ---- Restzeiten: nächster Auf-/Untergang von Sonne, Dämmerung und Mond --
+  // Gesucht wird ab „jetzt“ und nicht im Tagesprofil, weil der nächste
+  // Sonnenaufgang nach Sonnenuntergang erst am folgenden Tag stattfindet.
+  // Findet sich im Fenster kein Ereignis (Polartag, Polarnacht), bleibt das
+  // Feld `null` – die Karte erfindet dann keine Zeit.
+  const twilightElevation =
+    config.twilight_level === 'nautical'
+      ? ELEVATION_NAUTICAL
+      : config.twilight_level === 'astronomical'
+        ? ELEVATION_ASTRONOMICAL
+        : ELEVATION_CIVIL;
+  const toNextEvent = (event: ElevationEvent | null): NextEventDetail | null =>
+    event
+      ? {
+          time: event.time,
+          rising: event.rising,
+          dayOffset: localDayIndex(event.time, timeZone) - localDayIndex(now, timeZone),
+        }
+      : null;
+  const nextSunEvent = config.show_sun
+    ? toNextEvent(findNextElevationEvent(location, now, ELEVATION_SUNRISE_SUNSET))
+    : null;
+  const nextTwilightEvent = config.show_twilight
+    ? toNextEvent(findNextElevationEvent(location, now, twilightElevation))
+    : null;
+  // `moonRise` und `moonSet` greifen auf den vorherigen Durchgang zurück,
+  // wenn im Fenster kein nächster liegt – gezählt wird nur, was noch kommt.
+  const nowMs = now.getTime();
+  const moonUpcoming = [moonEvents.nextRise, moonEvents.nextSet]
+    .filter((time): time is Date => time instanceof Date && time.getTime() > nowMs)
+    .sort((a, b) => a.getTime() - b.getTime());
+  const nextMoonTime = moonUpcoming[0];
+  const nextMoonEvent: NextEventDetail | null =
+    config.show_moon && nextMoonTime
+      ? {
+          time: nextMoonTime,
+          rising: nextMoonTime.getTime() === moonEvents.nextRise?.getTime(),
+          dayOffset: localDayIndex(nextMoonTime, timeZone) - localDayIndex(now, timeZone),
+        }
+      : null;
+
   const extras: CardExtras = {
     timeZoneLongName: timeZoneLongName(timeZone, languageLocale(language), now),
     previousDaylightMinutes,
@@ -663,6 +719,9 @@ export function buildModel(
     moonDistance: moonDistanceRange(now, location, 14),
     moonRise: moonEventDetail(moonEvents.nextRise ?? moonEvents.previousRise, location, now, timeZone),
     moonSet: moonEventDetail(moonEvents.nextSet ?? moonEvents.previousSet, location, now, timeZone),
+    nextSunEvent,
+    nextTwilightEvent,
+    nextMoonEvent,
   };
 
   if (day.polar === 'polar-day') issues.push('polar-day');
@@ -714,7 +773,13 @@ function configSignature(config: ResolvedConfig): string {
     // Modell nach einer Änderung veraltet.
     config.language,
     config.location_name,
+    // Sonne und Dämmerung stehen hier, seit das Modell die nächsten
+    // Auf- und Untergänge für die Restzeit selbst sucht: Ohne sie bliebe
+    // nach dem Abschalten der Sonne das alte Modell im Cache stehen und
+    // die Restzeit verschwände.
+    String(config.show_sun),
     String(config.show_moon),
+    String(config.show_twilight),
   ].join('|');
 }
 

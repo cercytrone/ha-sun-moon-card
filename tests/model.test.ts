@@ -367,6 +367,48 @@ describe('Mondphasen-Zuordnung', () => {
   });
 });
 
+describe('Restzeiten im Modell', () => {
+  it('nennt die nächsten Ereignisse mit Tagesbezug', () => {
+    const { config } = resolveConfig({});
+    const model = buildModel(config, hassWith(), NOON);
+    const sun = model.extras.nextSunEvent;
+    expect(sun).not.toBeNull();
+    expect(sun!.time.getTime()).toBeGreaterThan(NOON.getTime());
+    expect([0, 1]).toContain(sun!.dayOffset);
+    expect(typeof sun!.rising).toBe('boolean');
+  });
+
+  it('folgt den Schaltern für Sonne, Dämmerung und Mond', () => {
+    const { config } = resolveConfig({ show_sun: false, show_twilight: false, show_moon: false });
+    const model = buildModel(config, hassWith(), NOON);
+    expect(model.extras.nextSunEvent).toBeNull();
+    expect(model.extras.nextTwilightEvent).toBeNull();
+    expect(model.extras.nextMoonEvent).toBeNull();
+  });
+
+  it('richtet die Dämmerung nach der eingestellten Grenze', () => {
+    const nautical = buildModel(
+      resolveConfig({ twilight_level: 'nautical' }).config,
+      hassWith(),
+      NOON,
+    );
+    const civil = buildModel(resolveConfig({ twilight_level: 'civil' }).config, hassWith(), NOON);
+    // Die nautische Dämmerung endet später als die bürgerliche: Deren Grenze
+    // liegt tiefer, die Sonne braucht länger bis dorthin.
+    expect(nautical.extras.nextTwilightEvent!.time.getTime()).toBeGreaterThan(
+      civil.extras.nextTwilightEvent!.time.getTime(),
+    );
+  });
+
+  it('erfindet im Polartag kein Sonnenereignis', () => {
+    const hass = hassWith({ latitude: 78.2232, longitude: 15.6469 });
+    const { config } = resolveConfig({});
+    const polarDay = zonedTimeToUtc(2026, 6, 21, 12, 0, 0, 'Europe/Berlin');
+    const model = buildModel(config, hass, polarDay);
+    expect(model.extras.nextSunEvent).toBeNull();
+  });
+});
+
 describe('getModel – Zwischenspeicher', () => {
   it('gibt für gleiche Eingaben dasselbe Modell zurück', () => {
     clearModelCache();
@@ -386,6 +428,8 @@ describe('getModel – Zwischenspeicher', () => {
     const variants: SunMoonCardConfig[] = [
       { language: 'en' },
       { show_moon: false },
+      { show_sun: false },
+      { show_twilight: false },
       { location_name: 'Gartenhaus' },
       { twilight_level: 'nautical' },
       { entity: 'sun. sonne' },

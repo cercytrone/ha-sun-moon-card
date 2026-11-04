@@ -56,6 +56,7 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   },
   wide: { show_astronomical_details: true },
   nofooter: { show_footer: false },
+  nocountdown: { show_remaining_time: false },
 };
 
 installTimeMock();

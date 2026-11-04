@@ -105,6 +105,7 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   tap_action: null,
   hold_action: null,
   double_tap_action: null,
+  show_remaining_time: true,
 };
 
 /**
@@ -303,6 +304,19 @@ export interface LayoutMetrics {
 export const TWO_COLUMN_MIN_CARD_WIDTH = 700;
 /** Maximale Breite der Spalte für die Himmelsansicht. */
 export const SKY_VIEW_MAX_WIDTH = 260;
+/**
+ * Höhe einer Zeile der Ablesung unter der Himmelsansicht (Zeilenhöhe und
+ * Zeilenabstand, siehe `.sky-readout` in `styles.ts`).
+ */
+export const SKY_READOUT_ROW_HEIGHT = 16;
+/** Abstand zwischen Himmelsansicht und Ablesung (`.sky-column` in `styles.ts`). */
+export const SKY_READOUT_GAP = 4;
+/**
+ * Kleinste Himmelskuppel, die beim Ergänzen von Restzeiten erhalten bleibt.
+ * Jede Zeile der Ablesung verkleinert die Kuppel – ab hier wird nicht
+ * weiter gekürzt, sondern auf weitere Restzeiten verzichtet.
+ */
+export const MIN_SKY_VIEW_HEIGHT = 72;
 /** Abstand zwischen den Spalten. */
 export const COLUMN_GAP = 10;
 

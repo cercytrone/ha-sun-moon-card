@@ -38,6 +38,14 @@ describe('resolveConfig – Standardwerte', () => {
     expect(config.time_format).toBe('auto');
     expect(config.language).toBe('auto');
     expect(config.twilight_level).toBe('civil');
+    expect(config.show_remaining_time).toBe(true);
+  });
+
+  it('lässt die Restzeit abschalten', () => {
+    const { config, errors, warnings } = resolveConfig({ show_remaining_time: false });
+    expect(errors).toHaveLength(0);
+    expect(warnings).toHaveLength(0);
+    expect(config.show_remaining_time).toBe(false);
   });
 
   it('verwendet bei `undefined` ebenfalls die Standardwerte', () => {

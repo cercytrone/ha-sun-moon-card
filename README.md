@@ -132,6 +132,16 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   „Sonne X° unter dem Horizont“, Mondalter, Mondentfernung mit Erdferne/Erdnähe, Mondauf-/
   untergang mit Azimut und Tagesversatz, **nächster Vollmond** mit Datum, Uhrzeit und
   Tagesabstand
+- **Restzeit bis zum nächsten Auf- oder Untergang:** Ein Chip in der Kopfzeile nennt, wie lange es
+  noch dauert („Untergang in 2:15“); der Tooltip nennt Ereignis und Uhrzeit und, liegt der
+  Zeitpunkt erst am Folgetag, „(morgen)“. Unter der Himmelsansicht stehen die ausstehenden
+  Restzeiten ausgeschrieben („Sonnenuntergang in 2 h 15 min“), so viele, wie der Platz zulässt –
+  die Himmelskuppel bleibt dabei mindestens 72 px groß. Im Minimalstreifen steht die Restzeit in
+  Tooltip und Screenreader-Text
+- Gerechnet wird die Restzeit aus dem eigenen Höhenverlauf, nicht aus den Attributen der
+  `sun`-Entität: Findet sich im Fenster von 48 Stunden kein Ereignis (Polartag, Polarnacht),
+  entfällt die Angabe, statt eine erfundene Zeit zu zeigen. Abgeschaltet wird sie mit
+  `show_remaining_time: false`; im Kompaktmodus entfällt sie mit Kopf- und Fußzeile
 - Fußzeile mit Zeitzone (ausgeschrieben), eingestellter Dämmerungsgrenze und Berechnungsverfahren
 - Zeiten im 12- oder 24-Stunden-Format, standardmäßig wie in Home Assistant eingestellt
 
@@ -336,6 +346,7 @@ cards:
 | `show_sky_view` | `true` / `false` | `true` | Himmelsansicht |
 | `show_events` | `true` / `false` | `true` | Zeitenleiste |
 | `show_moon_times` | `true` / `false` | `true` | Mondauf-/untergang |
+| `show_remaining_time` | `true` / `false` | `true` | Restzeit bis zum nächsten Auf-/Untergang von Sonne, Dämmerung und Mond |
 | `twilight_level` | `civil` \| `nautical` \| `astronomical` \| `all` | `civil` | Welche Dämmerungsgrenzen dargestellt werden (−6°, −12°, −18°, alle) |
 | `location_name` | Text | leer | Anzeigename; ersetzt den Standortnamen aus Home Assistant |
 | `latitude` | Zahl −90…90 | aus HA | Überschreibt den Breitengrad aus Home Assistant |
@@ -357,7 +368,7 @@ Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
   Zenitzeit, Größe der Sonne, Breite und Höhe des Overlays (beide nur in der Minimalvariante),
   Dämmerungsgrenze
 - **Bereiche** – Schalter für Sonne, Mond, Dämmerung, astronomische Details, Kopfzeile,
-  Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang
+  Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang, Restzeit
 - **Verhalten** – Sonnen- und Mond-Entität
 - **Standort** – Anzeigename, Breiten- und Längengrad, Schalter „Standort aus Home Assistant
   übernehmen“, Zurücksetzen

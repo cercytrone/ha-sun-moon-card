@@ -165,6 +165,13 @@ export interface SunMoonCardConfig {
   hold_action?: ActionConfig;
   /** Aktion bei doppeltem Antippen des Minimalstreifens; Standard: keine. */
   double_tap_action?: ActionConfig;
+
+  /**
+   * Restzeit bis zum nächsten Auf- oder Untergang von Sonne und Mond sowie
+   * bis zum nächsten Beginn oder Ende der Dämmerung. Die einzelnen Zeiten
+   * folgen `show_sun`, `show_twilight` und `show_moon`.
+   */
+  show_remaining_time?: boolean;
 }
 
 /** Vollständig aufgelöste Konfiguration mit allen Standardwerten. */
@@ -193,6 +200,21 @@ export type ResolvedConfig = Required<
   double_tap_action: ActionConfig | null;
 };
 
+
+/**
+ * Nächstes Ereignis mit Restzeit – Sonne, Dämmerung oder Mond.
+ *
+ * Der Zeitpunkt liegt immer in der Zukunft; `dayOffset` erlaubt die
+ * Ergänzung „morgen“, wenn das Ereignis zum Folgetag gehört.
+ */
+export interface NextEventDetail {
+  /** Zeitpunkt des Ereignisses. */
+  time: Date;
+  /** `true`, wenn der Körper aufsteigt (Aufgang, Beginn der Dämmerung). */
+  rising: boolean;
+  /** Verschiebung gegenüber dem heutigen Kalendertag: 0 = heute, 1 = morgen. */
+  dayOffset: number;
+}
 
 /**
  * Zusätzliche, abgeleitete Werte, die über die reinen Positionsdaten
@@ -237,6 +259,15 @@ export interface CardExtras {
   moonRise: MoonEventDetail | null;
   /** Nächster Monduntergang mit Azimut und Tagesbezug. */
   moonSet: MoonEventDetail | null;
+  /**
+   * Nächster Sonnenauf- oder -untergang. `null` bei Polartag und Polarnacht
+   * – die Karte erfindet dann keine Zeit.
+   */
+  nextSunEvent: NextEventDetail | null;
+  /** Nächster Beginn oder Ende der eingestellten Dämmerung. */
+  nextTwilightEvent: NextEventDetail | null;
+  /** Nächster Mondauf- oder -untergang. */
+  nextMoonEvent: NextEventDetail | null;
 }
 
 /** Ein Mondauf- oder -untergang mit Zusatzinformationen. */
