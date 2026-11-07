@@ -74,8 +74,10 @@ images, and no additional Home Assistant integration is required.
 - **Current position of sun and moon:** elevation above (or below) the horizon plus compass
   direction – in the detail tiles and as a readout beneath the sky view (“Sun: 42.1° · 180° S”).
   Below the horizon the card names the depth and, where space allows, keeps the direction.
-- **Time until the next rise or set:** a chip in the header counts down to the **next** event –
-  sunset, sunrise, twilight limit or the moon (“Sunset in 2:15”). An **icon shows which body is
+- **Time until the next rise or set:** a chip in the header counts down to **sunrise or
+  sunset** (“Sunset in 1 h 48 min”; on narrow cards just “1 h 48 min”, and the chip wins over the sky-phase chip); an earlier moonrise/moonset or twilight limit does not displace it.
+  Without a sun event (polar day/night, `show_sun: false`) it falls back to the next twilight or
+  moon event; `remaining_time_focus: next` always shows the soonest event. An **icon shows which body is
   meant**, because “rise” alone would leave sun and moon open; screen readers get the full name
   instead (“Moonrise in 1 h 21 min”). The tooltip names the event and its clock time and adds
   “(tomorrow)” when it falls on the following day. Beneath the sky view
@@ -84,7 +86,11 @@ images, and no additional Home Assistant integration is required.
   tooltip and in the screen-reader text. It is computed from the card’s own altitude curve, not
   from the `sun` entity attributes: when no event occurs within 48 hours (polar day, polar night)
   the countdown is omitted rather than invented. Switch it off with `show_remaining_time: false`;
-  compact mode drops it together with header and footer.
+  in the chart a **track on the horizon** marks the time from now to the event; without a header
+  (low cards, compact mode) a small label next to the now line shows the countdown (“↓ 1 h 48 min”).
+  On narrow cards the footer drops the method first, then the time zone (the tooltip keeps the full
+  text), and narrow charts label events with clock times; sunrise/sunset labels take priority and
+  labels that do not fit are dropped instead of overlapping.
 - **Times and details:** row with dawn, sunrise, sunset, dusk; optionally culmination with maximum
   altitude, day length with change vs. yesterday, azimuth on a 16-point compass (“Sun: 250° WSW”),
   azimuth at rise/set, “sun X° below the horizon”, moon age, moon distance with perigee/apogee,
@@ -223,6 +229,7 @@ card_height: 320
 | `show_events` | boolean | `true` | Times row |
 | `show_moon_times` | boolean | `true` | Moonrise / moonset |
 | `show_remaining_time` | boolean | `true` | Time until the next rise/set of sun, twilight and moon |
+| `remaining_time_focus` | `sun` / `next` | `sun` | Which countdown takes precedence: `sun` always shows sunrise/sunset in the header chip and minimal strip (and lists it first below the sky view); `next` shows the soonest event of sun, twilight or moon |
 | `twilight_level` | `civil` \| `nautical` \| `astronomical` \| `all` | `civil` | Which twilight limits are drawn (−6°, −12°, −18°) |
 | `location_name` | text | – | Display name, replaces the Home Assistant location name |
 | `latitude` / `longitude` | number | from HA | Override the Home Assistant coordinates |

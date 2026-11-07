@@ -533,9 +533,10 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     );
     record(
       `Fußzeile (${report.parts.join(' | ').slice(0, 70)}…)`,
-      report.parts.length === 2 &&
+      // Schmale Karten lassen das Berechnungsverfahren weg (es steht im Tooltip).
+      report.parts.length >= 1 &&
         report.parts[0].includes('Dämmerung') &&
-        report.parts[1].includes('Berechnung'),
+        (report.parts.length === 1 || report.parts[1].includes('Berechnung')),
     );
     const tinted = report.eventIcons.filter(
       (icon) => icon.background !== 'rgba(0, 0, 0, 0)' && icon.background !== 'transparent',
@@ -1212,7 +1213,9 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     });
 
     // Alle Prüfzeiten liegen in der Mitteleuropäischen Winterzeit (+01:00).
-    const shown = chip && / in (\d{1,2}):(\d{2})$/.exec(chip.text);
+    // Die Dauer steht mit Einheiten („1 h 48 min“, „52 min“) – „1:48“ läse
+    // sich wie eine Uhrzeit.
+    const shown = chip && / in (?:(\d+) h )?(\d+) min$/.exec(chip.text);
     const named = chip && /(\d{1,2}):(\d{2})/.exec(chip.title);
     const laterDay = chip ? /\((morgen|Folgetag)\)/.test(chip.title) : false;
     let ok = Boolean(chip && shown && named);
@@ -1230,7 +1233,7 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
         Number(named[2]),
       );
       const expected = Math.round((target - start) / 60000);
-      const actual = Number(shown[1]) * 60 + Number(shown[2]);
+      const actual = Number(shown[1] ?? 0) * 60 + Number(shown[2]);
       ok = Math.abs(actual - expected) <= 1 && actual > 0;
       details = `„${chip.text}“ → ${actual} min, genannter Zeitpunkt → ${expected} min`;
       if (!ok) details += ` (Titel „${chip.title}“)`;
@@ -1280,8 +1283,12 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
   //    allein ließe Sonne und Mond offen. Das Symbol und – für Screenreader –
   //    die vollständige Bezeichnung tragen die Aussage.
   for (const probe of [
-    { preset: 'default', time: '2026-10-26T15:00', body: 'moon', label: 'Mond' },
-    { preset: 'default', time: '2026-10-26T06:00', body: 'twilight', label: 'Dämmerung' },
+    // Standard: Die Sonne hat Vorrang, auch wenn Mond oder Dämmerung früher
+    // dran sind. `nextevent` zeigt das zeitlich nächste Ereignis.
+    { preset: 'default', time: '2026-10-26T15:00', body: 'sun', label: 'Sonne vor Mond' },
+    { preset: 'default', time: '2026-10-26T06:00', body: 'sun', label: 'Sonne vor Dämmerung' },
+    { preset: 'nextevent', time: '2026-10-26T15:00', body: 'moon', label: 'Mond' },
+    { preset: 'nextevent', time: '2026-10-26T06:00', body: 'twilight', label: 'Dämmerung' },
     { preset: 'sunonly', time: '2026-10-26T15:00', body: 'sun', label: 'Sonne' },
   ]) {
     const url =
@@ -1316,7 +1323,7 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       chip.hasIcon &&
       chip.iconSize >= 10 &&
       !chip.clipped &&
-      / in \d{1,2}:\d{2}$/.test(chip.text) &&
+      / in (?:\d+ h )?\d+ min$/.test(chip.text) &&
       /^\S+ in \d/.test(chip.aria ?? '');
     record(
       `Restzeit-Chip nennt den Körper (${probe.label})`,

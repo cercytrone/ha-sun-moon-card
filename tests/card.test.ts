@@ -1504,7 +1504,7 @@ describe('Restzeiten', () => {
       { width: 900 },
     );
     const chip = card.shadowRoot!.querySelector('.header .meta-chip');
-    expect((chip?.textContent ?? '').trim()).toMatch(/^Untergang in \d{1,2}:\d{2}$/);
+    expect((chip?.textContent ?? '').trim()).toMatch(/^Untergang in \d+ h \d+ min$/);
     expect(chip?.getAttribute('title')).toMatch(/^Sonnenuntergang \d{1,2}:\d{2}$/);
     expect(chip?.getAttribute('data-body')).toBe('sun');
     expect(chip?.querySelector('svg')).not.toBeNull();
@@ -1519,7 +1519,7 @@ describe('Restzeiten', () => {
       { width: 900 },
     );
     const chip = card.shadowRoot!.querySelector('.header .meta-chip');
-    expect((chip?.textContent ?? '').trim()).toMatch(/^Aufgang in \d{1,2}:\d{2}$/);
+    expect((chip?.textContent ?? '').trim()).toMatch(/^Aufgang in \d+ h \d+ min$/);
     expect(chip?.getAttribute('title')).toMatch(/^Sonnenaufgang \d{1,2}:\d{2} \(morgen\)$/);
   });
 
@@ -1546,17 +1546,87 @@ describe('Restzeiten', () => {
     expect(readout(card).filter((row) => row.includes(' in '))).toHaveLength(0);
   });
 
-  it('zeigt im Kompaktmodus keine Restzeit', async () => {
-    // Der Kompaktmodus lässt Kopfzeile, Himmelsansicht und Fußzeile weg –
-    // und damit auch die Restzeit. Erfinden darf die Karte hier nichts.
+  it('zeigt im Kompaktmodus die Restzeit im Diagramm', async () => {
+    // Der Kompaktmodus lässt die Kopfzeile weg – die Restzeit wandert dann
+    // als kleines Etikett ins Diagramm, statt ganz zu verschwinden.
     freeze('2026-10-26T15:00:00+01:00');
     const card = await mountCard(
       { type: 'custom:sun-moon-card', card_height: 340, compact_mode: true },
       { width: 900 },
     );
     expect(card.shadowRoot!.querySelector('.header')).toBeNull();
-    expect(card.shadowRoot!.querySelector('.footer')).toBeNull();
-    expect(card.shadowRoot!.textContent ?? '').not.toMatch(/\bin \d+ h \d+ min\b/);
+    const label = card.shadowRoot!.querySelector('.countdown-label text');
+    expect((label?.textContent ?? '').trim()).toMatch(/^↓ \d+ h \d+ min$/);
+    expect(card.shadowRoot!.querySelector('.countdown-label title')?.textContent).toMatch(
+      /^Sonnenuntergang in /,
+    );
+  });
+
+  it('zeigt auf niedrigen Karten die Restzeit im Diagramm', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const low = await mountCard({ type: 'custom:sun-moon-card', card_height: 160 }, { width: 600 });
+    expect(low.shadowRoot!.querySelector('.header')).toBeNull();
+    expect(low.shadowRoot!.querySelector('.countdown-label')).not.toBeNull();
+
+    // Mit Kopfzeile steht die Restzeit dort – kein zweites Etikett.
+    const tall = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    expect(tall.shadowRoot!.querySelector('.header .countdown-chip')).not.toBeNull();
+    expect(tall.shadowRoot!.querySelector('.countdown-label')).toBeNull();
+  });
+
+  it('markiert die Strecke bis zum Sonnenuntergang auf dem Horizont', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    const track = card.shadowRoot!.querySelector('.countdown-track line');
+    expect(track).not.toBeNull();
+    const x1 = Number(track!.getAttribute('x1'));
+    const x2 = Number(track!.getAttribute('x2'));
+    expect(x2).toBeGreaterThan(x1);
+    expect(card.shadowRoot!.querySelector('.countdown-track circle')).not.toBeNull();
+
+    const off = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_remaining_time: false },
+      { width: 900 },
+    );
+    expect(off.shadowRoot!.querySelector('.countdown-track')).toBeNull();
+    expect(off.shadowRoot!.querySelector('.countdown-label')).toBeNull();
+  });
+
+  it('kürzt den Chip auf schmalen Karten, statt ihn wegzulassen', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 300 });
+    const chip = card.shadowRoot!.querySelector('.header .countdown-chip');
+    expect(chip).not.toBeNull();
+    expect((chip?.textContent ?? '').trim()).toMatch(/^\d+ h \d+ min$/);
+    expect(chip?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in /);
+  });
+
+  it('beschriftet schmale Diagramme mit Uhrzeiten und ohne Überlappung', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 240 });
+    const rects = [...card.shadowRoot!.querySelectorAll('.event-labels rect')].map((rect) => ({
+      x: Number(rect.getAttribute('x')),
+      width: Number(rect.getAttribute('width')),
+    }));
+    const texts = [...card.shadowRoot!.querySelectorAll('.event-labels text')].map((node) =>
+      (node.textContent ?? '').trim(),
+    );
+    expect(texts.length).toBeGreaterThanOrEqual(2);
+    for (const text of texts) expect(text).toMatch(/^\d{1,2}:\d{2}$/);
+    for (let i = 1; i < rects.length; i++) {
+      expect(rects[i].x).toBeGreaterThanOrEqual(rects[i - 1].x + rects[i - 1].width);
+    }
+  });
+
+  it('kürzt die Fußzeile auf schmalen Karten und nennt alles im Tooltip', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const narrow = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 300 });
+    const footer = narrow.shadowRoot!.querySelector('.footer');
+    expect(footer?.querySelectorAll('.part')).toHaveLength(1);
+    expect(footer?.getAttribute('title')).toMatch(/Berechnung/);
+
+    const wide = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    expect(wide.shadowRoot!.querySelectorAll('.footer .part')).toHaveLength(2);
   });
 
   it('nennt die Restzeit im Tooltip des Minimalstreifens', async () => {
@@ -1625,9 +1695,9 @@ describe('Restzeiten', () => {
       return card.shadowRoot!.querySelector('.header .meta-chip');
     };
 
-    const both = await chipOf({});
+    const both = await chipOf({ remaining_time_focus: 'next' });
     expect(both?.getAttribute('data-body')).toBe('moon');
-    expect((both?.textContent ?? '').trim()).toMatch(/^Aufgang in \d{1,2}:\d{2}$/);
+    expect((both?.textContent ?? '').trim()).toMatch(/^Aufgang in \d+ h \d+ min$/);
     expect(both?.getAttribute('aria-label')).toMatch(/^Mondaufgang in /);
 
     const sunOnly = await chipOf({ show_moon: false, show_twilight: false });
@@ -1637,6 +1707,31 @@ describe('Restzeiten', () => {
     const twilightOnly = await chipOf({ show_sun: false, show_moon: false });
     expect(twilightOnly?.getAttribute('data-body')).toBe('twilight');
     expect(twilightOnly?.getAttribute('aria-label')).toMatch(/^Abenddämmerung in /);
+  });
+
+  it('zeigt standardmäßig den Sonnenuntergang, auch wenn der Mond früher dran ist', async () => {
+    // Regression: Ein früherer Mondauf- oder -untergang verdrängte den
+    // Sonnenuntergang aus Chip, Minimalstreifen und der einzigen Zeile der
+    // Ablesung.
+    freeze('2026-10-26T15:00:00+01:00'); // Der Mond geht vor der Sonne auf.
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340 },
+      { width: 900 },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .meta-chip');
+    expect(chip?.getAttribute('data-body')).toBe('sun');
+    expect(chip?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in /);
+    const rows = readout(card).filter((row) => / in \d/.test(row));
+    expect(rows[0]).toMatch(/^Sonnenuntergang in /);
+
+    const minimal = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const title = minimal.shadowRoot!.querySelector('ha-card')?.getAttribute('title') ?? '';
+    expect(title).toMatch(/Sonnenuntergang in \d+ h \d+ min/);
+    expect(title).not.toMatch(/Mond(auf|unter)gang in/);
   });
 
   it('erfindet in der Polarnacht keine Restzeit', async () => {

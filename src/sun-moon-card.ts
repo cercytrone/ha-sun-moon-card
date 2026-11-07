@@ -32,7 +32,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
-import { renderDayChart } from './components/day-chart.js';
+import { renderDayChart, type DayChartCountdown } from './components/day-chart.js';
 import { renderMoonDisc } from './components/moon-disc.js';
 import { renderSkyView } from './components/sky-view.js';
 import { runAction } from './actions.js';
@@ -114,8 +114,17 @@ type CountdownBody = 'sun' | 'twilight' | 'moon';
 interface CountdownEntry {
   /** Restzeit in Minuten. */
   minutes: number;
-  /** Kurze Fassung für die Kopfzeile, z. B. „Untergang in 3:12“. */
+  /** Kurze Fassung für die Kopfzeile, z. B. „Untergang in 3 h 12 min“. */
   compact: string;
+  /**
+   * Knappste Fassung, nur die Dauer („3 h 12 min“). Sie steht im Chip, wenn
+   * die kurze Fassung nicht mehr passt – das Symbol nennt dann das Ereignis.
+   */
+  duration: string;
+  /** Zeitpunkt des Ereignisses. */
+  time: Date;
+  /** Aufgang (bzw. Ende der Nacht) statt Untergang. */
+  rising: boolean;
   /** Ausformulierte Fassung, z. B. „Sonnenuntergang in 3 h 12 min“. */
   long: string;
   /** Titel: Ereignis mit Uhrzeit und Tagesbezug. */
@@ -177,6 +186,17 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   @state() private _tick = 0;
 
   private _uid = `smc-${Math.random().toString(36).slice(2, 9)}`;
+
+  /**
+   * Restzeiten des laufenden Renderdurchgangs. Kopfzeile, Diagramm, Ablesung
+   * und Minimalstreifen fragen sie ab; berechnet werden sie nur einmal je
+   * Modell und Formatierungskontext.
+   */
+  private _countdownCache: {
+    model: CardModel;
+    context: FormatContext;
+    entries: CountdownEntry[];
+  } | null = null;
   /** Overlay mit der vollständigen Variante (nur im Minimalmodus). */
   private _popup: HTMLElement | null = null;
   /** Karte im Overlay – erhält jedes neue `hass` (siehe `hass`). */
@@ -884,6 +904,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                       uid: `${this._uid}-chart`,
                       showAstronomicalLayers: config.show_astronomical_details,
                       currentAltitude: model.sun.altitude,
+                      countdown: this._chartCountdown(model, context, layout),
                       moonPath: model.moonPath,
                       moon: config.show_moon
                         ? {
@@ -974,17 +995,33 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
 
     const phaseText = context.t(this._phaseKey(model));
     const phaseWidth = estimateChip(phaseText, true);
-    budget -= phaseWidth;
 
-    // Restzeit: Sie steht vor der Tageslänge, weil sie die drängendere
-    // Angabe ist. Reicht der Platz nicht, entfällt der Chip – anders als die
-    // Phase und die Tageslänge ist er nicht tragend.
-    const nextCountdown = this._countdowns(model, context)[0];
+    /*
+     * Die Restzeit ist die drängendste Angabe und bekommt das Budget zuerst.
+     * Passt die kurze Fassung („Untergang in 1 h 48 min“) nicht neben die
+     * Phase, bleibt nur die Dauer – das Symbol nennt das Ereignis. Reicht
+     * selbst das nicht, weicht die Phase; sie steht als Farbe auch im
+     * Diagramm.
+     */
+    const nextCountdown = this._primaryCountdown(model, context);
     let countdownChip: TemplateResult | typeof nothing = nothing;
+    let showPhase = true;
     if (nextCountdown) {
-      const chipWidth = estimateChip(nextCountdown.compact) + COUNTDOWN_ICON_WIDTH;
-      if (chipWidth <= budget) {
-        budget -= chipWidth;
+      const fullWidth = estimateChip(nextCountdown.compact) + COUNTDOWN_ICON_WIDTH;
+      const shortWidth = estimateChip(nextCountdown.duration) + COUNTDOWN_ICON_WIDTH;
+      let text: string | null = null;
+      if (fullWidth + phaseWidth <= budget) {
+        text = nextCountdown.compact;
+        budget -= fullWidth;
+      } else if (shortWidth + phaseWidth <= budget) {
+        text = nextCountdown.duration;
+        budget -= shortWidth;
+      } else if (shortWidth <= budget) {
+        text = nextCountdown.duration;
+        budget -= shortWidth;
+        showPhase = false;
+      }
+      if (text !== null) {
         // Das Symbol trägt die Aussage: „Aufgang“ allein ließe offen, ob die
         // Sonne oder der Mond gemeint ist. Screenreader erhalten statt des
         // kurzen Textes die vollständige Bezeichnung.
@@ -994,10 +1031,11 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
           role="img"
           aria-label=${nextCountdown.long}
           title=${nextCountdown.title}
-          >${nextCountdown.icon}<span>${nextCountdown.compact}</span></span
+          >${nextCountdown.icon}<span>${text}</span></span
         >`;
       }
     }
+    if (showPhase) budget -= phaseWidth;
 
     let dayLengthChip: TemplateResult | typeof nothing = nothing;
     if (model.daylightMinutes !== null) {
@@ -1031,13 +1069,15 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         </div>
         <div class="header-meta">
           ${countdownChip}${dayLengthChip}${timeZoneChip}
-          <span class="phase-chip" title=${phaseText}>
-            <span
-              class="phase-dot"
-              style=${styleMap({ background: this._phaseColor(model, palette) })}
-            ></span>
-            ${phaseText}
-          </span>
+          ${showPhase
+            ? html`<span class="phase-chip" title=${phaseText}>
+                <span
+                  class="phase-dot"
+                  style=${styleMap({ background: this._phaseColor(model, palette) })}
+                ></span>
+                ${phaseText}
+              </span>`
+            : nothing}
         </div>
       </div>
     `;
@@ -1053,6 +1093,14 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
    * gibt (Polartag, Polarnacht), entfallen, statt eine Zeit zu erfinden.
    */
   private _countdowns(model: CardModel, context: FormatContext): CountdownEntry[] {
+    const cache = this._countdownCache;
+    if (cache && cache.model === model && cache.context === context) return [...cache.entries];
+    const entries = this._computeCountdowns(model, context);
+    this._countdownCache = { model, context, entries };
+    return [...entries];
+  }
+
+  private _computeCountdowns(model: CardModel, context: FormatContext): CountdownEntry[] {
     const config = this._config;
     if (!config?.show_remaining_time) return [];
     const now = model.now.getTime();
@@ -1067,12 +1115,18 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       if (!event) return;
       const minutes = (event.time.getTime() - now) / 60_000;
       if (!(minutes >= 0)) return;
+      // Auch die kurze Fassung nennt die Einheiten: „in 1:48“ läse sich wie
+      // eine Uhrzeit.
+      const duration = formatCountdown(minutes, context.t);
       entries.push({
         minutes,
         compact: context.t('untilFormat', {
           event: context.t(shortKey ?? longKey),
-          duration: formatDurationCompact(minutes),
+          duration,
         }),
+        duration,
+        time: event.time,
+        rising: event.rising,
         long: context.t('untilFormat', {
           event: context.t(longKey),
           duration: formatCountdown(minutes, context.t),
@@ -1116,6 +1170,53 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     );
 
     return entries.sort((a, b) => a.minutes - b.minutes);
+  }
+
+  /**
+   * Restzeiten in Anzeigereihenfolge.
+   *
+   * Mit `remaining_time_focus: sun` (Standard) steht die Sonne vorn, die
+   * übrigen folgen zeitlich. Sonst würde ein früher Monduntergang oder der
+   * Beginn der Dämmerung den Sonnenauf-/-untergang verdrängen – gerade dort,
+   * wo nur eine Zeile Platz hat. Gibt es kein Sonnenereignis (Polartag,
+   * Polarnacht, `show_sun: false`), bleibt die zeitliche Reihenfolge.
+   */
+  private _orderedCountdowns(model: CardModel, context: FormatContext): CountdownEntry[] {
+    const entries = this._countdowns(model, context);
+    if (this._config?.remaining_time_focus === 'next') return entries;
+    const sunIndex = entries.findIndex((entry) => entry.body === 'sun');
+    if (sunIndex <= 0) return entries;
+    const [sun] = entries.splice(sunIndex, 1);
+    return [sun, ...entries];
+  }
+
+  /** Die Restzeit für Kopfzeilen-Chip und Minimalstreifen. */
+  private _primaryCountdown(
+    model: CardModel,
+    context: FormatContext,
+  ): CountdownEntry | undefined {
+    return this._orderedCountdowns(model, context)[0];
+  }
+
+  /**
+   * Restzeit für das Diagramm. Es markiert die Strecke bis zum Ereignis auf
+   * dem Horizont; fehlt die Kopfzeile (niedrige Karten), trägt es zusätzlich
+   * die Restzeit als kleines Etikett – sonst ginge sie dort ganz verloren.
+   */
+  private _chartCountdown(
+    model: CardModel,
+    context: FormatContext,
+    layout: LayoutMetrics,
+  ): DayChartCountdown | null {
+    const entry = this._primaryCountdown(model, context);
+    if (!entry) return null;
+    return {
+      time: entry.time,
+      rising: entry.rising,
+      body: entry.body,
+      label: layout.showHeader ? null : `${entry.rising ? '↑' : '↓'} ${entry.duration}`,
+      title: entry.long,
+    };
   }
 
   /**
@@ -1209,7 +1310,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     }
     // Restzeiten ergänzen die Ablesung: Was die Positionszeilen über den
     // Augenblick sagen, sagen diese Zeilen über die nächsten Stunden.
-    for (const entry of this._countdowns(model, context).slice(0, maxCountdownRows)) {
+    for (const entry of this._orderedCountdowns(model, context).slice(0, maxCountdownRows)) {
       rows.push(html`<span title=${entry.title}>${entry.long}</span>`);
     }
     if (rows.length === 0 || width < 150) return nothing;
@@ -1249,10 +1350,32 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
             ? 'footerTwilightAll'
             : 'footerTwilightCivil';
 
+    /*
+     * Auf schmalen Karten würde die Fußzeile abgeschnitten. Sie verzichtet
+     * dann zuerst auf das Berechnungsverfahren, dann auf die Zeitzone (die
+     * Kopfzeile nennt sie ohnehin, wo Platz ist). Der Tooltip trägt immer
+     * den vollständigen Text.
+     */
+    const width = layout.chartWidth + (layout.skyViewSide ? layout.skyViewWidth + 10 : 0);
+    const twilightText = context.t(twilightKey);
+    const zoneText = model.extras.timeZoneLongName;
+    const methodText = context.t('footerMethod');
+    const fullText = `${twilightText} · ${zoneText} · ${methodText}`;
+    const charWidth = 9.5 * 0.55;
+    const fits = (text: string): boolean => text.length * charWidth <= width;
+    const firstPart = fits(`${twilightText} · ${zoneText}`)
+      ? `${twilightText} · ${zoneText}`
+      : twilightText;
+    const showMethod = fits(`${firstPart} · ${methodText}`) || width >= 520;
+
     return html`
-      <div class="footer" style=${styleMap({ height: `${layout.footerHeight}px` })}>
-        <span class="part">${context.t(twilightKey)} · ${model.extras.timeZoneLongName}</span>
-        <span class="part">${context.t('footerMethod')}</span>
+      <div
+        class="footer"
+        title=${fullText}
+        style=${styleMap({ height: `${layout.footerHeight}px` })}
+      >
+        <span class="part">${firstPart}</span>
+        ${showMethod ? html`<span class="part">${methodText}</span>` : nothing}
       </div>
     `;
   }
@@ -1856,7 +1979,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     parts.push(
       `${context.t('sun')} ${formatDegrees(model.sun.altitude, 0, context.locale)}`,
     );
-    const next = this._countdowns(model, context)[0];
+    const next = this._primaryCountdown(model, context);
     if (next) parts.push(next.long);
     return parts.join(' · ');
   }
