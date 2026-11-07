@@ -133,7 +133,8 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   untergang mit Azimut und Tagesversatz, **nächster Vollmond** mit Datum, Uhrzeit und
   Tagesabstand
 - **Restzeit bis zum nächsten Auf- oder Untergang:** Ein Chip in der Kopfzeile nennt, wie lange es
-  noch dauert („Untergang in 2:15“). Ein **Symbol zeigt, welcher Körper gemeint ist** – Sonne,
+  noch dauert („Untergang in 1 h 48 min“). Ist die Karte zu schmal, bleibt nur die Dauer
+  („1 h 48 min“) – vor der Himmelsphase weicht der Chip nicht. Ein **Symbol zeigt, welcher Körper gemeint ist** – Sonne,
   Dämmerung oder Mond –, denn „Aufgang“ allein ließe das offen; Screenreader erhalten stattdessen
   die vollständige Bezeichnung („Mondaufgang in 1 h 21 min“). Der Tooltip nennt Ereignis und
   Uhrzeit und, liegt der Zeitpunkt erst am Folgetag, „(morgen)“. Unter der Himmelsansicht stehen
@@ -143,12 +144,18 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 - Gerechnet wird die Restzeit aus dem eigenen Höhenverlauf, nicht aus den Attributen der
   `sun`-Entität: Findet sich im Fenster von 48 Stunden kein Ereignis (Polartag, Polarnacht),
   entfällt die Angabe, statt eine erfundene Zeit zu zeigen. Abgeschaltet wird sie mit
-  `show_remaining_time: false`; im Kompaktmodus entfällt sie mit Kopf- und Fußzeile
+  `show_remaining_time: false`
+- Im Diagramm markiert eine **Strecke auf dem Horizont** die Zeit von „jetzt“ bis zum Ereignis.
+  Fehlt die Kopfzeile (niedrige Karten, Kompaktmodus), steht die Restzeit als kleines Etikett
+  neben der „Jetzt“-Linie („↓ 1 h 48 min“)
 - Standardmäßig hat die **Sonne Vorrang** (`remaining_time_focus: sun`): Ein früherer Mondauf-
   oder -untergang oder der Beginn der Dämmerung verdrängt den Sonnenauf-/-untergang nicht. Gibt es
   kein Sonnenereignis (Polartag, Polarnacht, `show_sun: false`), erscheint das nächste andere
   Ereignis. Mit `remaining_time_focus: next` zeigt der Chip immer das zeitlich nächste Ereignis
-- Fußzeile mit Zeitzone (ausgeschrieben), eingestellter Dämmerungsgrenze und Berechnungsverfahren
+- Fußzeile mit Zeitzone (ausgeschrieben), eingestellter Dämmerungsgrenze und Berechnungsverfahren;
+  auf schmalen Karten entfallen erst Verfahren, dann Zeitzone – der Tooltip nennt alles
+- Auf schmalen Diagrammen tragen die Ereignis-Etiketten Uhrzeiten statt Wörtern; Auf- und
+  Untergang haben Vorrang, Etiketten ohne Platz entfallen statt sich zu überlappen
 - Zeiten im 12- oder 24-Stunden-Format, standardmäßig wie in Home Assistant eingestellt
 
 **Konfiguration und Robustheit**

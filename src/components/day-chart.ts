@@ -57,6 +57,23 @@ interface EventMarker {
   secondary: boolean;
 }
 
+/** Restzeit, die das Diagramm hervorhebt. */
+export interface DayChartCountdown {
+  /** Zeitpunkt des Ereignisses. */
+  time: Date;
+  /** Aufgang statt Untergang. */
+  rising: boolean;
+  /** Körper; bestimmt die Farbe der Strecke. */
+  body: 'sun' | 'twilight' | 'moon';
+  /**
+   * Kurzes Etikett neben der „Jetzt“-Linie („↓ 1 h 48 min“). `null`, wenn
+   * die Restzeit schon in der Kopfzeile steht.
+   */
+  label: string | null;
+  /** Ausgeschriebene Restzeit für Tooltip und Screenreader. */
+  title: string;
+}
+
 export interface DayChartOptions {
   /** Tagesverlauf (Höhenprofil). */
   profile: DayProfile;
@@ -118,6 +135,11 @@ export interface DayChartOptions {
   showAstronomicalLayers: boolean;
   /** Aktuelle Sonnenhöhe (Position des „jetzt“-Markers). */
   currentAltitude: number;
+  /**
+   * Nächstes Ereignis: Die Strecke von „jetzt“ bis dorthin wird auf dem
+   * Horizont markiert. Entfällt im Minimalmodus.
+   */
+  countdown?: DayChartCountdown | null;
 }
 
 /** Skaliert die Abtastwerte des Profils auf die vorhandene Breite. */
@@ -340,6 +362,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     uid,
     showAstronomicalLayers,
     currentAltitude,
+    countdown = null,
   } = options;
 
   const safeWidth = Math.max(minimal ? 60 : 120, width);
@@ -547,30 +570,66 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     secondary: boolean;
   }
 
-  const primaries = markers.filter((marker) => !marker.secondary);
-  const secondaries = markers.filter((marker) => marker.secondary);
+  /*
+   * Platzierung nach Vorrang: Erst Auf- und Untergang, dann die Dämmerung,
+   * zuletzt zusätzliche Ebenen. Ein Etikett darf nur wenig von seiner
+   * Markierung abrücken – sonst stünde es neben dem falschen Ereignis und
+   * entfällt lieber. Auf schmalen Diagrammen stehen statt der Wörter die
+   * Uhrzeiten: Sie sind kürzer und sagen mehr.
+   */
+  const rank = (marker: EventMarker): number =>
+    marker.secondary ? 2 : marker.kind === 'sunrise' || marker.kind === 'sunset' ? 0 : 1;
   const maxLabels = plotWidth < 240 ? 3 : plotWidth < 340 ? 4 : 6;
-  const ordered = minimal
+  const candidates = minimal
     ? []
-    : [...primaries, ...secondaries]
-        .slice(0, Math.max(2, maxLabels))
-        .sort((a, b) => a.time.getTime() - b.time.getTime());
-  const useShort = ordered.length > 3 || plotWidth < 300;
+    : [...markers]
+        .sort((a, b) => rank(a) - rank(b) || a.time.getTime() - b.time.getTime())
+        .slice(0, Math.max(2, maxLabels));
+  const useTimes = plotWidth < 260;
+  const useShort = !useTimes && (candidates.length > 3 || plotWidth < 340);
+  const labelGap = 4;
+  const maxShift = Math.max(8, labelFontSize * 1.2);
 
   const labels: PlacedLabel[] = [];
-  let lastRight = -Infinity;
-  for (const marker of ordered) {
-    const text = useShort ? marker.shortLabel : marker.label;
+  for (const marker of candidates) {
+    const text = useTimes
+      ? formatTime(marker.time, format)
+      : useShort
+        ? marker.shortLabel
+        : marker.label;
     const estimatedWidth = text.length * labelFontSize * 0.56 + 8;
-    let x = xOf(marker.time.getTime());
-    x = clamp(x, plotLeft + estimatedWidth / 2, plotLeft + plotWidth - estimatedWidth / 2);
-    if (x - estimatedWidth / 2 < lastRight + 3) {
-      x = lastRight + 3 + estimatedWidth / 2;
+    const anchor = clamp(
+      xOf(marker.time.getTime()),
+      plotLeft + estimatedWidth / 2,
+      plotLeft + plotWidth - estimatedWidth / 2,
+    );
+    const collides = (x: number): boolean =>
+      labels.some(
+        (other) => Math.abs(other.x - x) < (other.width + estimatedWidth) / 2 + labelGap,
+      );
+    let x: number | null = collides(anchor) ? null : anchor;
+    if (x === null) {
+      // Seitlich ausweichen – zur Seite, auf der das Ereignis liegt.
+      for (const other of labels) {
+        const distance = (other.width + estimatedWidth) / 2 + labelGap;
+        for (const candidate of [other.x + distance, other.x - distance]) {
+          if (
+            Math.abs(candidate - anchor) <= maxShift &&
+            candidate - estimatedWidth / 2 >= plotLeft - 0.5 &&
+            candidate + estimatedWidth / 2 <= plotLeft + plotWidth + 0.5 &&
+            !collides(candidate)
+          ) {
+            x = candidate;
+            break;
+          }
+        }
+        if (x !== null) break;
+      }
     }
-    if (x + estimatedWidth / 2 > plotLeft + plotWidth + 0.5) continue;
-    lastRight = x + estimatedWidth / 2;
+    if (x === null) continue;
     labels.push({ x, width: estimatedWidth, text, secondary: marker.secondary });
   }
+  labels.sort((a, b) => a.x - b.x);
 
   // --- „Jetzt“-Marker ------------------------------------------------------
   const nowX = clamp(xOf(now.getTime()), plotLeft, plotLeft + plotWidth);
@@ -602,6 +661,44 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
       : clamp(yOf(altitude), plotTop + radius, plotBottom - radius);
 
   const nowY = markerY(currentAltitude, markerRadius);
+
+  // --- Restzeit: Strecke bis zum nächsten Ereignis --------------------------
+  // Sie liegt auf dem Horizont und reicht von „jetzt“ bis zum Ereignis – oder
+  // bis zum Rand, wenn es erst am Folgetag stattfindet.
+  const countdownGeometry = (() => {
+    if (minimal || !countdown) return null;
+    const endTime = countdown.time.getTime();
+    if (!(endTime > now.getTime())) return null;
+    const horizonInside = domainBottom < 0 && domainTop > 0;
+    const y = horizonInside ? yOf(0) : plotBottom - 1;
+    const rawEnd = xOf(endTime);
+    const endX = clamp(rawEnd, plotLeft, plotLeft + plotWidth);
+    if (endX - nowX < 2) return null;
+    const color =
+      countdown.body === 'moon'
+        ? 'var(--smc-moon-lit, #f2f5fc)'
+        : countdown.body === 'twilight'
+          ? palette.civil
+          : palette.day;
+    return { y, endX, endsInside: rawEnd <= plotLeft + plotWidth, color };
+  })();
+  const trackWidth = clamp(round(safeHeight * 0.016, 1), 2, 3);
+  const countdownLabel = (() => {
+    if (minimal || !countdown?.label) return null;
+    const fontSize = labelFontSize;
+    const height = fontSize + 5;
+    const width = countdown.label.length * fontSize * 0.56 + 10;
+    const gap = Math.max(markerRadius, 3) + 3;
+    const right = nowX + gap;
+    const x =
+      right + width <= plotLeft + plotWidth
+        ? right
+        : Math.max(plotLeft, nowX - gap - width);
+    // Ohne Etikettenleiste stehen die Ereignis-Etiketten oben im Plot – das
+    // Restzeit-Etikett rückt dann eine Zeile tiefer.
+    const y = showLabelStrip || labels.length === 0 ? plotTop + 1 : plotTop + labelHeight + 3;
+    return { x, y, width, height, fontSize };
+  })();
 
   // Mondmarker: eigene Höhe auf der „Jetzt"-Linie. Liegt er dicht am
   // Sonnenmarker, weicht er seitlich aus, damit sich beide nicht verdecken.
@@ -991,6 +1088,38 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
         })}
       </g>
 
+      ${
+        countdownGeometry
+          ? svg`<g class="countdown-track">
+              <title>${countdown!.title}</title>
+              <line
+                x1="${round(nowX, 1)}" y1="${round(countdownGeometry.y, 1)}"
+                x2="${round(countdownGeometry.endX, 1)}" y2="${round(countdownGeometry.y, 1)}"
+                stroke="var(--smc-now-stroke, rgba(0,0,0,0.25))"
+                stroke-width="${round(trackWidth + 2, 1)}"
+                stroke-linecap="round"
+                opacity="0.8" />
+              <line
+                x1="${round(nowX, 1)}" y1="${round(countdownGeometry.y, 1)}"
+                x2="${round(countdownGeometry.endX, 1)}" y2="${round(countdownGeometry.y, 1)}"
+                stroke="${countdownGeometry.color}"
+                stroke-width="${trackWidth}"
+                stroke-linecap="round" />
+              ${
+                countdownGeometry.endsInside
+                  ? svg`<circle
+                      cx="${round(countdownGeometry.endX, 1)}"
+                      cy="${round(countdownGeometry.y, 1)}"
+                      r="${round(trackWidth + 0.8, 1)}"
+                      fill="${countdownGeometry.color}"
+                      stroke="var(--smc-now-stroke, rgba(0,0,0,0.25))"
+                      stroke-width="0.8" />`
+                  : svg``
+              }
+            </g>`
+          : svg``
+      }
+
       <g class="now-marker">
         <line
           x1="${round(nowX, 1)}" y1="${round(plotTop, 1)}"
@@ -1080,6 +1209,32 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
                 font-size="${zenithFontSize}"
                 fill="var(--smc-label-color, #ffffff)"
               >${zenithLabel}</text>
+            </g>`
+          : svg``
+      }
+
+      ${
+        countdownLabel
+          ? svg`<g class="countdown-label">
+              <title>${countdown!.title}</title>
+              <rect
+                x="${round(countdownLabel.x, 1)}"
+                y="${round(countdownLabel.y, 1)}"
+                width="${round(countdownLabel.width, 1)}"
+                height="${round(countdownLabel.height, 1)}"
+                rx="${round(countdownLabel.height / 2.6, 1)}"
+                fill="var(--smc-label-bg, rgba(0,0,0,0.34))"
+                opacity="0.9" />
+              <text
+                x="${round(countdownLabel.x + countdownLabel.width / 2, 1)}"
+                y="${round(
+                  countdownLabel.y + countdownLabel.height / 2 + countdownLabel.fontSize * 0.36,
+                  1,
+                )}"
+                text-anchor="middle"
+                font-size="${countdownLabel.fontSize}"
+                fill="var(--smc-label-color, #ffffff)"
+              >${countdown!.label}</text>
             </g>`
           : svg``
       }
