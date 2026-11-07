@@ -5,6 +5,8 @@ name: Release
 #      committet, setzt den Tag `vX.Y.Z` und pusht ihn.
 #   2. Der Push des Tags startet `Veroeffentlichen`: Tests, Build und das
 #      gebaute Bundle werden an das GitHub-Release gehängt (HACS-Quelle).
+#      Ein von Hand angelegtes Release mit diesem Tag bleibt erhalten; es
+#      bekommt nur die Dateien angehängt.
 on:
   workflow_dispatch:
     inputs:
@@ -83,8 +85,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            dist/sun-moon-card.js \
-            dist/sun-moon-card.js.map
+          # Wurde das Release schon von Hand angelegt (z. B. mit eigenem Text in
+          # der GitHub-Oberfläche), werden die Dateien nur angehängt – Titel,
+          # Text und Status bleiben unverändert. Sonst entsteht ein neues
+          # Release mit automatisch erzeugten Notizen.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG existiert bereits – Bundle wird angehängt."
+            gh release upload "$TAG" --clobber \
+              dist/sun-moon-card.js \
+              dist/sun-moon-card.js.map
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              dist/sun-moon-card.js \
+              dist/sun-moon-card.js.map
+          fi
