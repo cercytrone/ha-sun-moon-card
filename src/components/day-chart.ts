@@ -31,6 +31,9 @@ import { svg, type TemplateResult } from 'lit';
 
 import {
   ELEVATION_ASTRONOMICAL,
+  BLUE_HOUR_LOWER,
+  GOLDEN_HOUR_LOWER,
+  GOLDEN_HOUR_UPPER,
   ELEVATION_CIVIL,
   ELEVATION_NAUTICAL,
   type BodyProfile,
@@ -64,7 +67,7 @@ export interface DayChartCountdown {
   /** Aufgang statt Untergang. */
   rising: boolean;
   /** Körper; bestimmt die Farbe der Strecke. */
-  body: 'sun' | 'twilight' | 'moon';
+  body: 'sun' | 'twilight' | 'moon' | 'golden';
   /**
    * Kurzes Etikett neben der „Jetzt“-Linie („↓ 1 h 48 min“). `null`, wenn
    * die Restzeit schon in der Kopfzeile steht.
@@ -140,6 +143,36 @@ export interface DayChartOptions {
    * Horizont markiert. Entfällt im Minimalmodus.
    */
   countdown?: DayChartCountdown | null;
+  /** Goldene und Blaue Stunde als Flächen. Entfällt im Minimalmodus. */
+  showGoldenHour?: boolean;
+}
+
+/** Farbe der Goldenen Stunde (Fläche, Strecke). */
+const GOLDEN_COLOR = 'var(--smc-golden-hour, #f2b544)';
+/** Farbe der Blauen Stunde. */
+const BLUE_COLOR = 'var(--smc-blue-hour, #4f6fd6)';
+
+/**
+ * Zeitabschnitte, in denen die Höhe im Band [lower, upper] liegt – grob aus
+ * den Abtastwerten, was für eine Fläche genügt.
+ */
+function bandIntervals(
+  samples: { time: number; altitude: number }[],
+  lower: number,
+  upper: number,
+): Array<[number, number]> {
+  const result: Array<[number, number]> = [];
+  let start: number | null = null;
+  for (const sample of samples) {
+    const inside = sample.altitude >= lower && sample.altitude <= upper;
+    if (inside && start === null) start = sample.time;
+    if (!inside && start !== null) {
+      result.push([start, sample.time]);
+      start = null;
+    }
+  }
+  if (start !== null && samples.length) result.push([start, samples[samples.length - 1].time]);
+  return result;
 }
 
 /** Skaliert die Abtastwerte des Profils auf die vorhandene Breite. */
@@ -363,6 +396,7 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
     showAstronomicalLayers,
     currentAltitude,
     countdown = null,
+    showGoldenHour = false,
   } = options;
 
   const safeWidth = Math.max(minimal ? 60 : 120, width);
@@ -662,6 +696,37 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
 
   const nowY = markerY(currentAltitude, markerRadius);
 
+  // --- Goldene und Blaue Stunde ------------------------------------------------
+  const hourBands =
+    showGoldenHour && !minimal
+      ? [
+          ...bandIntervals(profile.samples, GOLDEN_HOUR_LOWER, GOLDEN_HOUR_UPPER).map(
+            (range) => ({ range, kind: 'golden' as const, color: GOLDEN_COLOR, key: 'goldenHour' }),
+          ),
+          ...bandIntervals(profile.samples, BLUE_HOUR_LOWER, GOLDEN_HOUR_LOWER).map((range) => ({
+            range,
+            kind: 'blue' as const,
+            color: BLUE_COLOR,
+            key: 'blueHour',
+          })),
+        ]
+          .map(({ range, kind, color, key }) => {
+            const x = clamp(xOf(range[0]), plotLeft, plotLeft + plotWidth);
+            const end = clamp(xOf(range[1]), plotLeft, plotLeft + plotWidth);
+            return {
+              x,
+              width: end - x,
+              kind,
+              color,
+              title: `${t(key as StringKey)} ${formatTime(new Date(range[0]), format)}–${formatTime(
+                new Date(range[1]),
+                format,
+              )}`,
+            };
+          })
+          .filter((band) => band.width >= 0.5)
+      : [];
+
   // --- Restzeit: Strecke bis zum nächsten Ereignis --------------------------
   // Sie liegt auf dem Horizont und reicht von „jetzt“ bis zum Ereignis – oder
   // bis zum Rand, wenn es erst am Folgetag stattfindet.
@@ -679,7 +744,9 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
         ? 'var(--smc-moon-lit, #f2f5fc)'
         : countdown.body === 'twilight'
           ? palette.civil
-          : palette.day;
+          : countdown.body === 'golden'
+            ? GOLDEN_COLOR
+            : palette.day;
     return { y, endX, endsInside: rawEnd <= plotLeft + plotWidth, color };
   })();
   const trackWidth = clamp(round(safeHeight * 0.016, 1), 2, 3);
@@ -947,6 +1014,25 @@ export function renderDayChart(options: DayChartOptions): TemplateResult {
           }
         </g>
         </g>
+        ${
+          hourBands.length
+            ? svg`<g class="hour-bands">
+                ${hourBands.map(
+                  (band) => svg`<g class=${band.kind}>
+                    <title>${band.title}</title>
+                    <rect
+                      x="${round(band.x, 1)}" y="${round(plotTop, 1)}"
+                      width="${round(band.width, 1)}" height="${round(plotHeight, 1)}"
+                      fill="${band.color}" opacity="${band.kind === 'golden' ? 0.16 : 0.2}" />
+                    <rect
+                      x="${round(band.x, 1)}" y="${round(plotBottom - 3, 1)}"
+                      width="${round(band.width, 1)}" height="3"
+                      fill="${band.color}" opacity="0.85" />
+                  </g>`,
+                )}
+              </g>`
+            : svg``
+        }
         ${
           moonCurve
             ? svg`<path

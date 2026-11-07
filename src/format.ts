@@ -165,33 +165,15 @@ export function formatDuration(minutes: number, language: Language): string {
 }
 
 /**
- * Formatiert eine Zeitdauer mit Vorzeichen, z. B. „+3:48“ oder „−3:48“.
- *
- * Verwendet wird das Trennzeichen des Gebietsschemas: Im Deutschen steht der
- * Doppelpunkt („9:57“), damit die Angabe nicht mit einer Dezimalzahl
- * verwechselt wird.
+ * Vorzeichenbehaftete Dauer mit Einheiten, z. B. „−4 min“ oder „+1 h 2 min“
+ * (Änderung der Tageslänge gegenüber dem Vortag).
  */
-export function formatSignedDuration(minutes: number, locale = 'de-DE'): string {
+export function formatSignedDuration(
+  minutes: number,
+  t: (key: StringKey, replacements?: Record<string, string | number>) => string,
+): string {
   const sign = minutes < 0 ? '−' : '+';
-  const total = Math.round(Math.abs(minutes));
-  const hours = Math.floor(total / 60);
-  const mins = total % 60;
-  const separator = locale.startsWith('de') ? ':' : 'h ';
-  const suffix = locale.startsWith('de') ? '' : 'm';
-  return `${sign}${hours}${separator}${String(mins).padStart(2, '0')}${suffix}`;
-}
-
-/**
- * Kompakte Tageslänge im Format „9:57“ (Stunden:Minuten).
- *
- * Die Angabe ist kürzer als `formatDuration` und passt deshalb auch in
- * schmale Karten.
- */
-export function formatDurationCompact(minutes: number): string {
-  const total = Math.max(0, Math.round(minutes));
-  const hours = Math.floor(total / 60);
-  const mins = total % 60;
-  return `${hours}:${String(mins).padStart(2, '0')}`;
+  return `${sign}${formatCountdown(Math.abs(minutes), t)}`;
 }
 
 /**

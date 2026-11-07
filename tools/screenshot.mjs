@@ -96,6 +96,12 @@ const SHOTS = [
     file: 'screenshot-wide.png',
   },
   {
+    name: 'Goldene & Blaue Stunde mit Restzeit-Kachel',
+    url: '/shots.html?preset=golden&loc=berlin&time=2026-10-26T15:00&theme=dark&w=620&h=360',
+    selector: 'sun-moon-card',
+    file: 'screenshot-golden-hour.png',
+  },
+  {
     name: 'Flache Darstellung (card_style: flat)',
     url: '/shots.html?preset=flat&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=340',
     selector: 'sun-moon-card',

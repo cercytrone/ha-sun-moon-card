@@ -16,7 +16,7 @@
  *    werden ohne Fehler dargestellt
  *
  * Aufruf (Voraussetzungen siehe tools/screenshot.mjs):
- *   npm run dev            # in einem zweiten Terminal
+ *   npm run dev            # in einem zweiten Terminal (in der CI: Job „layout“)
  *   node tools/verify-layout.mjs
  */
 
@@ -1352,6 +1352,41 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       return texts.filter((text) => / in \d/.test(text));
     });
     record(`Restzeit abgeschaltet (${preset})`, left.length === 0, left.join(' | '));
+  }
+
+  // 5) Restzeit-Kachel und Goldene Stunde: Die Kachel darf auch auf schmalen
+  //    Karten nichts abschneiden; Auf- und Untergang bleiben daneben stehen.
+  console.log('\n— Restzeit-Kachel und Goldene Stunde —');
+  for (const [w, time] of [[360, '2026-10-26T21:00'], [620, '2026-10-26T15:00'], [900, '2026-10-26T15:00']]) {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=${time}&theme=dark&h=340&w=${w}&preset=golden`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.day-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const data = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const tile = root.querySelector('.event-tile.countdown');
+      const clipped = tile
+        ? [...tile.querySelectorAll('.event-time, .event-label')].some(
+            (node) => node.scrollWidth > node.clientWidth + 1,
+          ) || tile.scrollWidth > tile.clientWidth + 1
+        : true;
+      return {
+        tile: Boolean(tile),
+        text: tile ? tile.textContent.replace(/\s+/g, ' ').trim() : '',
+        clipped,
+        sunrise: Boolean(root.querySelector('.event-tile.sunrise')),
+        sunset: Boolean(root.querySelector('.event-tile.sunset')),
+        bands: root.querySelectorAll('.hour-bands rect').length,
+      };
+    });
+    record(
+      `Restzeit-Kachel ${w}px („${data.text}“, ${data.bands / 2} Flächen)`,
+      data.tile && !data.clipped && data.sunrise && data.sunset && data.bands >= 4,
+      data.clipped ? 'Kachel abgeschnitten' : '',
+    );
   }
 
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');

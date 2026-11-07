@@ -19,7 +19,8 @@ images, and no additional Home Assistant integration is required.
 [astronomical details](docs/screenshot-details.png) · [polar day](docs/screenshot-polar-day.png) ·
 [polar night](docs/screenshot-polar-night.png) · [minimal variant](docs/screenshot-minimal.png) ·
 [minimal variant, horizon style](docs/screenshot-minimal-horizon.png) ·
-[English / 12-hour format](docs/screenshot-english.png)*
+[English / 12-hour format](docs/screenshot-english.png) ·
+[golden hour with countdown tile](docs/screenshot-golden-hour.png)*
 
 > **Deutsche Fassung:** [README.md](README.md) – the German README is the full documentation
 > (installation, every YAML option, accuracy, edge cases, development).
@@ -90,7 +91,18 @@ images, and no additional Home Assistant integration is required.
   (low cards, compact mode) a small label next to the now line shows the countdown (“↓ 1 h 48 min”).
   On narrow cards the footer drops the method first, then the time zone (the tooltip keeps the full
   text), and narrow charts label events with clock times; sunrise/sunset labels take priority and
-  labels that do not fit are dropped instead of overlapping.
+  labels that do not fit are dropped instead of overlapping. Durations carry units (“1 h 48 min”,
+  day length “9 h 57 min −4 min”); in the final minute it reads “Sunset now”. The **next full
+  moon** is listed last below the sky view (“Full moon in 3 d 4 h”) and never becomes the main
+  countdown. With `twilight_level: all` the twilight countdown uses **civil** twilight (−6°).
+- **Next event highlighted:** the next upcoming time of the day is outlined in its accent colour.
+- **Golden and blue hour** (optional, `show_golden_hour: true`, toggle in the editor): golden hour
+  (sun between −4° and +6°) and blue hour (−6° to −4°) are shaded in the day chart, with their times
+  in the tooltip; a countdown to the next golden hour (or to its end) is added, and
+  `remaining_time_focus: golden_hour` puts it in the header chip.
+- **Countdown tile** (optional, `show_countdown_tile: true`, toggle in the editor): a large tile at
+  the start of the times row shows the main countdown – “1 h 48 min · Daylight left” by day,
+  “9 h 53 min · until Sunrise” at night. When space is tight, twilight tiles give way first.
 - **Times and details:** row with dawn, sunrise, sunset, dusk; optionally culmination with maximum
   altitude, day length with change vs. yesterday, azimuth on a 16-point compass (“Sun: 250° WSW”),
   azimuth at rise/set, “sun X° below the horizon”, moon age, moon distance with perigee/apogee,
@@ -229,8 +241,10 @@ card_height: 320
 | `show_events` | boolean | `true` | Times row |
 | `show_moon_times` | boolean | `true` | Moonrise / moonset |
 | `show_remaining_time` | boolean | `true` | Time until the next rise/set of sun, twilight and moon |
-| `remaining_time_focus` | `sun` / `next` | `sun` | Which countdown takes precedence: `sun` always shows sunrise/sunset in the header chip and minimal strip (and lists it first below the sky view); `next` shows the soonest event of sun, twilight or moon |
-| `twilight_level` | `civil` \| `nautical` \| `astronomical` \| `all` | `civil` | Which twilight limits are drawn (−6°, −12°, −18°) |
+| `remaining_time_focus` | `sun` / `next` / `golden_hour` | `sun` | Which countdown takes precedence: `sun` always shows sunrise/sunset in the header chip and minimal strip (and lists it first below the sky view); `next` shows the soonest event of sun, twilight or moon; `golden_hour` the next golden hour (requires `show_golden_hour`, otherwise like `sun`) |
+| `show_golden_hour` | boolean | `false` | Golden and blue hour shaded in the day chart, plus a countdown to the next golden hour |
+| `show_countdown_tile` | boolean | `false` | Large countdown tile at the start of the times row |
+| `twilight_level` | `civil` \| `nautical` \| `astronomical` \| `all` | `civil` | Which twilight limits are drawn (−6°, −12°, −18°); with `all` the twilight countdown uses civil twilight |
 | `location_name` | text | – | Display name, replaces the Home Assistant location name |
 | `latitude` / `longitude` | number | from HA | Override the Home Assistant coordinates |
 
@@ -312,9 +326,9 @@ npm run verify       # typecheck + lint + tests
 Screenshots are generated in real Chromium (`npm run dev` must be running, then
 `npm run screenshots`); the layout QA run (`npm run verify:layout`) checks 34 cases: heights
 120–800 px, widths from 320 px, seven locations, polar day/night, missing data, the time-axis
-scaling of the chart, WCAG contrast and console errors. Both tools need `puppeteer-core` and
-`@sparticuz/chromium` (`npm install --no-save puppeteer-core @sparticuz/chromium`) or a browser
-supplied via `CHROME_PATH` – they are not part of the project dependencies.
+scaling of the chart, WCAG contrast and console errors; CI runs it as a separate job against the
+dev server. `puppeteer-core` is a dev dependency; the browser comes from `CHROME_PATH` (or, as a
+fallback, `npm install --no-save @sparticuz/chromium`).
 
 ## License
 

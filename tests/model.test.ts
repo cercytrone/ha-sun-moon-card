@@ -386,6 +386,14 @@ describe('Restzeiten im Modell', () => {
     expect(model.extras.nextMoonEvent).toBeNull();
   });
 
+  it('sucht die Goldene Stunde nur, wenn sie eingeschaltet ist', () => {
+    const off = buildModel(resolveConfig({}).config, hassWith(), NOON);
+    expect(off.extras.goldenHour).toBeNull();
+    const on = buildModel(resolveConfig({ show_golden_hour: true }).config, hassWith(), NOON);
+    expect(on.extras.goldenHour).not.toBeNull();
+    expect(on.extras.goldenHour!.start.getTime()).toBeGreaterThan(NOON.getTime());
+  });
+
   it('richtet die Dämmerung nach der eingestellten Grenze', () => {
     const nautical = buildModel(
       resolveConfig({ twilight_level: 'nautical' }).config,
@@ -434,6 +442,9 @@ describe('getModel – Zwischenspeicher', () => {
       { twilight_level: 'nautical' },
       { entity: 'sun. sonne' },
       { moon_entity: 'sensor.mondphase' },
+      // Regression: Ohne diesen Schalter im Schlüssel blieb die Goldene
+      // Stunde nach dem Einschalten im Editor aus.
+      { show_golden_hour: true },
     ];
     expect(variants.length).toBeGreaterThan(0);
     for (const variant of variants) {

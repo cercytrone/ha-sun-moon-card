@@ -20,7 +20,8 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 [Polartag](docs/screenshot-polar-day.png) · [Polarnacht](docs/screenshot-polar-night.png) ·
 [Minimalvariante](docs/screenshot-minimal.png) ·
 [Minimalvariante im Horizontstil](docs/screenshot-minimal-horizon.png) ·
-[Englisch / 12-Stunden-Format](docs/screenshot-english.png)*
+[Englisch / 12-Stunden-Format](docs/screenshot-english.png) ·
+[Goldene Stunde mit Restzeit-Kachel](docs/screenshot-golden-hour.png)*
 
 > **English version:** [README.en.md](README.en.md)
 
@@ -152,6 +153,21 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   oder -untergang oder der Beginn der Dämmerung verdrängt den Sonnenauf-/-untergang nicht. Gibt es
   kein Sonnenereignis (Polartag, Polarnacht, `show_sun: false`), erscheint das nächste andere
   Ereignis. Mit `remaining_time_focus: next` zeigt der Chip immer das zeitlich nächste Ereignis
+- Restzeiten stehen mit Einheiten („1 h 48 min“), in der letzten Minute heißt es „Untergang
+  jetzt“. Auch die Tageslänge und ihre Änderung zum Vortag stehen so („9 h 57 min −4 min“)
+- Unter der Himmelsansicht steht als letzte Restzeit der **nächste Vollmond** („Vollmond in
+  3 d 4 h“); er wird nie zur Haupt-Restzeit
+- Bei `twilight_level: all` zählt die Dämmerungs-Restzeit bis zur **bürgerlichen** Dämmerung (−6°)
+- In der Zeitenleiste ist die **nächste anstehende Zeit des Tages** farbig umrandet
+- **Goldene und Blaue Stunde** (optional, `show_golden_hour: true`, im Editor schaltbar):
+  Goldene Stunde (Sonne zwischen −4° und +6°) und Blaue Stunde (−6° bis −4°) erscheinen als
+  Flächen im Tagesverlauf, ihr Tooltip nennt die Zeiten. Dazu kommt die Restzeit bis zur nächsten
+  Goldenen Stunde bzw. bis zu ihrem Ende; mit `remaining_time_focus: golden_hour` steht sie im
+  Kopfzeilen-Chip
+- **Restzeit-Kachel** (optional, `show_countdown_tile: true`, im Editor schaltbar): Eine große
+  Kachel vorn in der Zeitenleiste nennt die Haupt-Restzeit – tagsüber „1 h 48 min · Tageslicht
+  noch“, nachts „9 h 53 min · bis Sonnenaufgang“. Gut lesbar auf Wand-Tablets; fehlt der Platz,
+  weicht zuerst die Dämmerung, Auf- und Untergang bleiben
 - Fußzeile mit Zeitzone (ausgeschrieben), eingestellter Dämmerungsgrenze und Berechnungsverfahren;
   auf schmalen Karten entfallen erst Verfahren, dann Zeitzone – der Tooltip nennt alles
 - Auf schmalen Diagrammen tragen die Ereignis-Etiketten Uhrzeiten statt Wörtern; Auf- und
@@ -360,8 +376,10 @@ cards:
 | `show_events` | `true` / `false` | `true` | Zeitenleiste |
 | `show_moon_times` | `true` / `false` | `true` | Mondauf-/untergang |
 | `show_remaining_time` | `true` / `false` | `true` | Restzeit bis zum nächsten Auf-/Untergang von Sonne, Dämmerung und Mond |
-| `remaining_time_focus` | `sun` / `next` | `sun` | Welche Restzeit Vorrang hat: `sun` zeigt in Kopfzeilen-Chip und Minimalstreifen stets Sonnenauf-/-untergang (und stellt ihn unter der Himmelsansicht nach vorn), `next` das zeitlich nächste Ereignis von Sonne, Dämmerung oder Mond |
-| `twilight_level` | `civil` \| `nautical` \| `astronomical` \| `all` | `civil` | Welche Dämmerungsgrenzen dargestellt werden (−6°, −12°, −18°, alle) |
+| `remaining_time_focus` | `sun` / `next` / `golden_hour` | `sun` | Welche Restzeit Vorrang hat: `sun` zeigt in Kopfzeilen-Chip und Minimalstreifen stets Sonnenauf-/-untergang (und stellt ihn unter der Himmelsansicht nach vorn), `next` das zeitlich nächste Ereignis von Sonne, Dämmerung oder Mond, `golden_hour` die nächste Goldene Stunde (nur mit `show_golden_hour`, sonst wie `sun`) |
+| `show_golden_hour` | `true` / `false` | `false` | Goldene und Blaue Stunde als Flächen im Tagesverlauf, dazu die Restzeit bis zur nächsten Goldenen Stunde |
+| `show_countdown_tile` | `true` / `false` | `false` | Große Restzeit-Kachel vorn in der Zeitenleiste |
+| `twilight_level` | `civil` \| `nautical` \| `astronomical` \| `all` | `civil` | Welche Dämmerungsgrenzen dargestellt werden (−6°, −12°, −18°, alle); bei `all` zählt die Dämmerungs-Restzeit bis zur bürgerlichen Dämmerung |
 | `location_name` | Text | leer | Anzeigename; ersetzt den Standortnamen aus Home Assistant |
 | `latitude` | Zahl −90…90 | aus HA | Überschreibt den Breitengrad aus Home Assistant |
 | `longitude` | Zahl −180…180 | aus HA | Überschreibt den Längengrad aus Home Assistant |
@@ -382,7 +400,8 @@ Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
   Zenitzeit, Größe der Sonne, Breite und Höhe des Overlays (beide nur in der Minimalvariante),
   Dämmerungsgrenze
 - **Bereiche** – Schalter für Sonne, Mond, Dämmerung, astronomische Details, Kopfzeile,
-  Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang, Restzeit
+  Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang, Restzeit, Restzeit-Kachel,
+  Goldene & Blaue Stunde; dazu die Auswahl, welche Restzeit in der Kopfzeile steht
 - **Verhalten** – Sonnen- und Mond-Entität
 - **Standort** – Anzeigename, Breiten- und Längengrad, Schalter „Standort aus Home Assistant
   übernehmen“, Zurücksetzen
@@ -634,19 +653,23 @@ npm run dev                       # in einem zweiten Terminal
 npm run screenshots               # schreibt die PNGs nach docs/
 ```
 
-Benötigt werden `puppeteer-core` und `@sparticuz/chromium` (nur für dieses Werkzeug, nicht in den
-Projektabhängigkeiten):
+`puppeteer-core` gehört zu den Entwicklungsabhängigkeiten. Den Browser gibt `CHROME_PATH` vor;
+ohne ihn greifen die Werkzeuge auf `@sparticuz/chromium` zurück (nicht in den Abhängigkeiten):
 
 ```bash
-npm install --no-save puppeteer-core @sparticuz/chromium
-# oder einen eigenen Browser nutzen:
 CHROME_PATH=/usr/bin/chromium npm run screenshots
+# oder:
+npm install --no-save @sparticuz/chromium
 ```
+
+Die Layoutprüfung (`npm run verify:layout`) läuft in der CI als eigener Job „Layoutprüfung im
+Browser“ gegen den Entwicklungsserver.
 
 **Release:** `.github/workflows/release.yml` – per `workflow_dispatch` mit Versionsnummer wird
 die Version erhöht, gebaut, getaggt und anschließend ein GitHub-Release mit
 `dist/sun-moon-card.js` erzeugt (die Quelle für HACS). `.github/workflows/ci.yml` prüft bei
-Push und Pull Request Typen, Lint, Tests, Build und ob das eingecheckte Bundle aktuell ist.
+Push und Pull Request Typen, Lint, Tests, Build und ob das eingecheckte Bundle aktuell ist –
+und in einem zweiten Job das Layout in echtem Chrome (`npm run verify:layout`).
 
 ---
 

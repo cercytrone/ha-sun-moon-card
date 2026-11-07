@@ -295,11 +295,17 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                   this._update({
                     remaining_time_focus: (event.target as HTMLSelectElement).value as
                       | 'sun'
-                      | 'next',
+                      | 'next'
+                      | 'golden_hour',
                   })}
               >
                 <option value="sun">${this._t('editorRemainingTimeFocusSun')}</option>
                 <option value="next">${this._t('editorRemainingTimeFocusNext')}</option>
+                ${this._config?.show_golden_hour
+                  ? html`<option value="golden_hour">
+                      ${this._t('editorRemainingTimeFocusGolden')}
+                    </option>`
+                  : nothing}
               </select>
             </div>
           </div>
@@ -422,6 +428,8 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
           ${this._switch('show_events', 'editorShowEvents')}
           ${this._switch('show_moon_times', 'editorShowMoonTimes')}
           ${this._switch('show_remaining_time', 'editorRemainingTime')}
+          ${this._switch('show_countdown_tile', 'editorCountdownTile')}
+          ${this._switch('show_golden_hour', 'editorGoldenHour')}
           ${this._switch('show_footer', 'editorShowFooter')}
         </div>
 
