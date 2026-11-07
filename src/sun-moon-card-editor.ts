@@ -285,6 +285,26 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
           </div>
 
           <div class="row">
+            <label for="remaining-focus">${this._t('editorRemainingTimeFocus')}</label>
+            <div class="control">
+              <select
+                id="remaining-focus"
+                .value=${this._value('remaining_time_focus', 'sun')}
+                ?disabled=${this._config?.show_remaining_time === false}
+                @change=${(event: Event) =>
+                  this._update({
+                    remaining_time_focus: (event.target as HTMLSelectElement).value as
+                      | 'sun'
+                      | 'next',
+                  })}
+              >
+                <option value="sun">${this._t('editorRemainingTimeFocusSun')}</option>
+                <option value="next">${this._t('editorRemainingTimeFocusNext')}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
             <label for="animations">${this._t('editorAnimations')}</label>
             <div class="control">
               <span class="switch">

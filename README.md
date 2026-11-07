@@ -144,6 +144,10 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   `sun`-Entität: Findet sich im Fenster von 48 Stunden kein Ereignis (Polartag, Polarnacht),
   entfällt die Angabe, statt eine erfundene Zeit zu zeigen. Abgeschaltet wird sie mit
   `show_remaining_time: false`; im Kompaktmodus entfällt sie mit Kopf- und Fußzeile
+- Standardmäßig hat die **Sonne Vorrang** (`remaining_time_focus: sun`): Ein früherer Mondauf-
+  oder -untergang oder der Beginn der Dämmerung verdrängt den Sonnenauf-/-untergang nicht. Gibt es
+  kein Sonnenereignis (Polartag, Polarnacht, `show_sun: false`), erscheint das nächste andere
+  Ereignis. Mit `remaining_time_focus: next` zeigt der Chip immer das zeitlich nächste Ereignis
 - Fußzeile mit Zeitzone (ausgeschrieben), eingestellter Dämmerungsgrenze und Berechnungsverfahren
 - Zeiten im 12- oder 24-Stunden-Format, standardmäßig wie in Home Assistant eingestellt
 
@@ -349,6 +353,7 @@ cards:
 | `show_events` | `true` / `false` | `true` | Zeitenleiste |
 | `show_moon_times` | `true` / `false` | `true` | Mondauf-/untergang |
 | `show_remaining_time` | `true` / `false` | `true` | Restzeit bis zum nächsten Auf-/Untergang von Sonne, Dämmerung und Mond |
+| `remaining_time_focus` | `sun` / `next` | `sun` | Welche Restzeit Vorrang hat: `sun` zeigt in Kopfzeilen-Chip und Minimalstreifen stets Sonnenauf-/-untergang (und stellt ihn unter der Himmelsansicht nach vorn), `next` das zeitlich nächste Ereignis von Sonne, Dämmerung oder Mond |
 | `twilight_level` | `civil` \| `nautical` \| `astronomical` \| `all` | `civil` | Welche Dämmerungsgrenzen dargestellt werden (−6°, −12°, −18°, alle) |
 | `location_name` | Text | leer | Anzeigename; ersetzt den Standortnamen aus Home Assistant |
 | `latitude` | Zahl −90…90 | aus HA | Überschreibt den Breitengrad aus Home Assistant |

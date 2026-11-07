@@ -280,6 +280,11 @@ export function resolveConfig(
       input.show_remaining_time,
       DEFAULT_CONFIG.show_remaining_time,
     ),
+    remaining_time_focus: asChoice(
+      input.remaining_time_focus,
+      CONFIG_CHOICES.remainingTimeFocus,
+      DEFAULT_CONFIG.remaining_time_focus,
+    ),
     tap_action: asAction(input.tap_action, language, warnings),
     hold_action: asAction(input.hold_action, language, warnings),
     double_tap_action: asAction(input.double_tap_action, language, warnings),

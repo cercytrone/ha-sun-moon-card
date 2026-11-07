@@ -172,6 +172,14 @@ export interface SunMoonCardConfig {
    * folgen `show_sun`, `show_twilight` und `show_moon`.
    */
   show_remaining_time?: boolean;
+
+  /**
+   * Welche Restzeit Vorrang hat: `sun` (Standard) zeigt im Kopfzeilen-Chip
+   * und im Minimalstreifen stets Sonnenauf- bzw. -untergang und stellt ihn
+   * auch unter der Himmelsansicht an die erste Stelle. `next` zeigt das
+   * zeitlich nächste Ereignis – Sonne, Dämmerung oder Mond.
+   */
+  remaining_time_focus?: 'sun' | 'next';
 }
 
 /** Vollständig aufgelöste Konfiguration mit allen Standardwerten. */

@@ -979,7 +979,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     // Restzeit: Sie steht vor der Tageslänge, weil sie die drängendere
     // Angabe ist. Reicht der Platz nicht, entfällt der Chip – anders als die
     // Phase und die Tageslänge ist er nicht tragend.
-    const nextCountdown = this._countdowns(model, context)[0];
+    const nextCountdown = this._primaryCountdown(model, context);
     let countdownChip: TemplateResult | typeof nothing = nothing;
     if (nextCountdown) {
       const chipWidth = estimateChip(nextCountdown.compact) + COUNTDOWN_ICON_WIDTH;
@@ -1119,6 +1119,32 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   }
 
   /**
+   * Restzeiten in Anzeigereihenfolge.
+   *
+   * Mit `remaining_time_focus: sun` (Standard) steht die Sonne vorn, die
+   * übrigen folgen zeitlich. Sonst würde ein früher Monduntergang oder der
+   * Beginn der Dämmerung den Sonnenauf-/-untergang verdrängen – gerade dort,
+   * wo nur eine Zeile Platz hat. Gibt es kein Sonnenereignis (Polartag,
+   * Polarnacht, `show_sun: false`), bleibt die zeitliche Reihenfolge.
+   */
+  private _orderedCountdowns(model: CardModel, context: FormatContext): CountdownEntry[] {
+    const entries = this._countdowns(model, context);
+    if (this._config?.remaining_time_focus === 'next') return entries;
+    const sunIndex = entries.findIndex((entry) => entry.body === 'sun');
+    if (sunIndex <= 0) return entries;
+    const [sun] = entries.splice(sunIndex, 1);
+    return [sun, ...entries];
+  }
+
+  /** Die Restzeit für Kopfzeilen-Chip und Minimalstreifen. */
+  private _primaryCountdown(
+    model: CardModel,
+    context: FormatContext,
+  ): CountdownEntry | undefined {
+    return this._orderedCountdowns(model, context)[0];
+  }
+
+  /**
    * Bezeichnungen der Dämmerung je eingestellter Grenze.
    *
    * Kurzfassungen existieren nur für die bürgerliche Dämmerung; bei
@@ -1209,7 +1235,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     }
     // Restzeiten ergänzen die Ablesung: Was die Positionszeilen über den
     // Augenblick sagen, sagen diese Zeilen über die nächsten Stunden.
-    for (const entry of this._countdowns(model, context).slice(0, maxCountdownRows)) {
+    for (const entry of this._orderedCountdowns(model, context).slice(0, maxCountdownRows)) {
       rows.push(html`<span title=${entry.title}>${entry.long}</span>`);
     }
     if (rows.length === 0 || width < 150) return nothing;
@@ -1856,7 +1882,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     parts.push(
       `${context.t('sun')} ${formatDegrees(model.sun.altitude, 0, context.locale)}`,
     );
-    const next = this._countdowns(model, context)[0];
+    const next = this._primaryCountdown(model, context);
     if (next) parts.push(next.long);
     return parts.join(' · ');
   }

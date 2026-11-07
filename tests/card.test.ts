@@ -1625,7 +1625,7 @@ describe('Restzeiten', () => {
       return card.shadowRoot!.querySelector('.header .meta-chip');
     };
 
-    const both = await chipOf({});
+    const both = await chipOf({ remaining_time_focus: 'next' });
     expect(both?.getAttribute('data-body')).toBe('moon');
     expect((both?.textContent ?? '').trim()).toMatch(/^Aufgang in \d{1,2}:\d{2}$/);
     expect(both?.getAttribute('aria-label')).toMatch(/^Mondaufgang in /);
@@ -1637,6 +1637,31 @@ describe('Restzeiten', () => {
     const twilightOnly = await chipOf({ show_sun: false, show_moon: false });
     expect(twilightOnly?.getAttribute('data-body')).toBe('twilight');
     expect(twilightOnly?.getAttribute('aria-label')).toMatch(/^Abenddämmerung in /);
+  });
+
+  it('zeigt standardmäßig den Sonnenuntergang, auch wenn der Mond früher dran ist', async () => {
+    // Regression: Ein früherer Mondauf- oder -untergang verdrängte den
+    // Sonnenuntergang aus Chip, Minimalstreifen und der einzigen Zeile der
+    // Ablesung.
+    freeze('2026-10-26T15:00:00+01:00'); // Der Mond geht vor der Sonne auf.
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340 },
+      { width: 900 },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .meta-chip');
+    expect(chip?.getAttribute('data-body')).toBe('sun');
+    expect(chip?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in /);
+    const rows = readout(card).filter((row) => / in \d/.test(row));
+    expect(rows[0]).toMatch(/^Sonnenuntergang in /);
+
+    const minimal = await mountCard({
+      type: 'custom:sun-moon-card',
+      minimal_mode: true,
+      card_height: 48,
+    });
+    const title = minimal.shadowRoot!.querySelector('ha-card')?.getAttribute('title') ?? '';
+    expect(title).toMatch(/Sonnenuntergang in \d+ h \d+ min/);
+    expect(title).not.toMatch(/Mond(auf|unter)gang in/);
   });
 
   it('erfindet in der Polarnacht keine Restzeit', async () => {
