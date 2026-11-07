@@ -14,6 +14,10 @@ import { createMockHass } from '../dev/mock-hass.js';
 import '../src/sun-moon-card.js';
 import { SunMoonCard } from '../src/sun-moon-card.js';
 import { getModel, resolveConfig } from '../src/model.js';
+import {
+  ELEVATION_SUNRISE_SUNSET,
+  findNextElevationEvent,
+} from '../src/astronomy.js';
 import { DEFAULT_CARD_HEIGHT, DOUBLE_TAP_DELAY, HOLD_DELAY } from '../src/const.js';
 import type { HomeAssistant, SunMoonCardConfig } from '../src/types.js';
 
@@ -600,6 +604,34 @@ describe('Editor', () => {
     checkbox.checked = false;
     checkbox.dispatchEvent(new Event('change'));
     expect(events.at(-1)?.show_remaining_time).toBe(false);
+  });
+
+  it('schaltet Goldene Stunde und Restzeit-Kachel im Editor', async () => {
+    const editor = await mountEditor();
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+
+    for (const key of ['show_golden_hour', 'show_countdown_tile'] as const) {
+      const checkbox = editor.shadowRoot!.querySelector<HTMLInputElement>(`#${key}`)!;
+      expect(checkbox).not.toBeNull();
+      expect(checkbox.checked).toBe(false); // = Standardwert
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change'));
+      expect(events.at(-1)?.[key]).toBe(true);
+    }
+  });
+
+  it('bietet den Fokus „Goldene Stunde“ nur bei eingeschalteter Goldener Stunde an', async () => {
+    const values = (editor: HTMLElement): string[] =>
+      [...editor.shadowRoot!.querySelectorAll<HTMLOptionElement>('#remaining-focus option')].map(
+        (option) => option.value,
+      );
+    expect(values(await mountEditor())).toEqual(['sun', 'next']);
+    expect(
+      values(await mountEditor({ type: 'custom:sun-moon-card', show_golden_hour: true })),
+    ).toEqual(['sun', 'next', 'golden_hour']);
   });
 
   it('begrenzt die Kartenhöhe', async () => {
@@ -1732,6 +1764,129 @@ describe('Restzeiten', () => {
     const title = minimal.shadowRoot!.querySelector('ha-card')?.getAttribute('title') ?? '';
     expect(title).toMatch(/Sonnenuntergang in \d+ h \d+ min/);
     expect(title).not.toMatch(/Mond(auf|unter)gang in/);
+  });
+
+  it('nennt die Tageslänge und ihre Änderung mit Einheiten', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    const dayLength = chips(card).find((text) => text.startsWith('Tageslänge'));
+    expect(dayLength).toMatch(/^Tageslänge \d+ h \d+ min [+−]\d+ min$/);
+  });
+
+  it('sagt in der letzten Minute „jetzt“ statt „in 0 min“', async () => {
+    const sunset = findNextElevationEvent(
+      { latitude: 52.52, longitude: 13.405 },
+      new Date('2026-10-26T15:00:00+01:00'),
+      ELEVATION_SUNRISE_SUNSET,
+    )!;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(sunset.time.getTime() - 20_000));
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_moon: false, show_twilight: false },
+      { width: 900 },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .countdown-chip');
+    expect((chip?.textContent ?? '').trim()).toBe('Untergang jetzt');
+    expect(chip?.getAttribute('aria-label')).toBe('Sonnenuntergang jetzt');
+  });
+
+  it('hebt die nächste Zeit des Tages hervor', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    const next = card.shadowRoot!.querySelectorAll('.event-tile.next');
+    expect(next).toHaveLength(1);
+    expect(next[0].classList.contains('sunset')).toBe(true);
+
+    // Nach der Abenddämmerung steht heute nichts mehr an.
+    freeze('2026-10-26T23:00:00+01:00');
+    const late = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    expect(late.shadowRoot!.querySelectorAll('.event-tile.next')).toHaveLength(0);
+  });
+
+  it('zeigt die Restzeit-Kachel nur, wenn sie eingeschaltet ist', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const off = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    expect(off.shadowRoot!.querySelector('.event-tile.countdown')).toBeNull();
+
+    const day = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_countdown_tile: true },
+      { width: 900 },
+    );
+    const tile = day.shadowRoot!.querySelector('.event-tile.countdown');
+    expect(tile).not.toBeNull();
+    expect(tile?.textContent).toMatch(/\d+ h \d+ min/);
+    expect(tile?.textContent).toMatch(/Tageslicht noch/);
+    expect(tile?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in /);
+    // Auf- und Untergang bleiben neben der Kachel stehen.
+    expect(day.shadowRoot!.querySelector('.event-tile.sunrise')).not.toBeNull();
+    expect(day.shadowRoot!.querySelector('.event-tile.sunset')).not.toBeNull();
+
+    freeze('2026-10-26T22:00:00+01:00');
+    const night = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, show_countdown_tile: true },
+      { width: 360 },
+    );
+    const nightTile = night.shadowRoot!.querySelector('.event-tile.countdown');
+    expect(nightTile?.textContent).toMatch(/bis Sonnenaufgang/);
+    expect(night.shadowRoot!.querySelector('.event-tile.sunrise')).not.toBeNull();
+    expect(night.shadowRoot!.querySelector('.event-tile.sunset')).not.toBeNull();
+  });
+
+  it('zeigt Goldene und Blaue Stunde nur, wenn sie eingeschaltet sind', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const off = await mountCard({ type: 'custom:sun-moon-card', card_height: 340 }, { width: 900 });
+    expect(off.shadowRoot!.querySelector('.hour-bands')).toBeNull();
+    expect(readout(off).some((row) => row.startsWith('Goldene Stunde'))).toBe(false);
+
+    const on = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 420, show_golden_hour: true },
+      { width: 720 },
+    );
+    // Morgens und abends je eine Goldene und eine Blaue Stunde.
+    expect(on.shadowRoot!.querySelectorAll('.hour-bands .golden')).toHaveLength(2);
+    expect(on.shadowRoot!.querySelectorAll('.hour-bands .blue')).toHaveLength(2);
+    expect(
+      on.shadowRoot!.querySelector('.hour-bands .golden title')?.textContent,
+    ).toMatch(/^Goldene Stunde \d{1,2}:\d{2}–\d{1,2}:\d{2}$/);
+  });
+
+  it('stellt mit Fokus „golden_hour“ die Goldene Stunde in den Chip', async () => {
+    freeze('2026-10-26T15:00:00+01:00');
+    const card = await mountCard(
+      {
+        type: 'custom:sun-moon-card',
+        card_height: 340,
+        show_golden_hour: true,
+        remaining_time_focus: 'golden_hour',
+      },
+      { width: 900 },
+    );
+    const chip = card.shadowRoot!.querySelector('.header .countdown-chip');
+    expect(chip?.getAttribute('data-body')).toBe('golden');
+    expect(chip?.getAttribute('aria-label')).toMatch(/^Goldene Stunde in (\d+ h )?\d+ min$/);
+
+    // Ohne eingeschaltete Goldene Stunde fällt der Fokus auf die Sonne zurück.
+    const fallback = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 340, remaining_time_focus: 'golden_hour' },
+      { width: 900 },
+    );
+    expect(
+      fallback.shadowRoot!.querySelector('.header .countdown-chip')?.getAttribute('data-body'),
+    ).toBe('sun');
+  });
+
+  it('nennt den nächsten Vollmond als letzte Restzeit', async () => {
+    freeze('2026-11-07T15:00:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_height: 520, show_twilight: false },
+      { width: 900 },
+    );
+    const rows = readout(card).filter((row) => / in \d/.test(row));
+    expect(rows.at(-1)).toMatch(/^Vollmond in \d+ d \d+ h$/);
+    // Der Vollmond wird nie zur Haupt-Restzeit.
+    expect(
+      card.shadowRoot!.querySelector('.header .countdown-chip')?.getAttribute('aria-label'),
+    ).not.toMatch(/^Vollmond/);
   });
 
   it('erfindet in der Polarnacht keine Restzeit', async () => {

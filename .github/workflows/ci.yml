@@ -52,3 +52,34 @@ jobs:
 
       - name: Prüfen, ob das eingecheckte Bundle aktuell ist
         run: git diff --exit-code -- dist
+
+  layout:
+    name: Layoutprüfung im Browser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Entwicklungsserver starten
+        run: |
+          npx vite --port 5173 --strictPort > vite.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5173/shots.html > /dev/null && exit 0
+            sleep 1
+          done
+          cat vite.log
+          exit 1
+
+      - name: Layout prüfen
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: npm run verify:layout

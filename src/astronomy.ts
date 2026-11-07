@@ -55,6 +55,11 @@ export const ELEVATION_SUNRISE_SUNSET = -0.833; // Refraktion + Sonnenradius
 export const ELEVATION_CIVIL = -6; // Bürgerliche Dämmerung
 export const ELEVATION_NAUTICAL = -12; // Nautische Dämmerung
 export const ELEVATION_ASTRONOMICAL = -18; // Astronomische Dämmerung
+/** Goldene Stunde: Sonne zwischen −4° und +6° – warmes, weiches Licht. */
+export const GOLDEN_HOUR_UPPER = 6;
+export const GOLDEN_HOUR_LOWER = -4;
+/** Blaue Stunde: Sonne zwischen −6° und −4° – tiefblauer Himmel. */
+export const BLUE_HOUR_LOWER = -6;
 
 /** Suchschritt für die Nullstellensuche: 2 Minuten. */
 const SEARCH_STEP_MS = 2 * 60 * 1000;
@@ -823,6 +828,57 @@ export function findNextElevationEvent(
   )[0];
   if (!next) return null;
   return { time: new Date(next.time), rising: next.rising };
+}
+
+/** Ein Zeitfenster, in dem die Sonne in einem Höhenband steht. */
+export interface ElevationWindow {
+  /** Beginn; liegt bei laufendem Fenster vor oder auf „jetzt“. */
+  start: Date;
+  /** Ende; `null`, wenn es im Suchfenster nicht endet. */
+  end: Date | null;
+  /** Das Fenster läuft gerade. */
+  active: boolean;
+}
+
+/**
+ * Nächstes (oder laufendes) Fenster, in dem die Sonnenhöhe zwischen `lower`
+ * und `upper` liegt – etwa die Goldene Stunde (−4° … +6°).
+ *
+ * Gesucht wird über die Schnittpunkte mit beiden Grenzen. Erreicht die Sonne
+ * das Band im Suchfenster nicht (Polarnacht, Hochsommer in hohen Breiten),
+ * ist das Ergebnis `null`.
+ */
+export function findNextElevationWindow(
+  location: GeoLocation,
+  from: Date | number,
+  lower: number,
+  upper: number,
+  maxHours = 48,
+): ElevationWindow | null {
+  const startMs = typeof from === 'number' ? from : from.getTime();
+  if (!Number.isFinite(startMs) || !(lower < upper)) return null;
+  const altitudeAt = (time: number): number => sunAltitude(time, location);
+  const endMs = startMs + maxHours * 60 * 60 * 1000;
+  const crossings = [
+    ...findCrossings(startMs, endMs, SEARCH_STEP_MS, altitudeAt, lower),
+    ...findCrossings(startMs, endMs, SEARCH_STEP_MS, altitudeAt, upper),
+  ].sort((a, b) => a.time - b.time);
+  const inside = (altitude: number): boolean => altitude >= lower && altitude <= upper;
+
+  const active = inside(altitudeAt(startMs));
+  let windowStart: number | null = active ? startMs : null;
+  for (const crossing of crossings) {
+    // Kurz hinter dem Schnittpunkt entscheidet die Höhe, ob die Sonne das
+    // Band betritt oder verlässt.
+    const nowInside = inside(altitudeAt(crossing.time + 1000));
+    if (windowStart === null && nowInside) {
+      windowStart = crossing.time;
+    } else if (windowStart !== null && !nowInside) {
+      return { start: new Date(windowStart), end: new Date(crossing.time), active };
+    }
+  }
+  if (windowStart === null) return null;
+  return { start: new Date(windowStart), end: null, active };
 }
 
 /** Höhenprofil eines Himmelskörpers über den lokalen Tag. */

@@ -107,6 +107,8 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   double_tap_action: null,
   show_remaining_time: true,
   remaining_time_focus: 'sun',
+  show_golden_hour: false,
+  show_countdown_tile: false,
 };
 
 /**
@@ -242,7 +244,7 @@ export const CONFIG_CHOICES = {
   language: ['auto', 'de', 'en'],
   twilightLevel: ['civil', 'nautical', 'astronomical', 'all'],
   cardStyle: ['glass', 'flat', 'horizon'],
-  remainingTimeFocus: ['sun', 'next'],
+  remainingTimeFocus: ['sun', 'next', 'golden_hour'],
 } as const;
 
 /** Einstellungen des Layouts – abhängig von Höhe, Breite und Konfiguration. */

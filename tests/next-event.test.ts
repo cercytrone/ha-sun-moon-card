@@ -13,7 +13,11 @@ import {
   ELEVATION_CIVIL,
   ELEVATION_SUNRISE_SUNSET,
   buildDayProfile,
+  GOLDEN_HOUR_LOWER,
+  GOLDEN_HOUR_UPPER,
   findNextElevationEvent,
+  findNextElevationWindow,
+  sunAltitude,
 } from '../src/astronomy.js';
 import { endOfLocalDay, startOfLocalDay, zonedTimeToUtc } from '../src/timezone.js';
 
@@ -74,5 +78,40 @@ describe('findNextElevationEvent – nächstes Ereignis', () => {
   it('erfindet im Polartag keinen Sonnenuntergang', () => {
     const polarDay = zonedTimeToUtc(2026, 6, 21, 12, 0, 0, TZ);
     expect(findNextElevationEvent(LONGYEARBYEN, polarDay, ELEVATION_SUNRISE_SUNSET, 48)).toBeNull();
+  });
+});
+
+describe('findNextElevationWindow – Goldene Stunde', () => {
+  const golden = (time: Date, location = BERLIN) =>
+    findNextElevationWindow(location, time, GOLDEN_HOUR_LOWER, GOLDEN_HOUR_UPPER);
+
+  it('findet am Mittag die abendliche Goldene Stunde', () => {
+    const noon = zonedTimeToUtc(2026, 10, 26, 12, 0, 0, TZ);
+    const window = golden(noon);
+    expect(window?.active).toBe(false);
+    expect(window!.start.getTime()).toBeGreaterThan(noon.getTime());
+    expect(window!.end!.getTime()).toBeGreaterThan(window!.start.getTime());
+    // Grenzen: +6° zu Beginn, −4° am Ende (Abend).
+    expect(sunAltitude(window!.start.getTime(), BERLIN)).toBeCloseTo(GOLDEN_HOUR_UPPER, 1);
+    expect(sunAltitude(window!.end!.getTime(), BERLIN)).toBeCloseTo(GOLDEN_HOUR_LOWER, 1);
+    // Die Goldene Stunde liegt um den Sonnenuntergang.
+    const sunset = dayEvents(noon).sunset!;
+    expect(window!.start.getTime()).toBeLessThan(sunset.getTime());
+    expect(window!.end!.getTime()).toBeGreaterThan(sunset.getTime());
+  });
+
+  it('erkennt eine laufende Goldene Stunde', () => {
+    const noon = zonedTimeToUtc(2026, 10, 26, 12, 0, 0, TZ);
+    const evening = golden(noon)!;
+    const inside = new Date((evening.start.getTime() + evening.end!.getTime()) / 2);
+    const window = golden(inside);
+    expect(window?.active).toBe(true);
+    expect(window!.start.getTime()).toBe(inside.getTime());
+    expect(Math.abs(window!.end!.getTime() - evening.end!.getTime())).toBeLessThan(5000);
+  });
+
+  it('meldet in der Polarnacht keine Goldene Stunde', () => {
+    const polarNight = zonedTimeToUtc(2026, 12, 21, 12, 0, 0, TZ);
+    expect(golden(polarNight, LONGYEARBYEN)).toBeNull();
   });
 });

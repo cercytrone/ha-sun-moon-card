@@ -22,6 +22,19 @@ export function iconSunrise(size = 16, color = 'currentColor'): TemplateResult {
   `;
 }
 
+/** Goldene Stunde: tief stehende Sonne mit langen Strahlen. */
+export function iconGoldenHour(size = 16, color = 'currentColor'): TemplateResult {
+  return svg`
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 17h18" stroke="${color}" stroke-width="1.6" stroke-linecap="round" opacity="0.75" />
+      <circle cx="12" cy="14" r="3.4" stroke="${color}" stroke-width="1.6" />
+      <path d="M12 6.5v2.2M5.8 9.2l1.6 1.4M18.2 9.2l-1.6 1.4M3.6 13.2h2.2M18.2 13.2h2.2"
+        stroke="${color}" stroke-width="1.4" stroke-linecap="round" opacity="0.7" />
+      <path d="M7 20.5h10" stroke="${color}" stroke-width="1.4" stroke-linecap="round" opacity="0.45" />
+    </svg>
+  `;
+}
+
 /** Sonne unter dem Horizont (Sonnenuntergang). */
 export function iconSunset(size = 16, color = 'currentColor'): TemplateResult {
   return svg`

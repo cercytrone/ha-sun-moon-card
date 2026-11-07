@@ -179,7 +179,19 @@ export interface SunMoonCardConfig {
    * auch unter der Himmelsansicht an die erste Stelle. `next` zeigt das
    * zeitlich nächste Ereignis – Sonne, Dämmerung oder Mond.
    */
-  remaining_time_focus?: 'sun' | 'next';
+  remaining_time_focus?: 'sun' | 'next' | 'golden_hour';
+
+  /**
+   * Goldene (−4° … +6°) und Blaue Stunde (−6° … −4°) als Flächen im
+   * Tagesverlauf; dazu die Restzeit bis zur nächsten Goldenen Stunde.
+   */
+  show_golden_hour?: boolean;
+
+  /**
+   * Große Restzeit-Kachel am Anfang der Ereignisleiste – gut lesbar auf
+   * Wand-Tablets.
+   */
+  show_countdown_tile?: boolean;
 }
 
 /** Vollständig aufgelöste Konfiguration mit allen Standardwerten. */
@@ -276,6 +288,10 @@ export interface CardExtras {
   nextTwilightEvent: NextEventDetail | null;
   /** Nächster Mondauf- oder -untergang. */
   nextMoonEvent: NextEventDetail | null;
+  /**
+   * Nächste oder laufende Goldene Stunde; nur mit `show_golden_hour`.
+   */
+  goldenHour: { start: Date; end: Date | null; active: boolean } | null;
 }
 
 /** Ein Mondauf- oder -untergang mit Zusatzinformationen. */

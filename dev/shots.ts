@@ -58,6 +58,8 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   nofooter: { show_footer: false },
   nocountdown: { show_remaining_time: false },
   nextevent: { remaining_time_focus: 'next' },
+  golden: { show_golden_hour: true, show_countdown_tile: true },
+  goldenfocus: { show_golden_hour: true, remaining_time_focus: 'golden_hour' },
 };
 
 installTimeMock();

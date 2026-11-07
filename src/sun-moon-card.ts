@@ -63,7 +63,6 @@ import {
   formatDayOffset,
   formatDegrees,
   formatCountdown,
-  formatDurationCompact,
   formatKilometers,
   formatPercent,
   formatSignedDuration,
@@ -73,6 +72,7 @@ import {
 } from './format.js';
 import {
   iconDawn,
+  iconGoldenHour,
   iconDusk,
   iconMoonrise,
   iconMoonset,
@@ -108,7 +108,7 @@ import type {
 } from './types.js';
 
 /** Himmelskörper, auf den sich eine Restzeit bezieht. */
-type CountdownBody = 'sun' | 'twilight' | 'moon';
+type CountdownBody = 'sun' | 'twilight' | 'moon' | 'golden';
 
 /** Eine ausstehende Restzeit (Sonne, Dämmerung oder Mond). */
 interface CountdownEntry {
@@ -123,6 +123,8 @@ interface CountdownEntry {
   duration: string;
   /** Zeitpunkt des Ereignisses. */
   time: Date;
+  /** Name des Ereignisses, z. B. „Sonnenuntergang“. */
+  name: string;
   /** Aufgang (bzw. Ende der Nacht) statt Untergang. */
   rising: boolean;
   /** Ausformulierte Fassung, z. B. „Sonnenuntergang in 3 h 12 min“. */
@@ -136,6 +138,11 @@ interface CountdownEntry {
   icon: TemplateResult;
   /** Körper; steht als `data-body` am Chip und erlaubt eigenes Styling. */
   body: CountdownBody;
+  /**
+   * Fernes Ereignis (nächster Vollmond): Es steht stets am Ende und wird nie
+   * zur Haupt-Restzeit.
+   */
+  trailing?: boolean;
 }
 
 /** Kantenlänge des Symbols im Restzeit-Chip. */
@@ -147,7 +154,7 @@ const COUNTDOWN_ICON_WIDTH = 17;
 interface EventTile {
   key: string;
   /** Bestimmt die Akzentfarbe der Kachel. */
-  kind: 'dawn' | 'sunrise' | 'sunset' | 'dusk' | 'extra';
+  kind: 'dawn' | 'sunrise' | 'sunset' | 'dusk' | 'extra' | 'countdown';
   label: string;
   /** Kürzere Beschriftung für schmale Karten. */
   shortLabel: string;
@@ -905,6 +912,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                       showAstronomicalLayers: config.show_astronomical_details,
                       currentAltitude: model.sun.altitude,
                       countdown: this._chartCountdown(model, context, layout),
+                      showGoldenHour: config.show_golden_hour,
                       moonPath: model.moonPath,
                       moon: config.show_moon
                         ? {
@@ -1039,11 +1047,12 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
 
     let dayLengthChip: TemplateResult | typeof nothing = nothing;
     if (model.daylightMinutes !== null) {
-      const length = formatDurationCompact(model.daylightMinutes);
+      // Mit Einheiten wie die Restzeit – „10:12“ läse sich wie eine Uhrzeit.
+      const length = formatCountdown(model.daylightMinutes, context.t);
       const delta =
         extras.daylightDeltaMinutes === null
           ? ''
-          : ` ${formatSignedDuration(extras.daylightDeltaMinutes, context.locale)}`;
+          : ` ${formatSignedDuration(extras.daylightDeltaMinutes, context.t)}`;
       const text = `${context.t('dayLength')} ${length}${delta}`;
       const chipWidth = estimateChip(text);
       if (chipWidth <= budget) {
@@ -1111,26 +1120,28 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       shortKey: StringKey | null,
       icon: TemplateResult,
       body: CountdownBody,
+      trailing = false,
     ): void => {
       if (!event) return;
       const minutes = (event.time.getTime() - now) / 60_000;
       if (!(minutes >= 0)) return;
       // Auch die kurze Fassung nennt die Einheiten: „in 1:48“ läse sich wie
-      // eine Uhrzeit.
-      const duration = formatCountdown(minutes, context.t);
+      // eine Uhrzeit. In der letzten Minute heißt es „jetzt“ statt „in 0 min“.
+      const imminent = minutes < 1;
+      const duration = imminent ? context.t('countdownNow') : formatCountdown(minutes, context.t);
+      const phrase = (key: StringKey): string =>
+        imminent
+          ? context.t('nowFormat', { event: context.t(key) })
+          : context.t('untilFormat', { event: context.t(key), duration });
       entries.push({
         minutes,
-        compact: context.t('untilFormat', {
-          event: context.t(shortKey ?? longKey),
-          duration,
-        }),
+        compact: phrase(shortKey ?? longKey),
         duration,
         time: event.time,
         rising: event.rising,
-        long: context.t('untilFormat', {
-          event: context.t(longKey),
-          duration: formatCountdown(minutes, context.t),
-        }),
+        trailing,
+        name: context.t(longKey),
+        long: phrase(longKey),
         title: `${context.t(longKey)} ${formatTime(event.time, context)}${
           event.dayOffset > 0 ? ` (${formatDayOffset(event.dayOffset, context.t)})` : ''
         }`,
@@ -1169,7 +1180,37 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       'moon',
     );
 
-    return entries.sort((a, b) => a.minutes - b.minutes);
+    // Goldene Stunde: läuft sie, zählt die Restzeit bis zu ihrem Ende.
+    const golden = model.extras.goldenHour;
+    if (golden) {
+      const target = golden.active ? golden.end : golden.start;
+      if (target) {
+        add(
+          { time: target, rising: !golden.active, dayOffset: this._dayOffset(target, model) },
+          golden.active ? 'goldenHourEnd' : 'goldenHour',
+          golden.active ? 'goldenHourEndShort' : 'goldenHourShort',
+          iconGoldenHour(COUNTDOWN_ICON_SIZE),
+          'golden',
+        );
+      }
+    }
+
+    // Nächster Vollmond: steht als fernes Ereignis immer am Ende.
+    const fullMoon = model.extras.nextFullMoon;
+    if (config.show_moon && fullMoon) {
+      add(
+        { time: fullMoon.time, rising: true, dayOffset: this._dayOffset(fullMoon.time, model) },
+        'fullMoon',
+        null,
+        iconMoonrise(COUNTDOWN_ICON_SIZE),
+        'moon',
+        true,
+      );
+    }
+
+    return entries.sort(
+      (a, b) => Number(Boolean(a.trailing)) - Number(Boolean(b.trailing)) || a.minutes - b.minutes,
+    );
   }
 
   /**
@@ -1183,11 +1224,21 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
    */
   private _orderedCountdowns(model: CardModel, context: FormatContext): CountdownEntry[] {
     const entries = this._countdowns(model, context);
-    if (this._config?.remaining_time_focus === 'next') return entries;
-    const sunIndex = entries.findIndex((entry) => entry.body === 'sun');
-    if (sunIndex <= 0) return entries;
-    const [sun] = entries.splice(sunIndex, 1);
-    return [sun, ...entries];
+    const focus = this._config?.remaining_time_focus;
+    if (focus === 'next') return entries;
+    // Mit `golden_hour` steht die Goldene Stunde vorn, sonst die Sonne; fehlt
+    // das gewünschte Ereignis, rückt die Sonne bzw. die Zeitfolge nach.
+    const order: CountdownBody[] = focus === 'golden_hour' ? ['sun', 'golden'] : ['sun'];
+    for (const body of order) {
+      const index = entries.findIndex((entry) => entry.body === body && !entry.trailing);
+      if (index > 0) entries.unshift(...entries.splice(index, 1));
+    }
+    return entries;
+  }
+
+  /** Kalendertage zwischen heute und `time` in der Zeitzone der Karte. */
+  private _dayOffset(time: Date, model: CardModel): number {
+    return localDayIndex(time, model.timeZone) - localDayIndex(model.now, model.timeZone);
   }
 
   /** Die Restzeit für Kopfzeilen-Chip und Minimalstreifen. */
@@ -1195,7 +1246,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     model: CardModel,
     context: FormatContext,
   ): CountdownEntry | undefined {
-    return this._orderedCountdowns(model, context)[0];
+    // Ferne Ereignisse (Vollmond) taugen nicht als Haupt-Restzeit.
+    return this._orderedCountdowns(model, context).find((entry) => !entry.trailing);
   }
 
   /**
@@ -1366,7 +1418,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     const firstPart = fits(`${twilightText} · ${zoneText}`)
       ? `${twilightText} · ${zoneText}`
       : twilightText;
-    const showMethod = fits(`${firstPart} · ${methodText}`) || width >= 520;
+    const showMethod = fits(`${firstPart} · ${methodText}`);
 
     return html`
       <div
@@ -1435,6 +1487,52 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   }
 
   /** Leiste mit Dämmerungs- und Sonnenzeiten. */
+  /**
+   * Große Restzeit-Kachel: Dauer und Ereignis, z. B. „1 h 48 min · Tageslicht
+   * noch“ oder „8 h 23 min · bis Sonnenaufgang“.
+   */
+  private _renderCountdownTile(
+    entry: CountdownEntry,
+    context: FormatContext,
+    compact: boolean,
+    span: number,
+    inner: number,
+    labelFontSize: number,
+    timeFontSize: number,
+  ): TemplateResult {
+    const daylight = entry.body === 'sun' && !entry.rising;
+    const caption = daylight
+      ? context.t('tileDaylightLeft')
+      : context.t('tileUntil', { event: entry.name });
+    const label = this._fitLabel([caption, entry.name], inner, labelFontSize);
+    const value = this._fitLabel([entry.duration], inner, timeFontSize + 2) ?? entry.duration;
+    return html`<div
+      class=${classMap({ 'event-tile': true, countdown: true, rising: entry.rising, compact })}
+      data-body=${entry.body}
+      style=${styleMap({ gridColumn: `span ${span}` })}
+      title=${entry.title}
+      role="img"
+      aria-label=${entry.long}
+    >
+      <span class="event-head">
+        <span class="event-icon">${entry.icon}</span>
+        <span class="event-time" style=${styleMap({ fontSize: `${timeFontSize + 2}px` })}
+          >${value}</span
+        >
+        ${compact && label
+          ? html`<span class="event-label" style=${styleMap({ fontSize: `${labelFontSize}px` })}
+              >${label}</span
+            >`
+          : nothing}
+      </span>
+      ${!compact && label
+        ? html`<span class="event-label" style=${styleMap({ fontSize: `${labelFontSize}px` })}
+            >${label}</span
+          >`
+        : nothing}
+    </div>`;
+  }
+
   private _renderEvents(
     model: CardModel,
     context: FormatContext,
@@ -1510,13 +1608,39 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     // Bei schmalen Karten werden die zusätzlichen Ebenen ausgeblendet,
     // damit keine Beschriftung abgeschnitten wird.
     const maxTiles = width < 300 ? 3 : width < 420 ? 4 : width < 560 ? 6 : 8;
-    const visible = tiles.slice(0, Math.max(2, maxTiles));
+
+    /*
+     * Restzeit-Kachel: vorn und – wo Platz ist – doppelt breit. Sie belegt
+     * Plätze der Leiste, damit die übrigen Kacheln nicht zu schmal werden.
+     */
+    const countdown = config.show_countdown_tile ? this._primaryCountdown(model, context) : undefined;
+    const countdownSpan = countdown ? 2 : 0;
+    // Reicht der Platz nicht, entfallen zuerst die zusätzlichen Ebenen, dann
+    // die Dämmerung – Auf- und Untergang bleiben.
+    const slots = Math.max(2, maxTiles - countdownSpan);
+    const rank = (tile: EventTile): number =>
+      tile.secondary ? 2 : tile.kind === 'sunrise' || tile.kind === 'sunset' ? 0 : 1;
+    const kept = new Set(
+      [...tiles]
+        .map((tile, index) => ({ tile, index }))
+        .sort((a, b) => rank(a.tile) - rank(b.tile) || a.index - b.index)
+        .slice(0, slots)
+        .map((entry) => entry.tile),
+    );
+    const visible = tiles.filter((tile) => kept.has(tile));
+
+    // Die nächste anstehende Kachel des Tages wird hervorgehoben.
+    const nowMs = model.now.getTime();
+    const nextTile = visible
+      .filter((tile) => tile.time && tile.time.getTime() > nowMs)
+      .sort((a, b) => a.time!.getTime() - b.time!.getTime())[0];
 
     // verfügbare Breite je Kachel (Innenmaß)
     const gap = 6;
-    const innerWidth = Math.max(40, width - 2 * padding - gap * (visible.length - 1));
+    const columns = visible.length + countdownSpan;
+    const innerWidth = Math.max(40, width - 2 * padding - gap * (columns - 1));
     // Innenmaß einer Kachel: Rand 1 px und Innenabstand 3 px je Seite
-    const tileInner = innerWidth / visible.length - 10;
+    const tileInner = innerWidth / columns - 10;
     const labelFontSize = compact
       ? tileInner < 120
         ? 8.5
@@ -1531,6 +1655,17 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         class="events"
         style=${styleMap({ gap: `${gap}px`, height: `${layout.eventsHeight}px` })}
       >
+        ${countdown
+          ? this._renderCountdownTile(
+              countdown,
+              context,
+              compact,
+              countdownSpan,
+              tileInner * countdownSpan + (countdownSpan - 1) * (gap + 10),
+              labelFontSize,
+              timeFontSize,
+            )
+          : nothing}
         ${visible.map((tile) => {
           const label = this._fitLabel([tile.label, tile.shortLabel], tileInner, labelFontSize);
           const timeText = tile.time ? formatTime(tile.time, context) : tile.missingText;
@@ -1541,6 +1676,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                 'event-tile': true,
                 [tile.kind]: true,
                 secondary: Boolean(tile.secondary),
+                next: tile === nextTile,
                 compact,
               })}
               title=${`${tile.label}: ${timeText}`}

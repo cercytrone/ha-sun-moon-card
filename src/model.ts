@@ -22,6 +22,9 @@ import {
   azimuthAt,
   buildDayProfile,
   findNextElevationEvent,
+  findNextElevationWindow,
+  GOLDEN_HOUR_LOWER,
+  GOLDEN_HOUR_UPPER,
   buildMoonPath,
   findFullMoons,
   findMoonEvents,
@@ -285,6 +288,8 @@ export function resolveConfig(
       CONFIG_CHOICES.remainingTimeFocus,
       DEFAULT_CONFIG.remaining_time_focus,
     ),
+    show_golden_hour: asBoolean(input.show_golden_hour, DEFAULT_CONFIG.show_golden_hour),
+    show_countdown_tile: asBoolean(input.show_countdown_tile, DEFAULT_CONFIG.show_countdown_tile),
     tap_action: asAction(input.tap_action, language, warnings),
     hold_action: asAction(input.hold_action, language, warnings),
     double_tap_action: asAction(input.double_tap_action, language, warnings),
@@ -431,6 +436,7 @@ export function emptyExtras(timeZone: string, locale: string): CardExtras {
     nextSunEvent: null,
     nextTwilightEvent: null,
     nextMoonEvent: null,
+    goldenHour: null,
   };
 }
 
@@ -727,6 +733,9 @@ export function buildModel(
     nextSunEvent,
     nextTwilightEvent,
     nextMoonEvent,
+    goldenHour: config.show_golden_hour
+      ? findNextElevationWindow(location, now, GOLDEN_HOUR_LOWER, GOLDEN_HOUR_UPPER)
+      : null,
   };
 
   if (day.polar === 'polar-day') issues.push('polar-day');
@@ -785,6 +794,8 @@ function configSignature(config: ResolvedConfig): string {
     String(config.show_sun),
     String(config.show_moon),
     String(config.show_twilight),
+    // Die Goldene Stunde sucht das Modell ebenfalls selbst.
+    String(config.show_golden_hour),
   ].join('|');
 }
 

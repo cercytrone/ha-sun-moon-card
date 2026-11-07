@@ -537,6 +537,37 @@ export const cardStyles = css`
     --smc-event-color: var(--smc-dusk);
   }
 
+  /* Die nächste anstehende Zeit des Tages: Rahmen in der Akzentfarbe. */
+  .event-tile.next {
+    border-color: color-mix(in srgb, var(--smc-event-color, #888) 70%, transparent);
+    box-shadow:
+      var(--smc-surface-shadow),
+      inset 0 0 0 1px color-mix(in srgb, var(--smc-event-color, #888) 45%, transparent);
+  }
+
+  /* Restzeit-Kachel: Akzent nach Körper. */
+  .event-tile.countdown {
+    --smc-event-color: var(--smc-sunset);
+    background: color-mix(in srgb, var(--smc-event-color) 12%, var(--smc-surface));
+    border-color: color-mix(in srgb, var(--smc-event-color) 45%, transparent);
+  }
+
+  .event-tile.countdown.rising {
+    --smc-event-color: var(--smc-sunrise);
+  }
+
+  .event-tile.countdown[data-body='twilight'] {
+    --smc-event-color: var(--smc-dusk);
+  }
+
+  .event-tile.countdown[data-body='moon'] {
+    --smc-event-color: var(--smc-moon-lit, #c9d3ea);
+  }
+
+  .event-tile.countdown[data-body='golden'] {
+    --smc-event-color: var(--smc-golden-hour, #f2b544);
+  }
+
   .event-label {
     font-size: 9.5px;
     line-height: 1.15;
