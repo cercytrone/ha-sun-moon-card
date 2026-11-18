@@ -388,7 +388,8 @@ cards:
 | `minimal_mode` | `true` / `false` | `false` | Minimalvariante: nur der Zeitstrahl, ohne Kopfzeile, Zeitenleiste, Details, Fußzeile und Legende. Erlaubt Kartenhöhen ab 24 px; ein Klick öffnet die vollständige Karte in einem Overlay |
 | `minimal_show_times` | `true` / `false` | `true` | Minimalvariante: Zeit von Sonnenaufgang (links) und Sonnenuntergang (rechts) über dem Zeitstrahl nennen. Braucht 36 px Kartenhöhe |
 | `minimal_show_zenith` | `true` / `false` | `true` | Minimalvariante: Zeit der Kulmination mittig über dem Zeitstrahl nennen. Braucht 36 px Kartenhöhe |
-| `sun_marker_size` | Zahl in px (2–12) | `6` | Radius des Sonnenmarkers im Verlauf. Der Marker wächst mit der Höhe des Verlaufs bis auf diesen Wert und bleibt auf flachen Streifen bei mindestens 2,8 px. Gilt für Minimal-, Kompakt- und Volldarstellung gleichermaßen |
+| `sun_marker_size` | Zahl in px (2–12) | `6` | Radius des Sonnenmarkers im Verlauf. Der Marker wächst mit der Höhe des Verlaufs bis auf diesen Wert und bleibt auf flachen Streifen bei mindestens 2,8 px. Gilt für Minimal-, Kompakt- und Volldarstellung gleichermaßen; gilt auch für den Sonnenpunkt im Kartenstil `clean` |
+| `moon_marker_size` | Zahl in px (2–12) | `6` | Radius des Mondpunkts im Kartenstil `clean` (px); die Sonne folgt dort `sun_marker_size`. Liegt der Mond dicht an der Sonne, weicht er seitlich aus |
 | `popup_width` | Zahl in px (320–1200) | `720` | Breite des Overlays der Minimalvariante (nach oben auf 92 % der Fensterbreite begrenzt) |
 | `popup_height` | Zahl in px (260–800) | `460` | Höhe des Overlays der Minimalvariante – unabhängig von `card_height` |
 | `tap_action` | Aktion | Overlay öffnen | Aktion beim Antippen des Minimalstreifens |
@@ -434,7 +435,7 @@ gewählten Kartenstil passen:
 ![Visueller Editor](docs/screenshot-editor.png)
 
 - **Kartenstil & Aussehen** – Kartenstil, Szene (nur im Stil `scene`), Farbschema, Animationen,
-  Größe der Sonne (nur in den klassischen Stilen und der Minimalvariante)
+  Größe der Sonne (nicht in der Szene) und – nur in „Minimalistisch“ – Größe des Mondes
 - **Größe & Layout** – Kartenhöhe (Schieberegler und Zahlenfeld), automatische Höhe,
   Kompaktmodus (klassische Stile), Minimalvariante mit Auf-/Untergangszeit, Zenitzeit und der
   Größe des Overlays. Wer den Kartenstil wechselt, ohne eine eigene Höhe gesetzt zu haben,

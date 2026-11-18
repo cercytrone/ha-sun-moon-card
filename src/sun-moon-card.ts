@@ -1232,6 +1232,8 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                   moonPath: model.moonPath,
                   sunAltitude: model.sun.altitude,
                   moonAltitude: model.moon.position.apparentAltitude,
+                  sunSize: config.sun_marker_size,
+                  moonSize: config.moon_marker_size,
                 })}
               </div>`
             : nothing}
