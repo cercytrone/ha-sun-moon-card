@@ -687,6 +687,68 @@ describe('Editor', () => {
     expect(customEvents.at(-1)?.card_height).toBe(400);
   });
 
+  it('gliedert den Editor in ausklappbare Bereiche', async () => {
+    const editor = await mountEditor();
+    const groups = [...editor.shadowRoot!.querySelectorAll<HTMLDetailsElement>('details.group')];
+    expect(groups.map((group) => group.dataset.group)).toEqual([
+      'style',
+      'layout',
+      'content',
+      'countdown',
+      'locale',
+      'source',
+    ]);
+    // Anfangs ist nur „Kartenstil & Aussehen“ offen.
+    expect(groups.map((group) => group.open)).toEqual([true, false, false, false, false, false]);
+    // Zugeklappt nennt der Kopf die wichtigste Einstellung.
+    const summary = (key: string) =>
+      editor.shadowRoot!
+        .querySelector(`details[data-group="${key}"] .group-summary`)
+        ?.textContent?.trim();
+    expect(summary('layout')).toBe('340 px');
+    expect(summary('source')).toBe('Home Assistant');
+
+    // Aufklappen bleibt über ein erneutes Rendern erhalten.
+    const content = groups[2];
+    content.open = true;
+    content.dispatchEvent(new Event('toggle'));
+    await (editor as unknown as { updateComplete: Promise<void> }).updateComplete;
+    expect(
+      editor.shadowRoot!.querySelector<HTMLDetailsElement>('details[data-group="content"]')!.open,
+    ).toBe(true);
+  });
+
+  it('zeigt nur die Schalter, die zum Kartenstil passen', async () => {
+    const classic = await mountEditor();
+    expect(classic.shadowRoot!.querySelector('#show_sky_view')).not.toBeNull();
+    expect(classic.shadowRoot!.querySelector('#show_sun_info')).toBeNull();
+    expect(classic.shadowRoot!.querySelector('#compact')).not.toBeNull();
+
+    for (const style of ['scene', 'clean'] as const) {
+      const editor = await mountEditor({ type: 'custom:sun-moon-card', card_style: style });
+      const root = editor.shadowRoot!;
+      // Das Auswahlfeld zeigt schon beim ersten Rendern den gewählten Stil.
+      expect(root.querySelector<HTMLSelectElement>('#cardstyle')!.value).toBe(style);
+      expect(root.querySelector('#show_sun_info')).not.toBeNull();
+      expect(root.querySelector('#show_moon_info')).not.toBeNull();
+      expect(root.querySelector('#show_sky_view')).toBeNull();
+      expect(root.querySelector('#show_footer')).toBeNull();
+      expect(root.querySelector('#compact')).toBeNull();
+      expect(root.querySelector('#sun-marker')).toBeNull();
+    }
+
+    const editor = await mountEditor({ type: 'custom:sun-moon-card', card_style: 'clean' });
+    const events: SunMoonCardConfig[] = [];
+    editor.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const moonInfo = editor.shadowRoot!.querySelector<HTMLInputElement>('#show_moon_info')!;
+    expect(moonInfo.checked).toBe(true);
+    moonInfo.checked = false;
+    moonInfo.dispatchEvent(new Event('change'));
+    expect(events.at(-1)?.show_moon_info).toBe(false);
+  });
+
   it('begrenzt die Kartenhöhe', async () => {
     const editor = await mountEditor();
     const events: SunMoonCardConfig[] = [];
@@ -2034,17 +2096,55 @@ describe('Kartenstil „scene“', () => {
     expect(moon.querySelector('.scene-chevron')).toBeNull();
   });
 
-  it('stapelt die Kacheln auf schmalen Karten und kürzt die Kopfzeile', async () => {
+  it('zeigt die Kacheln auf schmalen Karten kompakt nebeneinander', async () => {
     freeze('2026-11-18T12:12:00+01:00');
     const card = await mountCard(
       { type: 'custom:sun-moon-card', card_style: 'scene', card_height: 520 },
       { width: 380 },
     );
     const root = card.shadowRoot!;
-    expect(root.querySelector('.scene-tiles.stacked')).not.toBeNull();
+    expect(root.querySelector('.scene-tiles.stacked')).toBeNull();
+    expect(root.querySelectorAll('.scene-tile.compact')).toHaveLength(2);
+    // Kompakt stehen Auf- und Untergang in einer Zeile, ohne eigene Spalte.
+    const sun = root.querySelector('.scene-tile.sun')!;
+    expect(sun.querySelector('.scene-tile-times')).toBeNull();
+    expect(sun.textContent).toMatch(/↑ 07:33\s+↓ 16:09/);
+    expect(root.querySelector('.scene-tile.moon .scene-tile-label')?.textContent?.trim()).toBe(
+      'Erstes Viertel',
+    );
     expect(root.querySelector('.scene-chip.phase')).toBeNull();
     expect((root.querySelector('.countdown-chip')?.textContent ?? '').trim()).toMatch(/^\d+ h \d+ min$/);
     expect(root.querySelector('.scene-label')?.textContent?.trim()).toBe('Aufgang');
+
+    // Erst sehr schmale Karten stapeln die Kacheln.
+    const tiny = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'scene', card_height: 560 },
+      { width: 290 },
+    );
+    expect(tiny.shadowRoot!.querySelector('.scene-tiles.stacked')).not.toBeNull();
+  });
+
+  it('blendet die Infofelder einzeln aus', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const noMoon = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'scene', show_moon_info: false },
+      { width: 780 },
+    );
+    expect(noMoon.shadowRoot!.querySelectorAll('.scene-tile')).toHaveLength(1);
+    expect(noMoon.shadowRoot!.querySelector('.scene-tile.sun')).not.toBeNull();
+    // Die Mondbahn bleibt – abgeschaltet ist nur das Infofeld.
+    expect(noMoon.shadowRoot!.querySelector('.moon-curve')).not.toBeNull();
+
+    const none = await mountCard(
+      {
+        type: 'custom:sun-moon-card',
+        card_style: 'scene',
+        show_sun_info: false,
+        show_moon_info: false,
+      },
+      { width: 780 },
+    );
+    expect(none.shadowRoot!.querySelector('.scene-tiles')).toBeNull();
   });
 
   it('lässt bei wenig Höhe zuerst die Kacheln weg, der Himmel bleibt', async () => {
@@ -2140,17 +2240,41 @@ describe('Kartenstil „clean“', () => {
     expect(opened).toEqual(['sun.sun', 'sensor.moon']);
   });
 
-  it('stapelt auf schmalen Karten und kürzt die Chips', async () => {
+  it('zeigt Sonne und Mond auf schmalen Karten kompakt nebeneinander', async () => {
     freeze('2026-11-18T12:12:00+01:00');
     const card = await mountCard(
       { type: 'custom:sun-moon-card', card_style: 'clean', card_height: 460 },
       { width: 380 },
     );
     const root = card.shadowRoot!;
-    expect(root.querySelector('.clean-info.stacked')).not.toBeNull();
-    expect(root.querySelector('.clean-sep')).toBeNull();
+    expect(root.querySelector('.clean-info.stacked')).toBeNull();
+    expect(root.querySelector('.clean-sep')).not.toBeNull();
+    expect(root.querySelectorAll('.clean-item.compact')).toHaveLength(2);
+    // Kompakt bleibt beim Mond nur die Prozentzahl.
+    expect(root.querySelector('.clean-item.moon .clean-item-value')?.textContent?.trim()).toBe('60 %');
     expect(root.querySelector('.clean-chip.phase')).toBeNull();
     expect(root.querySelector('.countdown-chip')?.textContent?.trim()).toMatch(/^\d+ h \d+ min$/);
+
+    const tiny = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'clean', card_height: 460 },
+      { width: 290 },
+    );
+    expect(tiny.shadowRoot!.querySelector('.clean-info.stacked')).not.toBeNull();
+    expect(tiny.shadowRoot!.querySelector('.clean-sep')).toBeNull();
+  });
+
+  it('blendet die Infofelder einzeln aus', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const noSun = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'clean', show_sun_info: false },
+      { width: 780 },
+    );
+    const root = noSun.shadowRoot!;
+    expect(root.querySelectorAll('.clean-item')).toHaveLength(1);
+    expect(root.querySelector('.clean-item.moon')).not.toBeNull();
+    expect(root.querySelector('.clean-sep')).toBeNull();
+    // Die Sonnenbahn bleibt – abgeschaltet ist nur das Infofeld.
+    expect(root.querySelector('.clean-sun-path')).not.toBeNull();
   });
 
   it('lässt bei wenig Höhe zuerst die Infozeile weg', async () => {

@@ -93,7 +93,9 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   `mountains` (Berge), `forest` (Wald), `coast` (Küste mit Leuchtturm) oder `none`. Die
   Kopfzeile trägt Ortssymbol, Ort, Datum, Restzeit und Himmelsphase; darunter stehen zwei große
   Kacheln für Sonne (Höhe, Azimut, Auf- und Untergang) und Mond (Phase, Beleuchtung, Stand,
-  Auf- und Untergang). Ein Tippen auf eine Kachel öffnet die Detailansicht der Sonnen- bzw.
+  Auf- und Untergang). Auf schmalen Karten werden beide **kompakt** und bleiben nebeneinander –
+  kleinere Symbole, Auf- und Untergang in einer Zeile; erst unter etwa 300 px stehen sie
+  untereinander. Jede Kachel lässt sich einzeln abschalten (`show_sun_info`, `show_moon_info`). Ein Tippen auf eine Kachel öffnet die Detailansicht der Sonnen- bzw.
   Mond-Entität. Der Hintergrund ist **Gestaltung und folgt nicht der Uhrzeit**; Bahnen, Zeiten und
   Werte sind berechnet wie in den anderen Stilen. Die Standardhöhe beträgt 460 px; reicht die Höhe
   nicht, entfallen zuerst die Kacheln, dann die Kopfzeile – der Himmel bleibt
@@ -103,8 +105,9 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   Sonne und Mond, darunter eine Zeitachse von 00:00 bis 24:00. Unter dem Horizont laufen beide
   Bahnen weich in eine Grundlinie aus. Die Kopfzeile zeigt Symbol, Titel, Ort und Datum sowie
   zwei schlichte Chips für Himmelsphase und Restzeit; reicht der Platz nicht, entfällt zuerst die
-  Phase, dann wird die Restzeit kürzer. Unten stehen Sonnenstand und Mond nebeneinander (auf
-  schmalen Karten untereinander); ein Tippen öffnet die Detailansicht. Text- und
+  Phase, dann wird die Restzeit kürzer. Unten stehen Sonnenstand und Mond nebeneinander – auf
+  schmalen Karten kompakt, erst unter etwa 300 px untereinander –, einzeln abschaltbar
+  (`show_sun_info`, `show_moon_info`); ein Tippen öffnet die Detailansicht. Text- und
   Trennlinienfarben folgen dem Home-Assistant-Theme. Standardhöhe 400 px; reicht die Höhe nicht,
   entfällt zuerst die Infozeile, dann die Kopfzeile
 - **`minimal_mode: true` – die Minimalvariante:** Die Karte zeigt ausschließlich den Zeitstrahl,
@@ -392,6 +395,8 @@ cards:
 | `double_tap_action` | Aktion | – | Aktion beim doppelten Antippen (innerhalb von 250 ms). Ist sie gesetzt, wartet das einfache Antippen das Zeitfenster ab |
 | `card_style` | `glass` \| `flat` \| `horizon` \| `scene` \| `clean` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie, `scene` zeigt einen gestalteten Himmel mit Silhouette und zwei großen Kacheln (Standardhöhe 460 px), `clean` ist minimalistisch mit zwei Linien und Theme-Farben (Standardhöhe 400 px) |
 | `scene` | `city` \| `mountains` \| `forest` \| `coast` \| `none` | `city` | Silhouette im Kartenstil `scene`: Stadt, Berge, Wald, Küste oder keine |
+| `show_sun_info` | `true` / `false` | `true` | Infofeld „Sonnenstand“ in den Stilen `scene` und `clean`; die Sonnenbahn bleibt |
+| `show_moon_info` | `true` / `false` | `true` | Infofeld zum Mond in den Stilen `scene` und `clean`; die Mondbahn bleibt |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
 | `animations` | `true` / `false` | `true` | Animationen (pulsierender „Jetzt“-Marker, Übergänge) |
@@ -420,20 +425,30 @@ Visual Editor zeigt den Grund dann an.
 
 ## Visueller Editor
 
-Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
+Beim Hinzufügen der Karte öffnet sich der Editor mit sechs **ausklappbaren Bereichen**. Anfangs
+ist nur der erste offen; zugeklappt nennt jeder Bereich im Kopf seine wichtigste Einstellung
+(z. B. „460 px“, „6 von 6 an“, „Home Assistant“). Gezeigt werden nur die Optionen, die zum
+gewählten Kartenstil passen:
 
-- **Darstellung** – Kartenhöhe (Schieberegler und Zahlenfeld), automatische Höhe, Farbschema,
-  Zeitformat, Sprache, Animationen, Kompaktmodus, Minimalvariante mit Auf-/Untergangszeit und
-  Zenitzeit, Größe der Sonne, Breite und Höhe des Overlays (beide nur in der Minimalvariante),
-  Dämmerungsgrenze, Kartenstil und – nur im Stil `scene` – die Szene. Wer den Kartenstil
-  wechselt, ohne eine eigene Höhe gesetzt zu haben, bekommt dessen Standardhöhe (340 px,
-  Szene 460 px, Minimalistisch 400 px)
-- **Bereiche** – Schalter für Sonne, Mond, Dämmerung, astronomische Details, Kopfzeile,
-  Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang, Restzeit, Restzeit-Kachel,
-  Goldene & Blaue Stunde; dazu die Auswahl, welche Restzeit in der Kopfzeile steht
-- **Verhalten** – Sonnen- und Mond-Entität
-- **Standort** – Anzeigename, Breiten- und Längengrad, Schalter „Standort aus Home Assistant
-  übernehmen“, Zurücksetzen
+![Visueller Editor](docs/screenshot-editor.png)
+
+- **Kartenstil & Aussehen** – Kartenstil, Szene (nur im Stil `scene`), Farbschema, Animationen,
+  Größe der Sonne (nur in den klassischen Stilen und der Minimalvariante)
+- **Größe & Layout** – Kartenhöhe (Schieberegler und Zahlenfeld), automatische Höhe,
+  Kompaktmodus (klassische Stile), Minimalvariante mit Auf-/Untergangszeit, Zenitzeit und der
+  Größe des Overlays. Wer den Kartenstil wechselt, ohne eine eigene Höhe gesetzt zu haben,
+  bekommt dessen Standardhöhe (340 px, Szene 460 px, Minimalistisch 400 px)
+- **Inhalte** – Sonne, Mond und Dämmerungsgrenze; in den Stilen `scene` und `clean` die
+  **Infofelder für Sonnenstand und Mond** (`show_sun_info`, `show_moon_info`), Kopfzeile und
+  Tagesverlauf; in den klassischen Stilen Dämmerung, astronomische Details, Kopfzeile,
+  Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang, Goldene & Blaue Stunde und
+  Fußzeile
+- **Restzeit** – Restzeit an/aus, welche Restzeit vorn steht, Restzeit-Kachel (klassische Stile)
+- **Sprache & Zeit** – Sprache und Zeitformat
+- **Entitäten & Standort** – Sonnen- und Mond-Entität, „Standort aus Home Assistant
+  übernehmen“, Breiten- und Längengrad, Anzeigename
+
+Darunter setzt „Zurücksetzen“ die Konfiguration auf die Vorgabe zurück.
 
 Die Kartenhöhe bleibt bedienbar, solange in der YAML kein `card_height` steht: Der Editor zeigt
 dann die gültige Standardhöhe (340 px) an. Erst die Option „Automatische Höhe“ – also

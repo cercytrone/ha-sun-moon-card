@@ -1400,6 +1400,9 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     ['scene_forest', 620, 460, 'dark'],
     ['scene_coast', 360, 520, 'dark'],
     ['scene_none', 620, 300, 'light'],
+    // Kompakte Kacheln nebeneinander
+    ['scene', 380, 520, 'light'],
+    ['scene', 320, 520, 'dark'],
   ]) {
     const url =
       `${baseUrl}/shots.html?loc=berlin&time=2026-11-18T12:12&theme=${theme}&h=${h}&w=${w}` +
@@ -1443,6 +1446,9 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     [480, 460, 'light', '2026-06-21T13:00'],
     [360, 460, 'dark', '2026-11-18T12:12'],
     [620, 220, 'light', '2026-11-18T12:12'],
+    // Kompakte Einträge nebeneinander
+    [380, 400, 'light', '2026-11-18T17:40'],
+    [320, 420, 'dark', '2026-11-18T12:12'],
   ]) {
     const url = `${baseUrl}/shots.html?loc=berlin&time=${time}&theme=${theme}&h=${h}&w=${w}&preset=clean`;
     await page.goto(url, { waitUntil: 'networkidle0' });

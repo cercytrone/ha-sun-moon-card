@@ -103,6 +103,8 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   popup_height: 460,
   card_style: 'glass',
   scene: 'city',
+  show_sun_info: true,
+  show_moon_info: true,
   theme_mode: 'auto',
   animations: true,
   time_format: 'auto',

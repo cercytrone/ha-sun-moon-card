@@ -56,7 +56,9 @@ images, and no additional Home Assistant integration is required.
   day, and a restrained **silhouette** shows the chosen scene: `scene: city` (default),
   `mountains`, `forest`, `coast` (with a lighthouse) or `none`. The header carries a location pin,
   place, date, countdown and sky phase; below sit two large tiles for the sun (elevation, azimuth,
-  sunrise and sunset) and the moon (phase, illumination, position, rise and set). Tapping a tile
+  sunrise and sunset) and the moon (phase, illumination, position, rise and set); on narrow cards
+  both turn **compact** and stay side by side (stacking only below about 300 px), and each can be
+  switched off (`show_sun_info`, `show_moon_info`). Tapping a tile
   opens the more-info dialog of the sun or moon entity. The background is **design and does not
   follow the time of day**; paths, times and values are computed as in the other styles. The
   default height is 460 px; when space runs short, the tiles go first, then the header – the sky
@@ -66,8 +68,9 @@ images, and no additional Home Assistant integration is required.
   dots, the “now” line carries the current sun and moon dots, and a time axis runs from 00:00 to
   24:00. Below the horizon both paths ease into a baseline. The header shows an icon, title, place
   and date plus two plain chips for sky phase and countdown (when space is tight the phase goes
-  first, then the countdown shortens). Below, sun position and moon sit side by side (stacked on
-  narrow cards); tapping opens the more-info dialog. Text and divider colours follow the Home
+  first, then the countdown shortens). Below, sun position and moon sit side by side – compact on
+  narrow cards, stacked only below about 300 px – and each can be switched off
+  (`show_sun_info`, `show_moon_info`); tapping opens the more-info dialog. Text and divider colours follow the Home
   Assistant theme. Default height 400 px; when space runs short, the info row goes first, then
   the header.
 - **Minimal variant (`minimal_mode: true`):** the card shows the timeline only – the curve with
@@ -134,7 +137,10 @@ images, and no additional Home Assistant integration is required.
   language and 12/24-hour setting.
 - **Robust:** free card height (120–800 px or `auto`, 24–800 px in the minimal variant), every
   section can be switched off, compact mode, minimal variant, theme mode, five card styles
-  (`glass`, `flat`, `horizon`, `scene` with selectable scenery, minimalist `clean`), animations, visual editor **and** YAML,
+  (`glass`, `flat`, `horizon`, `scene` with selectable scenery, minimalist `clean`), animations,
+  visual editor with six collapsible groups that only show the options fitting the chosen style
+  (card style & appearance, size & layout, content, countdown, language & time, entities &
+  location) **and** YAML,
   `setConfig()` / `getCardSize()` / `getGridOptions()` / `getConfigElement()`. Missing entities,
   missing attributes or a missing location never break the card – it shows a hint instead.
 - **Accessible:** colours follow the Home Assistant theme variables; measured WCAG contrast of the
@@ -254,6 +260,8 @@ card_height: 320
 | `double_tap_action` | action | – | Action on a double tap (within 250 ms). When set, a single tap waits for that window |
 | `card_style` | `glass` \| `flat` \| `horizon` \| `scene` \| `clean` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line, `scene` shows a designed sky with a silhouette and two large tiles (default height 460 px), `clean` is minimalist with two lines and theme colours (default height 400 px) |
 | `scene` | `city` \| `mountains` \| `forest` \| `coast` \| `none` | `city` | Silhouette in the `scene` card style: city, mountains, forest, coast or none |
+| `show_sun_info` | boolean | `true` | Sun position panel in the `scene` and `clean` styles; the sun path stays |
+| `show_moon_info` | boolean | `true` | Moon panel in the `scene` and `clean` styles; the moon path stays |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |
 | `animations` | boolean | `true` | Animations (pulsing “now” marker, transitions) |

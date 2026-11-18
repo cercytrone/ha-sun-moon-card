@@ -995,6 +995,29 @@ export const cardStyles = css`
     color: var(--smc-muted-color);
   }
 
+  /* Kompakte Kacheln: kleinere Symbole und Schrift, damit beide auch auf
+     schmalen Karten nebeneinander passen. */
+  .scene-tile.compact {
+    gap: 10px;
+    padding: 8px 10px;
+  }
+
+  .scene-tile.compact .scene-tile-label {
+    font-size: 12px;
+  }
+
+  .scene-tile.compact .scene-tile-value {
+    font-size: 19px;
+  }
+
+  .scene-tile.compact .scene-tile-value.small {
+    font-size: 16px;
+  }
+
+  .scene-tile.compact .scene-tile-sub {
+    font-size: 11.5px;
+  }
+
   .scene-chevron {
     flex: 0 0 auto;
     color: var(--smc-muted-color);
@@ -1060,6 +1083,18 @@ export const cardStyles = css`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .clean-header.tiny .clean-head-left {
+    gap: 10px;
+  }
+
+  .clean-header.tiny .clean-title {
+    font-size: 18px;
+  }
+
+  .clean-header.tiny .clean-subtitle {
+    font-size: 13px;
   }
 
   .clean-subtitle {
@@ -1223,6 +1258,22 @@ export const cardStyles = css`
     text-overflow: ellipsis;
   }
 
+  .clean-item.compact {
+    gap: 12px;
+  }
+
+  .clean-item.compact .clean-item-label {
+    font-size: 12.5px;
+  }
+
+  .clean-item.compact .clean-item-value {
+    font-size: 18px;
+  }
+
+  .clean-item.compact .clean-item-sub {
+    font-size: 12px;
+  }
+
   .clean-item-label {
     font-size: 13.5px;
     opacity: 0.85;
@@ -1298,8 +1349,91 @@ export const editorStyles = css`
   .card-config {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
     padding-bottom: 8px;
+  }
+
+  /* Ausklappbare Bereiche: gleich aufgebaut, mit Zusammenfassung im Kopf. */
+  details.group {
+    border: 1px solid var(--divider-color, rgba(128, 128, 128, 0.3));
+    border-radius: 12px;
+    background: var(--card-background-color, transparent);
+    overflow: hidden;
+  }
+
+  details.group > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  details.group > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.group > summary:focus-visible {
+    outline: 2px solid var(--primary-color, #03a9f4);
+    outline-offset: -2px;
+    border-radius: 12px;
+  }
+
+  .group-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--primary-text-color, #212121);
+    flex: 0 0 auto;
+  }
+
+  .group-summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+    font-size: 12.5px;
+    color: var(--secondary-text-color, #8a93a8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .group-chevron {
+    flex: 0 0 auto;
+    color: var(--secondary-text-color, #8a93a8);
+    transition: transform 0.18s ease;
+  }
+
+  details.group[open] > summary .group-chevron {
+    transform: rotate(180deg);
+  }
+
+  details.group[open] > summary .group-summary {
+    visibility: hidden;
+  }
+
+  details.group[open] > summary {
+    border-bottom: 1px solid var(--divider-color, rgba(128, 128, 128, 0.2));
+  }
+
+  .group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 14px 14px;
+  }
+
+  .editor-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .editor-footer button.link {
+    margin-left: auto;
   }
 
   .section {
@@ -1366,6 +1500,13 @@ export const editorStyles = css`
   input[type='number'] {
     width: 84px;
     text-align: right;
+  }
+
+  /* Auswahlfelder wachsen mit, damit längere Bezeichnungen lesbar bleiben. */
+  select {
+    width: auto;
+    min-width: 148px;
+    max-width: 230px;
   }
 
   input[type='range'] {
