@@ -2054,6 +2054,44 @@ describe('Kartenstil „scene“', () => {
     expect(chip?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in 3 h 5\d min$/);
   });
 
+  it('setzt den Mond auf seine Bahn an der aktuellen Uhrzeit', async () => {
+    const position = async (time: string) => {
+      freeze(time);
+      const card = await mountCard(
+        { type: 'custom:sun-moon-card', card_style: 'scene' },
+        { width: 780 },
+      );
+      const root = card.shadowRoot!;
+      const moon = root.querySelector('.scene-chart .now-moon')!;
+      // Der Ring um die Scheibe trägt die Position.
+      const ring = [...moon.children].find(
+        (node) => node.tagName.toLowerCase() === 'circle' && node.getAttribute('fill') === 'none',
+      )!;
+      const horizon = Number(root.querySelector('.scene-chart line.horizon')!.getAttribute('y1'));
+      const sun = root.querySelector('.scene-chart .now-sun circle')!;
+      return {
+        x: Number(ring.getAttribute('cx')),
+        y: Number(ring.getAttribute('cy')),
+        sunX: Number(sun.getAttribute('cx')),
+        horizon,
+        title: moon.querySelector('title')?.textContent ?? '',
+        opacity: Number(moon.getAttribute('opacity')),
+      };
+    };
+
+    // Abends steht der Mond hoch am Himmel – auf der „Jetzt“-Position.
+    const evening = await position('2026-11-18T17:40:00+01:00');
+    expect(evening.y).toBeLessThan(evening.horizon);
+    expect(evening.x).toBe(evening.sunX);
+    expect(evening.title).toMatch(/^Mond jetzt: 27,\d°$/);
+    expect(evening.opacity).toBe(1);
+
+    // Mittags ist er unter dem Horizont: sichtbar, aber gedämpft.
+    const noon = await position('2026-11-18T12:12:00+01:00');
+    expect(noon.y).toBeGreaterThan(noon.horizon);
+    expect(noon.opacity).toBeLessThan(1);
+  });
+
   it('wechselt die Szene', async () => {
     freeze('2026-11-18T12:12:00+01:00');
     for (const scene of ['mountains', 'forest', 'coast'] as const) {

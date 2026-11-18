@@ -33,7 +33,11 @@ export interface SceneChartOptions {
   /** Mondbahn und Mond am Nachthimmel zeigen. */
   showMoon: boolean;
   moonPath: MoonPath | null;
-  moon: { illumination: number; brightLimbAngle: number } | null;
+  /**
+   * Aktueller Mond: Phase und Höhe. Die Scheibe sitzt auf der Mondbahn an der
+   * aktuellen Uhrzeit – wie die Sonne auf ihrer.
+   */
+  moon: { illumination: number; brightLimbAngle: number; altitude: number } | null;
   currentAltitude: number;
   animations: boolean;
   uid: string;
@@ -340,9 +344,15 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
   const span = Math.max(1, t1 - t0);
   const xOf = (time: number): number => ((time - t0) / span) * width;
 
-  // Höhenbereich: Die Sonne steht oben im Bild, −16° liegen am unteren Rand
-  // des Plots. Tiefer reichende Teile der Bahn verschwinden unter dem Streifen.
-  const domainTop = Math.max(12, profile.maxAltitude + 8);
+  // Höhenbereich: Sonne und Mond stehen ganz im Bild, −16° liegen am unteren
+  // Rand des Plots. Tiefer reichende Teile der Bahnen verschwinden unter dem
+  // Streifen. Der Mond zählt mit, damit seine Scheibe auch am höchsten Punkt
+  // auf ihrer Bahn sitzt.
+  const moonMax =
+    showMoon && moonPath?.profile.samples.length
+      ? Math.max(...moonPath.profile.samples.map((sample) => sample.altitude))
+      : -90;
+  const domainTop = Math.max(12, profile.maxAltitude + 8, moonMax + 6);
   const domainBottom = -16;
   const yOf = (altitude: number): number =>
     plotTop + ((domainTop - altitude) / (domainTop - domainBottom)) * (plotBottom - plotTop);
@@ -439,9 +449,23 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
   const sunUp = currentAltitude > -2;
   const sunGlowR = narrow ? 30 : 40;
   const sunR = narrow ? 11 : 15;
-  const moonR = narrow ? 10 : 14;
-  const moonCx = width - (narrow ? 44 : 62);
-  const moonCy = plotTop + (narrow ? 26 : 34);
+  const moonR = narrow ? 9 : 12;
+  // Der Mond steht auf seiner Bahn an der aktuellen Uhrzeit. Unter dem
+  // Horizont bleibt er sichtbar, aber gedämpft; reicht er unter den Plot,
+  // sitzt er an dessen Unterkante. Liegt er dicht an der Sonne, weicht er
+  // seitlich aus, damit sich die Scheiben nicht verdecken.
+  const moonAltitude = moon?.altitude ?? 0;
+  const moonCy = clamp(yOf(moonAltitude), plotTop + moonR + 2, height - bandH - moonR - 4);
+  const moonUp = moonAltitude > 0;
+  const moonClamped =
+    yOf(moonAltitude) > height - bandH - moonR - 4 || yOf(moonAltitude) < plotTop + moonR + 2;
+  const moonStep = sunR + moonR + 6;
+  const moonCx =
+    showSun && Math.abs(moonCy - sunY) < sunR + moonR + 4
+      ? nowX + moonStep + moonR <= width
+        ? nowX + moonStep
+        : nowX - moonStep
+      : nowX;
 
   const fadeAt = clamp(y0 / height, 0, 1);
 
@@ -641,9 +665,24 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
 
       ${
         showMoon && moon
-          ? svg`<g class="night-moon">
-              <circle cx="${f(moonCx)}" cy="${f(moonCy)}" r="${moonR * 2.1}"
-                fill="url(#${ids.moonGlow})" />
+          ? svg`<g class="now-moon" opacity="${moonUp ? 1 : moonClamped ? 0.5 : 0.7}">
+              <title>${t('chartMoonNow', {
+                altitude: formatDegrees(moonAltitude, 1, format.locale),
+              })}${moonClamped ? ` ${t('chartOutside')}` : ''}</title>
+              ${
+                moonUp
+                  ? svg`<circle cx="${f(moonCx)}" cy="${f(moonCy)}" r="${moonR * 2.1}"
+                      fill="url(#${ids.moonGlow})" />`
+                  : svg``
+              }
+              ${
+                moonCx !== nowX
+                  ? svg`<line x1="${f(nowX)}" y1="${f(moonCy)}" x2="${f(moonCx)}" y2="${f(moonCy)}"
+                      stroke="rgba(255,255,255,0.7)" stroke-width="0.8" />`
+                  : svg``
+              }
+              <circle cx="${f(moonCx)}" cy="${f(moonCy)}" r="${moonR + 1.2}" fill="none"
+                stroke="rgba(255,255,255,0.75)" stroke-width="1.2" />
               <g transform="translate(${f(moonCx - moonR)} ${f(moonCy - moonR)})">
                 ${renderMoonDisc({
                   size: moonR * 2,
@@ -652,7 +691,7 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
                   litColor: '#f7f8ff',
                   darkColor: '#2b3270',
                   texture: false,
-                  uid: `${uid}-night-moon`,
+                  uid: `${uid}-now-moon`,
                 })}
               </g>
             </g>`
