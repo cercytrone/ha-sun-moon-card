@@ -114,6 +114,18 @@ const SHOTS = [
     file: 'screenshot-scene-mountains.png',
   },
   {
+    name: 'Minimalistisch (card_style: clean)',
+    url: '/shots.html?preset=clean&loc=berlin&time=2026-11-18T12:12&theme=light&w=780&h=400',
+    selector: 'sun-moon-card',
+    file: 'screenshot-clean.png',
+  },
+  {
+    name: 'Minimalistisch, dunkel, abends (card_style: clean)',
+    url: '/shots.html?preset=clean&loc=berlin&time=2026-11-18T17:40&theme=dark&w=780&h=400',
+    selector: 'sun-moon-card',
+    file: 'screenshot-clean-dark.png',
+  },
+  {
     name: 'Flache Darstellung (card_style: flat)',
     url: '/shots.html?preset=flat&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=340',
     selector: 'sun-moon-card',

@@ -64,6 +64,7 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   scene_forest: { card_style: 'scene', scene: 'forest' },
   scene_coast: { card_style: 'scene', scene: 'coast' },
   scene_none: { card_style: 'scene', scene: 'none' },
+  clean: { card_style: 'clean' },
   goldenfocus: { show_golden_hour: true, remaining_time_focus: 'golden_hour' },
 };
 

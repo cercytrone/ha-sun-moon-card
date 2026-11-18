@@ -34,6 +34,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 
 import { renderDayChart, type DayChartCountdown } from './components/day-chart.js';
 import { renderSceneChart } from './components/scene-chart.js';
+import { renderCleanChart } from './components/clean-chart.js';
 import { renderMoonDisc } from './components/moon-disc.js';
 import { renderSkyView } from './components/sky-view.js';
 import { runAction } from './actions.js';
@@ -841,7 +842,10 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                 showTwilight: config.show_twilight,
                 twilightLevel: config.twilight_level,
                 animations: config.animations,
-                cardStyle: config.card_style === 'scene' ? 'glass' : config.card_style,
+                cardStyle:
+                  config.card_style === 'scene' || config.card_style === 'clean'
+                    ? 'glass'
+                    : config.card_style,
                 compact: false,
                 minimal: true,
                 sunMarkerSize: config.sun_marker_size,
@@ -862,6 +866,9 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
 
     if (config.card_style === 'scene') {
       return this._renderSceneCard(model, context, config, palette, dark, width, height);
+    }
+    if (config.card_style === 'clean') {
+      return this._renderCleanCard(model, context, config, dark, width, height);
     }
 
     return html`
@@ -1071,6 +1078,246 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         </div>
       </ha-card>
     `;
+  }
+
+  /**
+   * Kartenstil `clean`: Kopfzeile mit Symbol, Titel, Ort und Datum sowie
+   * zwei schlichten Chips, darunter zwei Linien für Sonne und Mond, unten eine
+   * Infozeile mit Sonnenstand und Mond. Farben folgen dem Home-Assistant-Theme.
+   *
+   * Reicht die Höhe nicht, entfällt zuerst die Infozeile, dann die Kopfzeile.
+   */
+  private _renderCleanCard(
+    model: CardModel,
+    context: FormatContext,
+    config: ResolvedConfig,
+    dark: boolean,
+    width: number,
+    height: number,
+  ): TemplateResult {
+    const narrow = width < 480;
+    const padding = narrow ? 14 : 18;
+    const innerWidth = Math.max(160, width - 2 * padding - 2);
+    const infoSide = innerWidth >= 520;
+    const itemCount = (config.show_sun ? 1 : 0) + (config.show_moon ? 1 : 0);
+    const itemHeight = narrow ? 64 : 72;
+    const infoHeight =
+      itemCount === 0 ? 0 : infoSide ? itemHeight : itemCount * itemHeight + (itemCount - 1) * 12;
+    const headerHeight = narrow ? 52 : 60;
+    // Trennlinie mit Abstand über der Infozeile
+    const dividerSpace = 21;
+    const minChart = 110;
+
+    let showHeader = config.show_header;
+    let showInfo = itemCount > 0;
+    const chartFor = (header: boolean, info: boolean): number =>
+      height - 2 * padding - (header ? headerHeight : 0) - (info ? infoHeight + dividerSpace : 0);
+    if (config.show_day_chart && showInfo && chartFor(showHeader, true) < minChart) showInfo = false;
+    if (config.show_day_chart && showHeader && chartFor(true, showInfo) < minChart) showHeader = false;
+    const chartHeight = config.show_day_chart ? Math.max(minChart, chartFor(showHeader, showInfo)) : 0;
+
+    const countdown = this._primaryCountdown(model, context);
+    const phaseText = context.t(this._phaseKey(model));
+    const place = model.locationName
+      ? `${model.locationName} · ${formatDate(model.now, context)}`
+      : formatDate(model.now, context);
+
+    /*
+     * Breitenbudget der Kopfzeile: Titel und Ort haben Vorrang. Reicht der
+     * Platz nicht, entfällt zuerst die Phase, dann wird aus „Untergang in
+     * 3 h 57 min“ nur „3 h 57 min“.
+     */
+    const titleWidth =
+      (narrow ? 54 : 64) +
+      Math.max(context.t('title').length * (narrow ? 20 : 22) * 0.56, place.length * 14 * 0.53);
+    const chipWidth = (text: string): number => text.length * 13.5 * 0.58 + 30;
+    const budget = innerWidth - titleWidth - 12;
+    const options: Array<{ phase: boolean; text: string | null }> = countdown
+      ? [
+          { phase: true, text: countdown.compact },
+          { phase: false, text: countdown.compact },
+          { phase: true, text: countdown.duration },
+          { phase: false, text: countdown.duration },
+        ]
+      : [{ phase: true, text: null }, { phase: false, text: null }];
+    const chipChoice =
+      options.find(
+        (option) =>
+          (option.phase ? chipWidth(phaseText) + 8 : 0) + (option.text ? chipWidth(option.text) : 0) <=
+          budget,
+      ) ?? { phase: false, text: countdown ? countdown.duration : null };
+
+    return html`
+      <ha-card
+        class=${classMap({ 'smc-dark': dark, 'smc-light': !dark, 'smc-clean': true })}
+        style=${styleMap({ height: `${height}px` })}
+        role="group"
+        tabindex="0"
+        aria-label=${this._ariaLabel(model, context)}
+      >
+        <div class="root clean-root" style=${styleMap({ padding: `${padding}px` })}>
+          ${showHeader
+            ? html`<div class="clean-header" style=${styleMap({ height: `${headerHeight}px` })}>
+                <div class="clean-head-left">
+                  <svg class="clean-logo" width=${narrow ? 40 : 50} height=${narrow ? 32 : 40}
+                    viewBox="0 0 50 40" aria-hidden="true">
+                    <g stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                      <line x1="4" y1="35" x2="46" y2="35" /><line x1="25" y1="3" x2="25" y2="9" />
+                      <line x1="10" y1="10" x2="14" y2="14" /><line x1="40" y1="10" x2="36" y2="14" />
+                      <line x1="3" y1="25" x2="9" y2="25" /><line x1="41" y1="25" x2="47" y2="25" />
+                    </g>
+                    <path d="M12 30a13 13 0 0 1 26 0z" fill="currentColor" />
+                  </svg>
+                  <div class="clean-head-text">
+                    <span class="clean-title">${context.t('title')}</span>
+                    <span class="clean-subtitle">${place}</span>
+                  </div>
+                </div>
+                <div class="clean-chips">
+                  ${chipChoice.phase
+                    ? html`<span class="clean-chip phase" title=${phaseText}>${phaseText}</span>`
+                    : nothing}
+                  ${countdown && chipChoice.text
+                    ? html`<span
+                        class="clean-chip countdown-chip"
+                        data-body=${countdown.body}
+                        role="img"
+                        aria-label=${countdown.long}
+                        title=${countdown.title}
+                        >${chipChoice.text}</span
+                      >`
+                    : nothing}
+                </div>
+              </div>`
+            : nothing}
+          ${config.show_day_chart
+            ? html`<div class="clean-chart-wrap" style=${styleMap({ height: `${chartHeight}px` })}>
+                ${renderCleanChart({
+                  profile: model.day,
+                  events: model.events,
+                  now: model.now,
+                  width: innerWidth,
+                  height: chartHeight,
+                  format: context,
+                  showSun: config.show_sun,
+                  showMoon: config.show_moon,
+                  moonPath: model.moonPath,
+                  sunAltitude: model.sun.altitude,
+                  moonAltitude: model.moon.position.apparentAltitude,
+                })}
+              </div>`
+            : nothing}
+          ${showInfo
+            ? html`<div class="clean-divider"></div>
+                <div
+                  class=${classMap({ 'clean-info': true, stacked: !infoSide, single: itemCount === 1 })}
+                  style=${styleMap({ height: `${infoHeight}px` })}
+                >
+                  ${config.show_sun ? this._renderCleanSun(model, context, narrow) : nothing}
+                  ${config.show_sun && config.show_moon && infoSide
+                    ? html`<span class="clean-sep" aria-hidden="true"></span>`
+                    : nothing}
+                  ${config.show_moon
+                    ? this._renderCleanMoon(
+                        model,
+                        context,
+                        narrow,
+                        (infoSide && itemCount === 2 ? (innerWidth - 37) / 2 : innerWidth) -
+                          (narrow ? 66 : 74),
+                      )
+                    : nothing}
+                </div>`
+            : nothing}
+        </div>
+      </ha-card>
+    `;
+  }
+
+  /** Eintrag der Infozeile; antippbar, wenn es die Entität gibt. */
+  private _cleanItem(
+    kind: 'sun' | 'moon',
+    action: (() => void) | null,
+    label: string,
+    content: TemplateResult,
+  ): TemplateResult {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        action?.();
+      }
+    };
+    return html`<div
+      class=${classMap({ 'clean-item': true, [kind]: true, actionable: Boolean(action) })}
+      role=${action ? 'button' : 'group'}
+      tabindex=${action ? '0' : '-1'}
+      aria-label=${label}
+      @click=${action ?? nothing}
+      @keydown=${action ? onKey : nothing}
+    >
+      ${content}
+    </div>`;
+  }
+
+  /** Sonne in der Infozeile: Höhe und Azimut. */
+  private _renderCleanSun(model: CardModel, context: FormatContext, narrow: boolean): TemplateResult {
+    const altitude = formatDegrees(model.sun.altitude, 1, context.locale);
+    const azimuth = `${Math.round(model.sun.azimuth)}° ${compassDirection(
+      model.sun.azimuth,
+      context.language,
+    )}`;
+    const size = narrow ? 50 : 58;
+    return this._cleanItem(
+      'sun',
+      this._sceneTileAction(this._config!.entity),
+      `${context.t('sunAltitude')} ${altitude}, ${context.t('azimuth')} ${azimuth}`,
+      html`<span class="clean-badge sun" style=${styleMap({ width: `${size}px`, height: `${size}px` })}
+          >${iconSun(narrow ? 26 : 30, 'currentColor')}</span
+        >
+        <span class="clean-item-text">
+          <span class="clean-item-label">${context.t('sunAltitude')}</span>
+          <span class="clean-item-value">${altitude}</span>
+          <span class="clean-item-sub">${context.t('azimuth')} ${azimuth}</span>
+        </span>`,
+    );
+  }
+
+  /** Mond in der Infozeile: Phase, Beleuchtung, Auf- und Untergang. */
+  private _renderCleanMoon(
+    model: CardModel,
+    context: FormatContext,
+    narrow: boolean,
+    textWidth: number,
+  ): TemplateResult {
+    // Mit „morgen“ an beiden Zeiten wird die Zeile lang – dann bleibt der Aufgang.
+    const times =
+      this._fitLabel(
+        [this._moonTimesText(model, context, false), this._moonTimesText(model, context, true)],
+        textWidth,
+        13.5,
+        0.56,
+      ) ?? this._moonTimesText(model, context, true);
+    const phaseKey = (model.moon.haPhaseName ?? model.moon.phase.phaseKey) as StringKey;
+    const value = `${formatPercent(model.moon.phase.illumination, context.locale)} ${context.t(
+      'illumination',
+    )}`;
+    const size = narrow ? 50 : 58;
+    return this._cleanItem(
+      'moon',
+      this._sceneTileAction(this._config!.moon_entity || null),
+      `${context.t(phaseKey)}, ${value}`,
+      html`<span class="clean-badge moon" style=${styleMap({ width: `${size}px`, height: `${size}px` })}>
+          <svg width=${narrow ? 24 : 28} height=${narrow ? 24 : 28} viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15.5 3.2a9 9 0 1 0 5.3 13.6A7.4 7.4 0 0 1 15.5 3.2z" fill="currentColor" />
+          </svg>
+        </span>
+        <span class="clean-item-text">
+          <span class="clean-item-label">${context.t(phaseKey)}</span>
+          <span class="clean-item-value">${value}</span>
+          <span class="clean-item-sub" title=${this._moonTimesText(model, context, false)}
+            >${times}</span
+          >
+        </span>`,
+    );
   }
 
   /** Kopfzeile im Szenen-Stil: Ortssymbol, Ort und Datum, Restzeit, Phase. */

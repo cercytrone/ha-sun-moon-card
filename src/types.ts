@@ -92,7 +92,7 @@ export interface SunMoonCardConfig {
    *  `glass` – leicht transluzente Kacheln mit weichem Schatten (Vorgabe)
    *  `flat`  – flächige Kacheln, höchster Kontrast
    */
-  card_style?: 'glass' | 'flat' | 'horizon' | 'scene';
+  card_style?: 'glass' | 'flat' | 'horizon' | 'scene' | 'clean';
 
   /**
    * Szene im Kartenstil `scene`: Silhouette am unteren Rand des Himmels.

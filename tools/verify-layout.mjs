@@ -1434,6 +1434,42 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     );
   }
 
+  // 7) Kartenstil „clean“: Kopfzeile, Diagramm und Infozeile passen in die
+  //    Kartenhöhe, kein Text ist abgeschnitten.
+  console.log('\n— Kartenstil „clean“ —');
+  for (const [w, h, theme, time] of [
+    [900, 400, 'light', '2026-11-18T12:12'],
+    [620, 400, 'dark', '2026-11-18T17:40'],
+    [480, 460, 'light', '2026-06-21T13:00'],
+    [360, 460, 'dark', '2026-11-18T12:12'],
+    [620, 220, 'light', '2026-11-18T12:12'],
+  ]) {
+    const url = `${baseUrl}/shots.html?loc=berlin&time=${time}&theme=${theme}&h=${h}&w=${w}&preset=clean`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.clean-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const data = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const card = root.querySelector('ha-card').getBoundingClientRect();
+      const parts = [...root.querySelectorAll('.clean-header, .clean-chart-wrap, .clean-info')];
+      const overflow = parts.some((node) => node.getBoundingClientRect().bottom > card.bottom + 0.6);
+      const clipped = [
+        ...root.querySelectorAll('.clean-item-text > span, .clean-title, .clean-subtitle, .clean-chip'),
+      ]
+        .filter((node) => node.scrollWidth > node.clientWidth + 1)
+        .map((node) => node.textContent.trim());
+      return { overflow, clipped, items: root.querySelectorAll('.clean-item').length };
+    });
+    record(
+      `Clean ${w}×${h}px ${theme} ${time.slice(11)} (${data.items} Einträge)`,
+      !data.overflow && data.clipped.length === 0,
+      data.overflow ? 'Inhalt ragt aus der Karte' : data.clipped.length ? `abgeschnitten: ${data.clipped.join(' | ')}` : '',
+    );
+  }
+
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');
   await page.setViewport({ width: 700, height: 420, deviceScaleFactor: 1 });
   for (const time of ['2026-10-26T06:00', '2026-10-26T12:00', '2026-10-26T18:00', '2026-10-26T23:30']) {
