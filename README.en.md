@@ -50,9 +50,10 @@ images, and no additional Home Assistant integration is required.
   **`card_style: horizon` fills only the space between curve and horizon** – day as a hill above
   the axis, night as a valley below, with the sky gradient off and glow and moon curve stepped back.
 - **Scene (`card_style: scene`):** a designed sky replaces the chart – morning on the left with
-  pink clouds, day in the middle, night with stars and moon on the right. The sun and moon paths
+  pink clouds, day in the middle, night with stars on the right. The sun and moon paths
   run in front of it (the sun’s past path dashed, the coming part solid, the sun large and
-  glowing), with sunrise, solar noon and sunset times beneath. The horizon fades softly into the
+  glowing; sun and moon – in its current phase – sit on their paths at the current time, the moon
+  dimmed while below the horizon), with sunrise, solar noon and sunset times beneath. The horizon fades softly into the
   day, and a restrained **silhouette** shows the chosen scene: `scene: city` (default),
   `mountains`, `forest`, `coast` (with a lighthouse) or `none`. The header carries a location pin,
   place, date, countdown and sky phase; below sit two large tiles for the sun (elevation, azimuth,

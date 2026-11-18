@@ -85,9 +85,10 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   Berg über der Achse, die Nacht als Tal darunter. Der Himmelsverlauf über der Kurve entfällt,
   Horizontglühen und Mondkurve treten zurück – die Fläche trägt die Aussage
 - **`card_style: scene` – die Szene:** Ein gestalteter Himmel ersetzt das Diagramm – links Morgen
-  mit rosa Wolken, in der Mitte Tag, rechts Nacht mit Sternen und Mond. Davor laufen die Bahnen
+  mit rosa Wolken, in der Mitte Tag, rechts Nacht mit Sternen. Davor laufen die Bahnen
   von Sonne und Mond: der vergangene Teil der Sonnenbahn gestrichelt, der kommende durchgezogen,
-  die Sonne groß und leuchtend. Unter dem Himmel stehen Sonnenaufgang, solarer Mittag und
+  die Sonne groß und leuchtend. Sonne und Mond (in seiner aktuellen Phase) stehen auf ihren Bahnen
+  an der aktuellen Uhrzeit; unter dem Horizont bleibt der Mond gedämpft sichtbar. Unter dem Himmel stehen Sonnenaufgang, solarer Mittag und
   Sonnenuntergang mit Uhrzeit. Der Horizont läuft weich in den Tag aus, unten zeigt eine
   zurückhaltende **Silhouette** die gewählte Szene: `scene: city` (Stadt, Standard),
   `mountains` (Berge), `forest` (Wald), `coast` (Küste mit Leuchtturm) oder `none`. Die

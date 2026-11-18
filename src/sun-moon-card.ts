@@ -1061,6 +1061,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                     ? {
                         illumination: model.moon.phase.illumination,
                         brightLimbAngle: model.moon.phase.brightLimbAngle,
+                        altitude: model.moon.position.apparentAltitude,
                       }
                     : null,
                   currentAltitude: model.sun.altitude,
