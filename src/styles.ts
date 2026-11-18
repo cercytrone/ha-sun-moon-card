@@ -998,7 +998,7 @@ export const cardStyles = css`
   /* Kompakte Kacheln: kleinere Symbole und Schrift, damit beide auch auf
      schmalen Karten nebeneinander passen. */
   .scene-tile.compact {
-    gap: 10px;
+    gap: 8px;
     padding: 8px 10px;
   }
 

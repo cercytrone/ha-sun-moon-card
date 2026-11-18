@@ -63,6 +63,20 @@ const EDGE_CASES = [
   { name: 'Standort fehlt', entities: 'no-location', h: 200 },
 ];
 
+/**
+ * Breite Ersatzschrift: Fehlt Inter (wie auf dem CI-Runner), springt z. B.
+ * DejaVu Sans ein. Texte müssen dann gekürzt statt abgeschnitten werden.
+ */
+const WIDE_FONT = 'DejaVu Sans';
+
+/** Stellt die Schrift der Karte um (die Eigenschaft erbt in das Shadow DOM). */
+async function useFont(page, font) {
+  await page.addStyleTag({
+    content: `sun-moon-card { --smc-font: '${font}' !important; font-family: '${font}' !important; }`,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+}
+
 const results = [];
 let failed = 0;
 
@@ -1392,7 +1406,7 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
   // 6) Kartenstil „scene“: Himmel, Kopfzeile und Kacheln passen in die
   //    Kartenhöhe, kein Text ist abgeschnitten – breit, mittel und schmal.
   console.log('\n— Kartenstil „scene“ —');
-  for (const [preset, w, h, theme] of [
+  for (const [preset, w, h, theme, font] of [
     ['scene', 900, 460, 'light'],
     ['scene', 620, 460, 'dark'],
     ['scene', 360, 520, 'light'],
@@ -1403,11 +1417,12 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     // Kompakte Kacheln nebeneinander
     ['scene', 380, 520, 'light'],
     ['scene', 320, 520, 'dark'],
-  ]) {
+  ].flatMap((entry) => [[...entry, null], [...entry, WIDE_FONT]])) {
     const url =
       `${baseUrl}/shots.html?loc=berlin&time=2026-11-18T12:12&theme=${theme}&h=${h}&w=${w}` +
       `&preset=${preset}`;
     await page.goto(url, { waitUntil: 'networkidle0' });
+    if (font) await useFont(page, font);
     await page.waitForFunction(
       () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.scene-chart')),
       { timeout: 20000 },
@@ -1431,7 +1446,7 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       };
     });
     record(
-      `Szene ${preset} ${w}×${h}px ${theme} (${data.tiles} Kacheln, Silhouette ${data.scene})`,
+      `Szene ${preset} ${w}×${h}px ${theme}${font ? ` (${font})` : ''} (${data.tiles} Kacheln, Silhouette ${data.scene})`,
       !data.overflow && data.clipped.length === 0,
       data.overflow ? 'Inhalt ragt aus der Karte' : data.clipped.length ? `abgeschnitten: ${data.clipped.join(' | ')}` : '',
     );
@@ -1440,7 +1455,7 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
   // 7) Kartenstil „clean“: Kopfzeile, Diagramm und Infozeile passen in die
   //    Kartenhöhe, kein Text ist abgeschnitten.
   console.log('\n— Kartenstil „clean“ —');
-  for (const [w, h, theme, time] of [
+  for (const [w, h, theme, time, font] of [
     [900, 400, 'light', '2026-11-18T12:12'],
     [620, 400, 'dark', '2026-11-18T17:40'],
     [480, 460, 'light', '2026-06-21T13:00'],
@@ -1449,9 +1464,11 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     // Kompakte Einträge nebeneinander
     [380, 400, 'light', '2026-11-18T17:40'],
     [320, 420, 'dark', '2026-11-18T12:12'],
-  ]) {
+    [360, 460, 'light', '2026-11-18T17:40'],
+  ].flatMap((entry) => [[...entry, null], [...entry, WIDE_FONT]])) {
     const url = `${baseUrl}/shots.html?loc=berlin&time=${time}&theme=${theme}&h=${h}&w=${w}&preset=clean`;
     await page.goto(url, { waitUntil: 'networkidle0' });
+    if (font) await useFont(page, font);
     await page.waitForFunction(
       () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.clean-chart')),
       { timeout: 20000 },
@@ -1470,7 +1487,7 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       return { overflow, clipped, items: root.querySelectorAll('.clean-item').length };
     });
     record(
-      `Clean ${w}×${h}px ${theme} ${time.slice(11)} (${data.items} Einträge)`,
+      `Clean ${w}×${h}px ${theme} ${time.slice(11)}${font ? ` (${font})` : ''} (${data.items} Einträge)`,
       !data.overflow && data.clipped.length === 0,
       data.overflow ? 'Inhalt ragt aus der Karte' : data.clipped.length ? `abgeschnitten: ${data.clipped.join(' | ')}` : '',
     );
