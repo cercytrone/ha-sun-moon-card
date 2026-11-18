@@ -659,6 +659,22 @@ describe('Editor', () => {
       'none',
     ]);
 
+    // Wechsel von der Szene zu „clean“: Standardhöhe des neuen Stils
+    const fromScene = await mountEditor({
+      type: 'custom:sun-moon-card',
+      card_style: 'scene',
+      card_height: 460,
+    });
+    const fromSceneEvents: SunMoonCardConfig[] = [];
+    fromScene.addEventListener('config-changed', (event) => {
+      fromSceneEvents.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const fromSceneStyle = fromScene.shadowRoot!.querySelector<HTMLSelectElement>('#cardstyle')!;
+    expect([...fromSceneStyle.options].map((option) => option.value)).toContain('clean');
+    fromSceneStyle.value = 'clean';
+    fromSceneStyle.dispatchEvent(new Event('change'));
+    expect(fromSceneEvents.at(-1)?.card_height).toBe(400);
+
     // Eine eigene Höhe bleibt beim Wechsel erhalten.
     const custom = await mountEditor({ type: 'custom:sun-moon-card', card_height: 400 });
     const customEvents: SunMoonCardConfig[] = [];
@@ -2052,5 +2068,113 @@ describe('Kartenstil „scene“', () => {
     );
     expect(card.shadowRoot!.querySelector('svg.scene-chart')).toBeNull();
     expect(card.shadowRoot!.querySelector('svg.day-chart')).not.toBeNull();
+  });
+});
+
+describe('Kartenstil „clean“', () => {
+  function freeze(iso: string): void {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('nutzt ohne Höhenangabe die eigene Standardhöhe', () => {
+    expect(resolveConfig({ card_style: 'clean' }).config.card_height).toBe(400);
+    expect(resolveConfig({ card_style: 'clean', card_height: 360 }).config.card_height).toBe(360);
+    expect(resolveConfig({ card_style: 'clean', minimal_mode: true }).config.card_height).toBe(
+      DEFAULT_CARD_HEIGHT,
+    );
+  });
+
+  it('zeigt Kopfzeile, zwei Linien und die Infozeile', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_style: 'clean' }, { width: 780 });
+    const root = card.shadowRoot!;
+    expect(root.querySelector('ha-card.smc-clean')).not.toBeNull();
+    expect(root.querySelector('.clean-title')?.textContent?.trim()).toBe('Sonne & Mond');
+    expect(root.querySelector('.clean-subtitle')?.textContent?.trim()).toBe('Berlin · Mi., 18. Nov.');
+    const chips = [...root.querySelectorAll('.clean-chip')].map((node) => node.textContent?.trim());
+    expect(chips).toEqual(['Tag', expect.stringMatching(/^Untergang in 3 h 5\d min$/)]);
+    expect(root.querySelector('.clean-sun-path')).not.toBeNull();
+    expect(root.querySelector('.clean-moon-path')).not.toBeNull();
+    expect(root.querySelectorAll('.clean-sun-mark')).toHaveLength(2);
+    expect(root.querySelector('.clean-sun-now')).not.toBeNull();
+    expect(root.querySelector('.clean-moon-now')).not.toBeNull();
+    const axis = [...root.querySelectorAll('.clean-axis')].map((node) => node.textContent?.trim());
+    expect(axis).toEqual(['00:00', '06:00', '12:00', '18:00', '24:00']);
+    expect(root.querySelectorAll('.clean-item')).toHaveLength(2);
+    expect(root.querySelector('.clean-sep')).not.toBeNull();
+    // Keine Flächen, kein klassischer Aufbau
+    for (const selector of ['svg.day-chart', 'svg.scene-chart', '.events', '.legend', '.footer']) {
+      expect(root.querySelector(selector)).toBeNull();
+    }
+  });
+
+  it('setzt den „Jetzt“-Punkt der Sonne auf ihre aktuelle Höhe', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_style: 'clean' }, { width: 780 });
+    const root = card.shadowRoot!;
+    const sun = Number(root.querySelector('.clean-sun-now')!.getAttribute('cy'));
+    const moon = Number(root.querySelector('.clean-moon-now')!.getAttribute('cy'));
+    const horizon = Number(root.querySelector('.clean-horizon')!.getAttribute('y1'));
+    // Mittags steht die Sonne über, der Mond unter dem Horizont.
+    expect(sun).toBeLessThan(horizon);
+    expect(moon).toBeGreaterThan(horizon);
+    const now = Number(root.querySelector('.clean-now')!.getAttribute('x1'));
+    expect(Number(root.querySelector('.clean-sun-now')!.getAttribute('cx'))).toBe(now);
+  });
+
+  it('öffnet beim Antippen die Detailansicht', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_style: 'clean' }, { width: 780 });
+    const opened: string[] = [];
+    card.addEventListener('hass-more-info', (event) =>
+      opened.push((event as CustomEvent<{ entityId: string }>).detail.entityId),
+    );
+    const [sun, moon] = card.shadowRoot!.querySelectorAll<HTMLElement>('.clean-item');
+    sun.click();
+    moon.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    expect(opened).toEqual(['sun.sun', 'sensor.moon']);
+  });
+
+  it('stapelt auf schmalen Karten und kürzt die Chips', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'clean', card_height: 460 },
+      { width: 380 },
+    );
+    const root = card.shadowRoot!;
+    expect(root.querySelector('.clean-info.stacked')).not.toBeNull();
+    expect(root.querySelector('.clean-sep')).toBeNull();
+    expect(root.querySelector('.clean-chip.phase')).toBeNull();
+    expect(root.querySelector('.countdown-chip')?.textContent?.trim()).toMatch(/^\d+ h \d+ min$/);
+  });
+
+  it('lässt bei wenig Höhe zuerst die Infozeile weg', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'clean', card_height: 220 },
+      { width: 780 },
+    );
+    const root = card.shadowRoot!;
+    expect(root.querySelector('.clean-info')).toBeNull();
+    expect(root.querySelector('.clean-header')).not.toBeNull();
+    expect(Number(root.querySelector('svg.clean-chart')!.getAttribute('height'))).toBeGreaterThanOrEqual(110);
+  });
+
+  it('folgt den Schaltern für Sonne und Mond', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'clean', show_moon: false },
+      { width: 780 },
+    );
+    const root = card.shadowRoot!;
+    expect(root.querySelector('.clean-moon-path')).toBeNull();
+    expect(root.querySelector('.clean-moon-now')).toBeNull();
+    expect(root.querySelectorAll('.clean-item')).toHaveLength(1);
+    expect(root.querySelector('.clean-info.single')).not.toBeNull();
   });
 });

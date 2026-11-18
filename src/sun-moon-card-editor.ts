@@ -19,7 +19,7 @@ import { EDITOR_ELEMENT_NAME } from './const.js';
 import {
   CONFIG_CHOICES,
   DEFAULT_CONFIG,
-  SCENE_CARD_HEIGHT,
+  styleDefaultHeight,
   MIN_CARD_HEIGHT,
   MINIMAL_MIN_CARD_HEIGHT,
   POPUP_HEIGHT_RANGE,
@@ -112,7 +112,7 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
     const minimal = this._config.minimal_mode === true;
     const heightRange = cardHeightRange(minimal);
     const defaultHeight =
-      this._config.card_style === 'scene' && !minimal ? SCENE_CARD_HEIGHT : DEFAULT_CONFIG.card_height;
+      minimal ? (DEFAULT_CONFIG.card_height as number) : styleDefaultHeight(this._config.card_style);
     const heightNumber = typeof height === 'number' ? height : defaultHeight;
     const useHaLocation =
       this._config.latitude === undefined || this._config.latitude === null;
@@ -219,16 +219,18 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                       | 'glass'
                       | 'flat'
                       | 'horizon'
-                      | 'scene',
+                      | 'scene'
+                      | 'clean',
                     // Beim Wechsel zur Szene wächst die Standardhöhe mit – sonst
                     // bliebe für Himmel und Kacheln zu wenig Raum.
-                    ...this._sceneHeight((event.target as HTMLSelectElement).value),
+                    ...this._styleHeight((event.target as HTMLSelectElement).value),
                   })}
               >
                 <option value="glass">${this._t('editorCardStyleGlass')}</option>
                 <option value="flat">${this._t('editorCardStyleFlat')}</option>
                 <option value="horizon">${this._t('editorCardStyleHorizon')}</option>
                 <option value="scene">${this._t('editorCardStyleScene')}</option>
+                <option value="clean">${this._t('editorCardStyleClean')}</option>
               </select>
             </div>
           </div>
@@ -647,14 +649,13 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
    * Passt die Höhe beim Wechsel des Kartenstils an, solange sie noch auf der
    * Standardhöhe des bisherigen Stils steht. Eigene Höhen bleiben unberührt.
    */
-  private _sceneHeight(style: string): { card_height?: number } {
+  private _styleHeight(style: string): { card_height?: number } {
     const height = this._config?.card_height;
     if (this._config?.minimal_mode === true) return {};
-    if (style === 'scene' && (height === undefined || height === DEFAULT_CONFIG.card_height)) {
-      return { card_height: SCENE_CARD_HEIGHT };
-    }
-    if (style !== 'scene' && height === SCENE_CARD_HEIGHT) {
-      return { card_height: DEFAULT_CONFIG.card_height as number };
+    const previous = styleDefaultHeight(this._config?.card_style);
+    const next = styleDefaultHeight(style);
+    if (next !== previous && (height === undefined || height === previous)) {
+      return { card_height: next };
     }
     return {};
   }

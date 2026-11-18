@@ -53,7 +53,7 @@ import {
   SUPPORTED_ACTIONS,
   cardHeightRange,
   resolveAutoHeight,
-  SCENE_CARD_HEIGHT,
+  styleDefaultHeight,
   MOON_FOLK_KEYS,
 } from './const.js';
 import { timeZoneLongName } from './format.js';
@@ -181,7 +181,9 @@ export function resolveConfig(
   // Kartenhöhe
   // Ohne Angabe gilt die Standardhöhe des Kartenstils.
   let cardHeight: number | 'auto' =
-    input.card_style === 'scene' && !minimalMode ? SCENE_CARD_HEIGHT : DEFAULT_CONFIG.card_height;
+    minimalMode || typeof input.card_style !== 'string'
+      ? DEFAULT_CONFIG.card_height
+      : styleDefaultHeight(input.card_style);
   if (typeof input.card_height === 'number' && Number.isFinite(input.card_height)) {
     cardHeight = Math.round(clamp(input.card_height, heightRange[0], heightRange[1]));
     if (cardHeight !== input.card_height) {

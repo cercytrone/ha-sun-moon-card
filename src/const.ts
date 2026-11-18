@@ -27,6 +27,15 @@ export const DEFAULT_CARD_HEIGHT = 340;
  * Kacheln brauchen mehr Raum als das klassische Layout.
  */
 export const SCENE_CARD_HEIGHT = 460;
+/** Standardhöhe im Kartenstil `clean`: Kopfzeile, Diagramm und Infozeile. */
+export const CLEAN_CARD_HEIGHT = 400;
+
+/** Standardhöhe eines Kartenstils, wenn `card_height` fehlt. */
+export function styleDefaultHeight(style: string | undefined): number {
+  if (style === 'scene') return SCENE_CARD_HEIGHT;
+  if (style === 'clean') return CLEAN_CARD_HEIGHT;
+  return DEFAULT_CARD_HEIGHT;
+}
 /** Höhe bei `card_height: auto` (schmale Karten / breite Karten). */
 export const AUTO_HEIGHT_NARROW = 320;
 export const AUTO_HEIGHT_WIDE = 360;
@@ -249,7 +258,7 @@ export const CONFIG_CHOICES = {
   timeFormat: ['auto', '12', '24'],
   language: ['auto', 'de', 'en'],
   twilightLevel: ['civil', 'nautical', 'astronomical', 'all'],
-  cardStyle: ['glass', 'flat', 'horizon', 'scene'],
+  cardStyle: ['glass', 'flat', 'horizon', 'scene', 'clean'],
   scene: ['city', 'mountains', 'forest', 'coast', 'none'],
   remainingTimeFocus: ['sun', 'next', 'golden_hour'],
 } as const;
@@ -572,6 +581,10 @@ export function computeLayout(
 
 /** Löst `card_height: 'auto'` in eine konkrete Höhe auf. */
 export function resolveAutoHeight(width: number, cardStyle?: string): number {
+  if (cardStyle === 'clean') {
+    // Breite Karten zeigen Sonne und Mond nebeneinander, schmale untereinander.
+    return width >= 560 ? 400 : 460;
+  }
   if (cardStyle === 'scene') {
     // Breite Karten zeigen die Kacheln nebeneinander, schmale untereinander.
     return width >= 712 ? Math.round(Math.min(560, Math.max(440, width * 0.6))) : 520;
