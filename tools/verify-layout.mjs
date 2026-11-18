@@ -1389,6 +1389,51 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     );
   }
 
+  // 6) Kartenstil „scene“: Himmel, Kopfzeile und Kacheln passen in die
+  //    Kartenhöhe, kein Text ist abgeschnitten – breit, mittel und schmal.
+  console.log('\n— Kartenstil „scene“ —');
+  for (const [preset, w, h, theme] of [
+    ['scene', 900, 460, 'light'],
+    ['scene', 620, 460, 'dark'],
+    ['scene', 360, 520, 'light'],
+    ['scene_mountains', 620, 460, 'light'],
+    ['scene_forest', 620, 460, 'dark'],
+    ['scene_coast', 360, 520, 'dark'],
+    ['scene_none', 620, 300, 'light'],
+  ]) {
+    const url =
+      `${baseUrl}/shots.html?loc=berlin&time=2026-11-18T12:12&theme=${theme}&h=${h}&w=${w}` +
+      `&preset=${preset}`;
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('sun-moon-card')?.shadowRoot?.querySelector('svg.scene-chart')),
+      { timeout: 20000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const data = await page.evaluate(() => {
+      const root = document.querySelector('sun-moon-card').shadowRoot;
+      const card = root.querySelector('ha-card').getBoundingClientRect();
+      const parts = [...root.querySelectorAll('.scene-header, .scene-wrap, .scene-tiles')];
+      const overflow = parts.some((node) => node.getBoundingClientRect().bottom > card.bottom + 0.6);
+      const clipped = [
+        ...root.querySelectorAll('.scene-tile-body > span, .scene-title, .scene-chip, .scene-tile-times b'),
+      ]
+        .filter((node) => node.scrollWidth > node.clientWidth + 1)
+        .map((node) => node.textContent.trim());
+      return {
+        overflow,
+        clipped,
+        tiles: root.querySelectorAll('.scene-tile').length,
+        scene: root.querySelector('.silhouette')?.getAttribute('data-scene') ?? 'none',
+      };
+    });
+    record(
+      `Szene ${preset} ${w}×${h}px ${theme} (${data.tiles} Kacheln, Silhouette ${data.scene})`,
+      !data.overflow && data.clipped.length === 0,
+      data.overflow ? 'Inhalt ragt aus der Karte' : data.clipped.length ? `abgeschnitten: ${data.clipped.join(' | ')}` : '',
+    );
+  }
+
   console.log('\n— Zeitleiste des Charts (Position des „Jetzt“-Markers) —');
   await page.setViewport({ width: 700, height: 420, deviceScaleFactor: 1 });
   for (const time of ['2026-10-26T06:00', '2026-10-26T12:00', '2026-10-26T18:00', '2026-10-26T23:30']) {

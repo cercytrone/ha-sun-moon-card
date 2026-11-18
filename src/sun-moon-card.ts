@@ -33,6 +33,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
 import { renderDayChart, type DayChartCountdown } from './components/day-chart.js';
+import { renderSceneChart } from './components/scene-chart.js';
 import { renderMoonDisc } from './components/moon-disc.js';
 import { renderSkyView } from './components/sky-view.js';
 import { runAction } from './actions.js';
@@ -840,7 +841,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                 showTwilight: config.show_twilight,
                 twilightLevel: config.twilight_level,
                 animations: config.animations,
-                cardStyle: config.card_style,
+                cardStyle: config.card_style === 'scene' ? 'glass' : config.card_style,
                 compact: false,
                 minimal: true,
                 sunMarkerSize: config.sun_marker_size,
@@ -857,6 +858,10 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
           </div>
         </ha-card>
       `;
+    }
+
+    if (config.card_style === 'scene') {
+      return this._renderSceneCard(model, context, config, palette, dark, width, height);
     }
 
     return html`
@@ -975,6 +980,254 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         </div>
       </ha-card>
     `;
+  }
+
+  /**
+   * Kartenstil `scene`: Kopfzeile mit Ort und zwei Chips, darunter der
+   * gestaltete Himmel mit Bahnen und Silhouette, unten zwei große Kacheln
+   * für Sonne und Mond.
+   *
+   * Der Platz wird von oben nach unten vergeben. Reicht er nicht, entfallen
+   * zuerst die Kacheln, dann die Kopfzeile – der Himmel bleibt.
+   */
+  private _renderSceneCard(
+    model: CardModel,
+    context: FormatContext,
+    config: ResolvedConfig,
+    palette: PhasePalette,
+    dark: boolean,
+    width: number,
+    height: number,
+  ): TemplateResult {
+    const padding = width < 480 ? 12 : 16;
+    const gap = 12;
+    const innerWidth = Math.max(160, width - 2 * padding);
+    // Nebeneinander erst, wenn die Sonnenkachel samt Uhrzeiten Platz hat.
+    const tilesSide = innerWidth >= 680;
+    const tileHeight = width < 480 ? 78 : 92;
+    const tileCount = (config.show_sun ? 1 : 0) + (config.show_moon ? 1 : 0);
+    const tilesHeight = tileCount === 0 ? 0 : tilesSide ? tileHeight : tileCount * tileHeight + (tileCount - 1) * 10;
+    const headerHeight = width < 480 ? 46 : 52;
+    const minScene = 140;
+
+    let showHeader = config.show_header;
+    let showTiles = tileCount > 0;
+    const sceneFor = (header: boolean, tiles: boolean): number =>
+      height -
+      2 * padding -
+      (header ? headerHeight + gap : 0) -
+      (tiles ? tilesHeight + gap : 0);
+    if (config.show_day_chart && showTiles && sceneFor(showHeader, true) < minScene) showTiles = false;
+    if (config.show_day_chart && showHeader && sceneFor(true, showTiles) < minScene) showHeader = false;
+    const sceneHeight = config.show_day_chart ? Math.max(minScene, sceneFor(showHeader, showTiles)) : 0;
+
+    return html`
+      <ha-card
+        class=${classMap({ 'smc-dark': dark, 'smc-light': !dark, 'smc-scene': true })}
+        style=${styleMap({ height: `${height}px` })}
+        role="group"
+        tabindex="0"
+        aria-label=${this._ariaLabel(model, context)}
+      >
+        <div
+          class="root scene-root"
+          style=${styleMap({ padding: `${padding}px`, gap: `${gap}px` })}
+        >
+          ${showHeader ? this._renderSceneHeader(model, context, palette, width, headerHeight) : nothing}
+          ${config.show_day_chart
+            ? html`<div class="scene-wrap" style=${styleMap({ height: `${sceneHeight}px` })}>
+                ${renderSceneChart({
+                  profile: model.day,
+                  events: model.events,
+                  now: model.now,
+                  width: innerWidth,
+                  height: sceneHeight,
+                  format: context,
+                  scene: config.scene,
+                  showSun: config.show_sun,
+                  showMoon: config.show_moon,
+                  moonPath: model.moonPath,
+                  moon: config.show_moon
+                    ? {
+                        illumination: model.moon.phase.illumination,
+                        brightLimbAngle: model.moon.phase.brightLimbAngle,
+                      }
+                    : null,
+                  currentAltitude: model.sun.altitude,
+                  animations: config.animations,
+                  uid: `${this._uid}-scene`,
+                })}
+              </div>`
+            : nothing}
+          ${showTiles
+            ? html`<div
+                class=${classMap({ 'scene-tiles': true, stacked: !tilesSide })}
+                style=${styleMap({ height: `${tilesHeight}px` })}
+              >
+                ${config.show_sun ? this._renderSceneSunTile(model, context, width < 480) : nothing}
+                ${config.show_moon ? this._renderSceneMoonTile(model, context, width < 480) : nothing}
+              </div>`
+            : nothing}
+        </div>
+      </ha-card>
+    `;
+  }
+
+  /** Kopfzeile im Szenen-Stil: Ortssymbol, Ort und Datum, Restzeit, Phase. */
+  private _renderSceneHeader(
+    model: CardModel,
+    context: FormatContext,
+    palette: PhasePalette,
+    width: number,
+    headerHeight: number,
+  ): TemplateResult {
+    const narrow = width < 480;
+    const countdown = this._primaryCountdown(model, context);
+    const phaseText = context.t(this._phaseKey(model));
+    return html`
+      <div class="scene-header" style=${styleMap({ height: `${headerHeight}px` })}>
+        <div class="scene-place">
+          <svg class="scene-pin" width="20" height="26" viewBox="0 0 22 28" aria-hidden="true">
+            <path
+              d="M11 1.5C5.8 1.5 1.8 5.5 1.8 10.6c0 6.6 8 15 8.4 15.4.4.4 1.2.4 1.6 0 .4-.4 8.4-8.8 8.4-15.4C20.2 5.5 16.2 1.5 11 1.5z"
+              fill="currentColor"
+            />
+            <circle cx="11" cy="10.5" r="3.6" fill="var(--smc-scene-pin-hole, #fff)" />
+          </svg>
+          <div class="scene-place-text">
+            <span class="scene-title">${model.locationName || context.t('title')}</span>
+            <span class="scene-date">${formatDate(model.now, context)}</span>
+          </div>
+        </div>
+        <div class="scene-chips">
+          ${countdown
+            ? html`<span
+                class="scene-chip countdown-chip"
+                data-body=${countdown.body}
+                role="img"
+                aria-label=${countdown.long}
+                title=${countdown.title}
+                >${countdown.icon}<span>${narrow ? countdown.duration : countdown.compact}</span></span
+              >`
+            : nothing}
+          ${narrow && countdown
+            ? nothing
+            : html`<span class="scene-chip phase" title=${phaseText}>
+                <span
+                  class="scene-dot"
+                  style=${styleMap({ background: this._phaseColor(model, palette) })}
+                ></span>
+                ${phaseText}
+              </span>`}
+        </div>
+      </div>
+    `;
+  }
+
+  /** Öffnet die Detailansicht einer Entität, sofern es sie gibt. */
+  private _sceneTileAction(entity: string | null): (() => void) | null {
+    if (!entity || !this.hass?.states?.[entity]) return null;
+    return () =>
+      runAction(this, this.hass, this._config!, { action: 'more-info', entity }, undefined);
+  }
+
+  /** Gemeinsamer Rahmen der Kacheln: antippbar, per Tastatur bedienbar. */
+  private _sceneTile(
+    kind: 'sun' | 'moon',
+    action: (() => void) | null,
+    label: string,
+    content: TemplateResult,
+  ): TemplateResult {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        action?.();
+      }
+    };
+    return html`<div
+      class=${classMap({ 'scene-tile': true, [kind]: true, actionable: Boolean(action) })}
+      role=${action ? 'button' : 'group'}
+      tabindex=${action ? '0' : '-1'}
+      aria-label=${label}
+      @click=${action ?? nothing}
+      @keydown=${action ? onKey : nothing}
+    >
+      ${content}
+      ${action
+        ? html`<svg class="scene-chevron" width="10" height="16" viewBox="0 0 10 16" aria-hidden="true">
+            <path d="M2 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" />
+          </svg>`
+        : nothing}
+    </div>`;
+  }
+
+  /** Sonnenkachel: Höhe, Azimut, Auf- und Untergang. */
+  private _renderSceneSunTile(model: CardModel, context: FormatContext, narrow: boolean): TemplateResult {
+    const size = narrow ? 52 : 62;
+    const altitude = formatDegrees(model.sun.altitude, 1, context.locale);
+    const azimuth = `${Math.round(model.sun.azimuth)}° ${compassDirection(
+      model.sun.azimuth,
+      context.language,
+    )}`;
+    const time = (value: Date | null): string => (value ? formatTime(value, context) : '—');
+    const label = `${context.t('sunAltitude')} ${altitude}, ${context.t('azimuth')} ${azimuth}`;
+    return this._sceneTile(
+      'sun',
+      this._sceneTileAction(this._config!.entity),
+      label,
+      html`<span class="scene-tile-icon" style=${styleMap({ width: `${size}px`, height: `${size}px` })}
+          >${iconSun(Math.round(size * 0.55), '#f5a524')}</span
+        >
+        <span class="scene-tile-body">
+          <span class="scene-tile-label">${context.t('sunAltitude')}</span>
+          <span class="scene-tile-value">${altitude}</span>
+          <span class="scene-tile-sub">${context.t('azimuth')} ${azimuth}</span>
+        </span>
+        <span class="scene-tile-times">
+          <span><i aria-hidden="true">▲</i><b>${time(model.events.sunrise)}</b
+            ><small>${context.t('sunriseShort')}</small></span
+          >
+          <span><i aria-hidden="true">▼</i><b>${time(model.events.sunset)}</b
+            ><small>${context.t('sunsetShort')}</small></span
+          >
+        </span>`,
+    );
+  }
+
+  /** Mondkachel: Phase, Beleuchtung, Stand und Auf-/Untergang. */
+  private _renderSceneMoonTile(model: CardModel, context: FormatContext, narrow: boolean): TemplateResult {
+    const size = narrow ? 52 : 62;
+    const phaseKey = (model.moon.haPhaseName ?? model.moon.phase.phaseKey) as StringKey;
+    const percent = formatPercent(model.moon.phase.illumination, context.locale);
+    const altitude = model.moon.position.apparentAltitude;
+    const position =
+      altitude >= 0
+        ? `${formatDegrees(altitude, 1, context.locale)} · ${Math.round(
+            model.moon.position.azimuth,
+          )}° ${compassDirection(model.moon.position.azimuth, context.language)}`
+        : `${formatDegrees(Math.abs(altitude), 1, context.locale)} ${context.t('belowHorizon')}`;
+    const value = `${percent} ${context.t('illumination')}`;
+    return this._sceneTile(
+      'moon',
+      this._sceneTileAction(this._config!.moon_entity || null),
+      `${context.t(phaseKey)}, ${value}`,
+      html`<span class="scene-tile-icon moon" style=${styleMap({ width: `${size}px`, height: `${size}px` })}
+          >${renderMoonDisc({
+            size,
+            illumination: model.moon.phase.illumination,
+            brightLimbAngle: model.moon.phase.brightLimbAngle,
+            darkColor: 'var(--smc-scene-moon-dark, rgba(92, 102, 160, 0.7))',
+            uid: `${this._uid}-scene-tile-moon`,
+          })}</span
+        >
+        <span class="scene-tile-body">
+          <span class="scene-tile-label">${context.t(phaseKey)}</span>
+          <span class="scene-tile-value small">${value}</span>
+          <span class="scene-tile-sub">${position}</span>
+          <span class="scene-tile-sub">${this._moonTimesText(model, context, false)}</span>
+        </span>`,
+    );
   }
 
   /** Kopfzeile: Ort, Datum, Himmelsphase, Zeitzone und Tageslänge. */

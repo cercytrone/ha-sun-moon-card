@@ -59,6 +59,11 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   nocountdown: { show_remaining_time: false },
   nextevent: { remaining_time_focus: 'next' },
   golden: { show_golden_hour: true, show_countdown_tile: true },
+  scene: { card_style: 'scene' },
+  scene_mountains: { card_style: 'scene', scene: 'mountains' },
+  scene_forest: { card_style: 'scene', scene: 'forest' },
+  scene_coast: { card_style: 'scene', scene: 'coast' },
+  scene_none: { card_style: 'scene', scene: 'none' },
   goldenfocus: { show_golden_hour: true, remaining_time_focus: 'golden_hour' },
 };
 

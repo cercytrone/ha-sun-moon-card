@@ -634,6 +634,43 @@ describe('Editor', () => {
     ).toEqual(['sun', 'next', 'golden_hour']);
   });
 
+  it('bietet die Szene nur im Kartenstil „scene“ an und passt die Höhe an', async () => {
+    const plain = await mountEditor();
+    expect(plain.shadowRoot!.querySelector('#scene')).toBeNull();
+
+    const events: SunMoonCardConfig[] = [];
+    plain.addEventListener('config-changed', (event) => {
+      events.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const style = plain.shadowRoot!.querySelector<HTMLSelectElement>('#cardstyle')!;
+    style.value = 'scene';
+    style.dispatchEvent(new Event('change'));
+    expect(events.at(-1)?.card_style).toBe('scene');
+    // Ohne eigene Höhe wächst die Karte auf die Standardhöhe der Szene.
+    expect(events.at(-1)?.card_height).toBe(460);
+
+    const scene = await mountEditor({ type: 'custom:sun-moon-card', card_style: 'scene' });
+    const select = scene.shadowRoot!.querySelector<HTMLSelectElement>('#scene')!;
+    expect([...select.options].map((option) => option.value)).toEqual([
+      'city',
+      'mountains',
+      'forest',
+      'coast',
+      'none',
+    ]);
+
+    // Eine eigene Höhe bleibt beim Wechsel erhalten.
+    const custom = await mountEditor({ type: 'custom:sun-moon-card', card_height: 400 });
+    const customEvents: SunMoonCardConfig[] = [];
+    custom.addEventListener('config-changed', (event) => {
+      customEvents.push((event as CustomEvent<{ config: SunMoonCardConfig }>).detail.config);
+    });
+    const customStyle = custom.shadowRoot!.querySelector<HTMLSelectElement>('#cardstyle')!;
+    customStyle.value = 'scene';
+    customStyle.dispatchEvent(new Event('change'));
+    expect(customEvents.at(-1)?.card_height).toBe(400);
+  });
+
   it('begrenzt die Kartenhöhe', async () => {
     const editor = await mountEditor();
     const events: SunMoonCardConfig[] = [];
@@ -1897,5 +1934,123 @@ describe('Restzeiten', () => {
     );
     expect(chips(card).some((text) => text.includes(' in '))).toBe(false);
     expect(readout(card).filter((row) => row.includes(' in '))).toHaveLength(0);
+  });
+});
+
+describe('Kartenstil „scene“', () => {
+  function freeze(iso: string): void {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('nutzt ohne Höhenangabe die eigene Standardhöhe', () => {
+    expect(resolveConfig({ card_style: 'scene' }).config.card_height).toBe(460);
+    expect(resolveConfig({ card_style: 'scene', card_height: 380 }).config.card_height).toBe(380);
+    expect(resolveConfig({}).config.card_height).toBe(DEFAULT_CARD_HEIGHT);
+    expect(resolveConfig({ card_style: 'scene' }).config.scene).toBe('city');
+    expect(
+      resolveConfig({ card_style: 'scene', scene: 'mond' as unknown as 'city' }).config.scene,
+    ).toBe('city');
+  });
+
+  it('zeigt Himmel, Silhouette und zwei Kacheln statt des klassischen Aufbaus', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_style: 'scene' }, { width: 780 });
+    const root = card.shadowRoot!;
+    expect(root.querySelector('ha-card.smc-scene')).not.toBeNull();
+    expect(root.querySelector('svg.scene-chart')).not.toBeNull();
+    expect(root.querySelector('.silhouette')?.getAttribute('data-scene')).toBe('city');
+    expect(root.querySelectorAll('.scene-tile')).toHaveLength(2);
+    // Der klassische Aufbau entfällt.
+    for (const selector of ['.events', '.legend', '.footer', 'svg.sky-view', 'svg.day-chart']) {
+      expect(root.querySelector(selector)).toBeNull();
+    }
+    // Zeiten unter dem Himmel: Aufgang, Mittag, Untergang
+    const times = [...root.querySelectorAll('.scene-time')].map((node) => node.textContent?.trim());
+    expect(times).toEqual(['07:33', '11:51', '16:09']);
+    const chip = root.querySelector('.scene-header .countdown-chip');
+    expect(chip?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in 3 h 5\d min$/);
+  });
+
+  it('wechselt die Szene', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    for (const scene of ['mountains', 'forest', 'coast'] as const) {
+      const card = await mountCard(
+        { type: 'custom:sun-moon-card', card_style: 'scene', scene },
+        { width: 780 },
+      );
+      expect(card.shadowRoot!.querySelector('.silhouette')?.getAttribute('data-scene')).toBe(scene);
+    }
+    const none = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'scene', scene: 'none' },
+      { width: 780 },
+    );
+    expect(none.shadowRoot!.querySelector('.silhouette')).toBeNull();
+    expect(none.shadowRoot!.querySelector('svg.scene-chart')).not.toBeNull();
+  });
+
+  it('öffnet beim Antippen der Kacheln die Detailansicht', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_style: 'scene' }, { width: 780 });
+    const opened: string[] = [];
+    card.addEventListener('hass-more-info', (event) =>
+      opened.push((event as CustomEvent<{ entityId: string }>).detail.entityId),
+    );
+    const [sun, moon] = card.shadowRoot!.querySelectorAll<HTMLElement>('.scene-tile');
+    sun.click();
+    moon.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(opened).toEqual(['sun.sun', 'sensor.moon']);
+    expect(sun.querySelector('.scene-chevron')).not.toBeNull();
+  });
+
+  it('macht Kacheln ohne Entität nicht antippbar', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'scene', moon_entity: 'sensor.gibt_es_nicht' },
+      { width: 780 },
+    );
+    const moon = card.shadowRoot!.querySelector('.scene-tile.moon')!;
+    expect(moon.classList.contains('actionable')).toBe(false);
+    expect(moon.querySelector('.scene-chevron')).toBeNull();
+  });
+
+  it('stapelt die Kacheln auf schmalen Karten und kürzt die Kopfzeile', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'scene', card_height: 520 },
+      { width: 380 },
+    );
+    const root = card.shadowRoot!;
+    expect(root.querySelector('.scene-tiles.stacked')).not.toBeNull();
+    expect(root.querySelector('.scene-chip.phase')).toBeNull();
+    expect((root.querySelector('.countdown-chip')?.textContent ?? '').trim()).toMatch(/^\d+ h \d+ min$/);
+    expect(root.querySelector('.scene-label')?.textContent?.trim()).toBe('Aufgang');
+  });
+
+  it('lässt bei wenig Höhe zuerst die Kacheln weg, der Himmel bleibt', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'scene', card_height: 260 },
+      { width: 780 },
+    );
+    const root = card.shadowRoot!;
+    expect(root.querySelector('.scene-tiles')).toBeNull();
+    expect(root.querySelector('.scene-header')).not.toBeNull();
+    const chart = root.querySelector('svg.scene-chart')!;
+    expect(Number(chart.getAttribute('height'))).toBeGreaterThanOrEqual(140);
+  });
+
+  it('bleibt in der Minimalvariante beim Zeitstrahl', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard(
+      { type: 'custom:sun-moon-card', card_style: 'scene', minimal_mode: true, card_height: 48 },
+      { width: 620 },
+    );
+    expect(card.shadowRoot!.querySelector('svg.scene-chart')).toBeNull();
+    expect(card.shadowRoot!.querySelector('svg.day-chart')).not.toBeNull();
   });
 });

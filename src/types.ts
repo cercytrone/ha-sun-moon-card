@@ -92,7 +92,12 @@ export interface SunMoonCardConfig {
    *  `glass` – leicht transluzente Kacheln mit weichem Schatten (Vorgabe)
    *  `flat`  – flächige Kacheln, höchster Kontrast
    */
-  card_style?: 'glass' | 'flat' | 'horizon';
+  card_style?: 'glass' | 'flat' | 'horizon' | 'scene';
+
+  /**
+   * Szene im Kartenstil `scene`: Silhouette am unteren Rand des Himmels.
+   */
+  scene?: 'city' | 'mountains' | 'forest' | 'coast' | 'none';
   /**
    * Minimalmodus: zeigt ausschließlich den Zeitstrahl – keine Kopfzeile,
    * keine Ereignisleiste, keine Details, keine Fußzeile, keine Legende.
