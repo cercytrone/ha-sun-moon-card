@@ -126,6 +126,12 @@ const SHOTS = [
     file: 'screenshot-clean-dark.png',
   },
   {
+    name: 'Visueller Editor (Szene, Bereiche aufgeklappt)',
+    url: '/editor.html?style=scene&open=style,content',
+    selector: '#stage',
+    file: 'screenshot-editor.png',
+  },
+  {
     name: 'Flache Darstellung (card_style: flat)',
     url: '/shots.html?preset=flat&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=340',
     selector: 'sun-moon-card',

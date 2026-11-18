@@ -1009,11 +1009,14 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     const padding = width < 480 ? 12 : 16;
     const gap = 12;
     const innerWidth = Math.max(160, width - 2 * padding);
-    // Nebeneinander erst, wenn die Sonnenkachel samt Uhrzeiten Platz hat.
-    const tilesSide = innerWidth >= 680;
-    const tileHeight = width < 480 ? 78 : 92;
-    const tileCount = (config.show_sun ? 1 : 0) + (config.show_moon ? 1 : 0);
-    const tilesHeight = tileCount === 0 ? 0 : tilesSide ? tileHeight : tileCount * tileHeight + (tileCount - 1) * 10;
+    const showSunTile = config.show_sun && config.show_sun_info;
+    const showMoonTile = config.show_moon && config.show_moon_info;
+    const tileCount = (showSunTile ? 1 : 0) + (showMoonTile ? 1 : 0);
+    // Nebeneinander, solange jede Kachel wenigstens kompakt Platz hat.
+    const info = this._infoLayout(innerWidth, tileCount, 12, 330, 150);
+    const tileHeight = info.compact ? 90 : width < 480 ? 78 : 92;
+    const tilesHeight =
+      tileCount === 0 ? 0 : info.side ? tileHeight : tileCount * tileHeight + (tileCount - 1) * 10;
     const headerHeight = width < 480 ? 46 : 52;
     const minScene = 140;
 
@@ -1068,11 +1071,15 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
             : nothing}
           ${showTiles
             ? html`<div
-                class=${classMap({ 'scene-tiles': true, stacked: !tilesSide })}
+                class=${classMap({ 'scene-tiles': true, stacked: !info.side, single: tileCount === 1 })}
                 style=${styleMap({ height: `${tilesHeight}px` })}
               >
-                ${config.show_sun ? this._renderSceneSunTile(model, context, width < 480) : nothing}
-                ${config.show_moon ? this._renderSceneMoonTile(model, context, width < 480) : nothing}
+                ${showSunTile
+                  ? this._renderSceneSunTile(model, context, width < 480, info.compact, info.itemWidth)
+                  : nothing}
+                ${showMoonTile
+                  ? this._renderSceneMoonTile(model, context, width < 480, info.compact, info.itemWidth)
+                  : nothing}
               </div>`
             : nothing}
         </div>
@@ -1098,9 +1105,13 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     const narrow = width < 480;
     const padding = narrow ? 14 : 18;
     const innerWidth = Math.max(160, width - 2 * padding - 2);
-    const infoSide = innerWidth >= 520;
-    const itemCount = (config.show_sun ? 1 : 0) + (config.show_moon ? 1 : 0);
-    const itemHeight = narrow ? 64 : 72;
+    const showSunInfo = config.show_sun && config.show_sun_info;
+    const showMoonInfo = config.show_moon && config.show_moon_info;
+    const itemCount = (showSunInfo ? 1 : 0) + (showMoonInfo ? 1 : 0);
+    // Zwischen den Einträgen: 18 px Abstand, Trennlinie, 18 px Abstand.
+    const info = this._infoLayout(innerWidth, itemCount, 37, 300, 140);
+    const infoSide = info.side;
+    const itemHeight = info.compact ? 62 : narrow ? 64 : 72;
     const infoHeight =
       itemCount === 0 ? 0 : infoSide ? itemHeight : itemCount * itemHeight + (itemCount - 1) * 12;
     const headerHeight = narrow ? 52 : 60;
@@ -1127,9 +1138,12 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
      * Platz nicht, entfällt zuerst die Phase, dann wird aus „Untergang in
      * 3 h 57 min“ nur „3 h 57 min“.
      */
+    // Sehr schmale Karten verkleinern Titel und Symbol, damit die Restzeit bleibt.
+    const tiny = innerWidth < 320;
+    const titleSize = tiny ? 18 : narrow ? 20 : 22;
     const titleWidth =
-      (narrow ? 54 : 64) +
-      Math.max(context.t('title').length * (narrow ? 20 : 22) * 0.56, place.length * 14 * 0.53);
+      (tiny ? 46 : narrow ? 54 : 64) +
+      Math.max(context.t('title').length * titleSize * 0.56, place.length * (tiny ? 13 : 14) * 0.53);
     const chipWidth = (text: string): number => text.length * 13.5 * 0.58 + 30;
     const budget = innerWidth - titleWidth - 12;
     const options: Array<{ phase: boolean; text: string | null }> = countdown
@@ -1145,7 +1159,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
         (option) =>
           (option.phase ? chipWidth(phaseText) + 8 : 0) + (option.text ? chipWidth(option.text) : 0) <=
           budget,
-      ) ?? { phase: false, text: countdown ? countdown.duration : null };
+      ) ?? { phase: false, text: null };
 
     return html`
       <ha-card
@@ -1157,9 +1171,13 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       >
         <div class="root clean-root" style=${styleMap({ padding: `${padding}px` })}>
           ${showHeader
-            ? html`<div class="clean-header" style=${styleMap({ height: `${headerHeight}px` })}>
+            ? html`<div
+                class=${classMap({ 'clean-header': true, tiny })}
+                style=${styleMap({ height: `${headerHeight}px` })}
+              >
                 <div class="clean-head-left">
-                  <svg class="clean-logo" width=${narrow ? 40 : 50} height=${narrow ? 32 : 40}
+                  <svg class="clean-logo" width=${tiny ? 34 : narrow ? 40 : 50}
+                    height=${tiny ? 27 : narrow ? 32 : 40}
                     viewBox="0 0 50 40" aria-hidden="true">
                     <g stroke="currentColor" stroke-width="3" stroke-linecap="round">
                       <line x1="4" y1="35" x2="46" y2="35" /><line x1="25" y1="3" x2="25" y2="9" />
@@ -1213,18 +1231,14 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                   class=${classMap({ 'clean-info': true, stacked: !infoSide, single: itemCount === 1 })}
                   style=${styleMap({ height: `${infoHeight}px` })}
                 >
-                  ${config.show_sun ? this._renderCleanSun(model, context, narrow) : nothing}
-                  ${config.show_sun && config.show_moon && infoSide
+                  ${showSunInfo
+                    ? this._renderCleanSun(model, context, narrow, info.compact, info.itemWidth)
+                    : nothing}
+                  ${showSunInfo && showMoonInfo && infoSide
                     ? html`<span class="clean-sep" aria-hidden="true"></span>`
                     : nothing}
-                  ${config.show_moon
-                    ? this._renderCleanMoon(
-                        model,
-                        context,
-                        narrow,
-                        (infoSide && itemCount === 2 ? (innerWidth - 37) / 2 : innerWidth) -
-                          (narrow ? 66 : 74),
-                      )
+                  ${showMoonInfo
+                    ? this._renderCleanMoon(model, context, narrow, info.compact, info.itemWidth)
                     : nothing}
                 </div>`
             : nothing}
@@ -1233,9 +1247,53 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     `;
   }
 
+  /**
+   * Verteilung der Infofelder (Sonne, Mond) in den Stilen `scene` und
+   * `clean`: nebeneinander, solange jedes Feld mindestens `minWidth` breit
+   * bleibt, sonst untereinander. Unter `fullWidth` wird ein Feld kompakt –
+   * kleinere Symbole und Schrift, Uhrzeiten in einer Zeile.
+   */
+  private _infoLayout(
+    innerWidth: number,
+    count: number,
+    gap: number,
+    fullWidth: number,
+    minWidth: number,
+  ): { side: boolean; compact: boolean; itemWidth: number } {
+    const half = (innerWidth - gap) / 2;
+    const side = count === 2 && half >= minWidth;
+    const itemWidth = side ? half : innerWidth;
+    return { side, compact: itemWidth < fullWidth, itemWidth };
+  }
+
+  /** Auf- und Untergang der Sonne in einer Zeile: „↑ 07:33 ↓ 16:09“. */
+  private _sunTimesText(model: CardModel, context: FormatContext): string {
+    const time = (value: Date | null): string => (value ? formatTime(value, context) : '—');
+    return `↑ ${time(model.events.sunrise)}  ↓ ${time(model.events.sunset)}`;
+  }
+
+  /** Stand des Mondes, mit kürzerer Fassung für schmale Felder. */
+  private _moonPositionTexts(model: CardModel, context: FormatContext): string[] {
+    const altitude = model.moon.position.apparentAltitude;
+    const short = formatDegrees(altitude, 1, context.locale);
+    return altitude >= 0
+      ? [
+          `${short} · ${Math.round(model.moon.position.azimuth)}° ${compassDirection(
+            model.moon.position.azimuth,
+            context.language,
+          )}`,
+          short,
+        ]
+      : [
+          `${formatDegrees(Math.abs(altitude), 1, context.locale)} ${context.t('belowHorizon')}`,
+          short,
+        ];
+  }
+
   /** Eintrag der Infozeile; antippbar, wenn es die Entität gibt. */
   private _cleanItem(
     kind: 'sun' | 'moon',
+    compact: boolean,
     action: (() => void) | null,
     label: string,
     content: TemplateResult,
@@ -1247,7 +1305,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       }
     };
     return html`<div
-      class=${classMap({ 'clean-item': true, [kind]: true, actionable: Boolean(action) })}
+      class=${classMap({ 'clean-item': true, [kind]: true, compact, actionable: Boolean(action) })}
       role=${action ? 'button' : 'group'}
       tabindex=${action ? '0' : '-1'}
       aria-label=${label}
@@ -1259,24 +1317,41 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   }
 
   /** Sonne in der Infozeile: Höhe und Azimut. */
-  private _renderCleanSun(model: CardModel, context: FormatContext, narrow: boolean): TemplateResult {
+  private _renderCleanSun(
+    model: CardModel,
+    context: FormatContext,
+    narrow: boolean,
+    compact: boolean,
+    itemWidth: number,
+  ): TemplateResult {
     const altitude = formatDegrees(model.sun.altitude, 1, context.locale);
     const azimuth = `${Math.round(model.sun.azimuth)}° ${compassDirection(
       model.sun.azimuth,
       context.language,
     )}`;
-    const size = narrow ? 50 : 58;
+    const size = compact ? 40 : narrow ? 50 : 58;
+    const textWidth = itemWidth - size - (compact ? 12 : 16);
+    const sub = this._fitLabel(
+      [`${context.t('azimuth')} ${azimuth}`, azimuth],
+      textWidth,
+      compact ? 12 : 13.5,
+      0.56,
+    );
     return this._cleanItem(
       'sun',
+      compact,
       this._sceneTileAction(this._config!.entity),
       `${context.t('sunAltitude')} ${altitude}, ${context.t('azimuth')} ${azimuth}`,
       html`<span class="clean-badge sun" style=${styleMap({ width: `${size}px`, height: `${size}px` })}
-          >${iconSun(narrow ? 26 : 30, 'currentColor')}</span
+          >${iconSun(compact ? 22 : narrow ? 26 : 30, 'currentColor')}</span
         >
         <span class="clean-item-text">
-          <span class="clean-item-label">${context.t('sunAltitude')}</span>
+          <span class="clean-item-label"
+            >${this._fitLabel([context.t('sunAltitude'), context.t('sun')], textWidth, 13, 0.56) ??
+            context.t('sun')}</span
+          >
           <span class="clean-item-value">${altitude}</span>
-          <span class="clean-item-sub">${context.t('azimuth')} ${azimuth}</span>
+          <span class="clean-item-sub">${sub ?? azimuth}</span>
         </span>`,
     );
   }
@@ -1286,32 +1361,41 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     model: CardModel,
     context: FormatContext,
     narrow: boolean,
-    textWidth: number,
+    compact: boolean,
+    itemWidth: number,
   ): TemplateResult {
+    const size = compact ? 40 : narrow ? 50 : 58;
+    const textWidth = itemWidth - size - (compact ? 12 : 16);
+    const subFont = compact ? 12 : 13.5;
     // Mit „morgen“ an beiden Zeiten wird die Zeile lang – dann bleibt der Aufgang.
     const times =
       this._fitLabel(
         [this._moonTimesText(model, context, false), this._moonTimesText(model, context, true)],
         textWidth,
-        13.5,
+        subFont,
         0.56,
       ) ?? this._moonTimesText(model, context, true);
     const phaseKey = (model.moon.haPhaseName ?? model.moon.phase.phaseKey) as StringKey;
-    const value = `${formatPercent(model.moon.phase.illumination, context.locale)} ${context.t(
-      'illumination',
-    )}`;
-    const size = narrow ? 50 : 58;
+    const percent = formatPercent(model.moon.phase.illumination, context.locale);
+    const full = `${percent} ${context.t('illumination')}`;
+    const value =
+      this._fitLabel([full, percent], textWidth, compact ? 18 : 24, 0.56) ?? percent;
+    const icon = compact ? 20 : narrow ? 24 : 28;
     return this._cleanItem(
       'moon',
+      compact,
       this._sceneTileAction(this._config!.moon_entity || null),
-      `${context.t(phaseKey)}, ${value}`,
+      `${context.t(phaseKey)}, ${full}`,
       html`<span class="clean-badge moon" style=${styleMap({ width: `${size}px`, height: `${size}px` })}>
-          <svg width=${narrow ? 24 : 28} height=${narrow ? 24 : 28} viewBox="0 0 24 24" aria-hidden="true">
+          <svg width=${icon} height=${icon} viewBox="0 0 24 24" aria-hidden="true">
             <path d="M15.5 3.2a9 9 0 1 0 5.3 13.6A7.4 7.4 0 0 1 15.5 3.2z" fill="currentColor" />
           </svg>
         </span>
         <span class="clean-item-text">
-          <span class="clean-item-label">${context.t(phaseKey)}</span>
+          <span class="clean-item-label"
+            >${this._fitLabel([context.t(phaseKey), context.t('moon')], textWidth, 13, 0.56) ??
+            context.t('moon')}</span
+          >
           <span class="clean-item-value">${value}</span>
           <span class="clean-item-sub" title=${this._moonTimesText(model, context, false)}
             >${times}</span
@@ -1381,6 +1465,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   /** Gemeinsamer Rahmen der Kacheln: antippbar, per Tastatur bedienbar. */
   private _sceneTile(
     kind: 'sun' | 'moon',
+    compact: boolean,
     action: (() => void) | null,
     label: string,
     content: TemplateResult,
@@ -1392,7 +1477,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       }
     };
     return html`<div
-      class=${classMap({ 'scene-tile': true, [kind]: true, actionable: Boolean(action) })}
+      class=${classMap({ 'scene-tile': true, [kind]: true, compact, actionable: Boolean(action) })}
       role=${action ? 'button' : 'group'}
       tabindex=${action ? '0' : '-1'}
       aria-label=${label}
@@ -1400,7 +1485,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
       @keydown=${action ? onKey : nothing}
     >
       ${content}
-      ${action
+      ${action && !compact
         ? html`<svg class="scene-chevron" width="10" height="16" viewBox="0 0 10 16" aria-hidden="true">
             <path d="M2 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round" />
@@ -1409,9 +1494,18 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     </div>`;
   }
 
-  /** Sonnenkachel: Höhe, Azimut, Auf- und Untergang. */
-  private _renderSceneSunTile(model: CardModel, context: FormatContext, narrow: boolean): TemplateResult {
-    const size = narrow ? 52 : 62;
+  /**
+   * Sonnenkachel: Höhe, Azimut, Auf- und Untergang. Kompakt rücken die
+   * Uhrzeiten aus der eigenen Spalte in eine Zeile unter den Azimut.
+   */
+  private _renderSceneSunTile(
+    model: CardModel,
+    context: FormatContext,
+    narrow: boolean,
+    compact: boolean,
+    itemWidth: number,
+  ): TemplateResult {
+    const size = compact ? 40 : narrow ? 52 : 62;
     const altitude = formatDegrees(model.sun.altitude, 1, context.locale);
     const azimuth = `${Math.round(model.sun.azimuth)}° ${compassDirection(
       model.sun.azimuth,
@@ -1419,13 +1513,37 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     )}`;
     const time = (value: Date | null): string => (value ? formatTime(value, context) : '—');
     const label = `${context.t('sunAltitude')} ${altitude}, ${context.t('azimuth')} ${azimuth}`;
+    // Rand und Innenabstand der Kachel: kompakt 2 × 10 px, sonst 2 × 14 px.
+    const textWidth = itemWidth - (compact ? 22 : 30) - size - (compact ? 10 : 14);
+    const icon = html`<span
+      class="scene-tile-icon"
+      style=${styleMap({ width: `${size}px`, height: `${size}px` })}
+      >${iconSun(Math.round(size * 0.55), '#f5a524')}</span
+    >`;
+    if (compact) {
+      return this._sceneTile(
+        'sun',
+        true,
+        this._sceneTileAction(this._config!.entity),
+        label,
+        html`${icon}
+          <span class="scene-tile-body">
+            <span class="scene-tile-label"
+              >${this._fitLabel([context.t('sunAltitude'), context.t('sun')], textWidth, 12, 0.56) ??
+              context.t('sun')}</span
+            >
+            <span class="scene-tile-value">${altitude}</span>
+            <span class="scene-tile-sub">${azimuth}</span>
+            <span class="scene-tile-sub">${this._sunTimesText(model, context)}</span>
+          </span>`,
+      );
+    }
     return this._sceneTile(
       'sun',
+      false,
       this._sceneTileAction(this._config!.entity),
       label,
-      html`<span class="scene-tile-icon" style=${styleMap({ width: `${size}px`, height: `${size}px` })}
-          >${iconSun(Math.round(size * 0.55), '#f5a524')}</span
-        >
+      html`${icon}
         <span class="scene-tile-body">
           <span class="scene-tile-label">${context.t('sunAltitude')}</span>
           <span class="scene-tile-value">${altitude}</span>
@@ -1443,36 +1561,55 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
   }
 
   /** Mondkachel: Phase, Beleuchtung, Stand und Auf-/Untergang. */
-  private _renderSceneMoonTile(model: CardModel, context: FormatContext, narrow: boolean): TemplateResult {
-    const size = narrow ? 52 : 62;
+  private _renderSceneMoonTile(
+    model: CardModel,
+    context: FormatContext,
+    narrow: boolean,
+    compact: boolean,
+    itemWidth: number,
+  ): TemplateResult {
+    const size = compact ? 40 : narrow ? 52 : 62;
     const phaseKey = (model.moon.haPhaseName ?? model.moon.phase.phaseKey) as StringKey;
     const percent = formatPercent(model.moon.phase.illumination, context.locale);
-    const altitude = model.moon.position.apparentAltitude;
+    const full = `${percent} ${context.t('illumination')}`;
+    const textWidth = itemWidth - (compact ? 22 : 30) - size - (compact ? 10 : 14) - (compact ? 0 : 24);
+    const subFont = compact ? 11.5 : 12.5;
     const position =
-      altitude >= 0
-        ? `${formatDegrees(altitude, 1, context.locale)} · ${Math.round(
-            model.moon.position.azimuth,
-          )}° ${compassDirection(model.moon.position.azimuth, context.language)}`
-        : `${formatDegrees(Math.abs(altitude), 1, context.locale)} ${context.t('belowHorizon')}`;
-    const value = `${percent} ${context.t('illumination')}`;
+      this._fitLabel(this._moonPositionTexts(model, context), textWidth, subFont, 0.56) ??
+      this._moonPositionTexts(model, context)[1];
+    const times =
+      this._fitLabel(
+        [this._moonTimesText(model, context, false), this._moonTimesText(model, context, true)],
+        textWidth,
+        subFont,
+        0.56,
+      ) ?? this._moonTimesText(model, context, true);
+    const value = this._fitLabel([full, percent], textWidth, compact ? 18 : 18, 0.58) ?? percent;
     return this._sceneTile(
       'moon',
+      compact,
       this._sceneTileAction(this._config!.moon_entity || null),
-      `${context.t(phaseKey)}, ${value}`,
+      `${context.t(phaseKey)}, ${full}`,
       html`<span class="scene-tile-icon moon" style=${styleMap({ width: `${size}px`, height: `${size}px` })}
           >${renderMoonDisc({
             size,
             illumination: model.moon.phase.illumination,
             brightLimbAngle: model.moon.phase.brightLimbAngle,
             darkColor: 'var(--smc-scene-moon-dark, rgba(92, 102, 160, 0.7))',
+            texture: !compact,
             uid: `${this._uid}-scene-tile-moon`,
           })}</span
         >
         <span class="scene-tile-body">
-          <span class="scene-tile-label">${context.t(phaseKey)}</span>
+          <span class="scene-tile-label"
+            >${this._fitLabel([context.t(phaseKey), context.t('moon')], textWidth, compact ? 12 : 12.5, 0.56) ??
+            context.t('moon')}</span
+          >
           <span class="scene-tile-value small">${value}</span>
           <span class="scene-tile-sub">${position}</span>
-          <span class="scene-tile-sub">${this._moonTimesText(model, context, false)}</span>
+          <span class="scene-tile-sub" title=${this._moonTimesText(model, context, false)}
+            >${times}</span
+          >
         </span>`,
     );
   }

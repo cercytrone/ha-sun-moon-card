@@ -98,6 +98,15 @@ export interface SunMoonCardConfig {
    * Szene im Kartenstil `scene`: Silhouette am unteren Rand des Himmels.
    */
   scene?: 'city' | 'mountains' | 'forest' | 'coast' | 'none';
+
+  /**
+   * Infofeld „Sonnenstand“ in den Stilen `scene` und `clean` (Kachel bzw.
+   * Eintrag unter dem Diagramm). Die Sonnenbahn bleibt davon unberührt.
+   */
+  show_sun_info?: boolean;
+
+  /** Infofeld zum Mond in den Stilen `scene` und `clean`. */
+  show_moon_info?: boolean;
   /**
    * Minimalmodus: zeigt ausschließlich den Zeitstrahl – keine Kopfzeile,
    * keine Ereignisleiste, keine Details, keine Fußzeile, keine Legende.

@@ -300,6 +300,8 @@ export function resolveConfig(
     double_tap_action: asAction(input.double_tap_action, language, warnings),
     card_style: asChoice(input.card_style, CONFIG_CHOICES.cardStyle, DEFAULT_CONFIG.card_style),
     scene: asChoice(input.scene, CONFIG_CHOICES.scene, DEFAULT_CONFIG.scene),
+    show_sun_info: asBoolean(input.show_sun_info, DEFAULT_CONFIG.show_sun_info),
+    show_moon_info: asBoolean(input.show_moon_info, DEFAULT_CONFIG.show_moon_info),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
     animations: asBoolean(input.animations, DEFAULT_CONFIG.animations),
     time_format: asChoice(input.time_format, CONFIG_CHOICES.timeFormat, DEFAULT_CONFIG.time_format),
