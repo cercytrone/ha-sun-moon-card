@@ -253,7 +253,8 @@ card_height: 320
 | `minimal_mode` | boolean | `false` | Minimal variant: the timeline only, without header, times row, details, footer and legend. Allows card heights from 24 px; a click opens the full card in an overlay |
 | `minimal_show_times` | boolean | `true` | Minimal variant: name the sunrise (left) and sunset (right) time above the timeline. Needs 36 px of card height |
 | `minimal_show_zenith` | boolean | `true` | Minimal variant: name the culmination time in the middle above the timeline. Needs 36 px of card height |
-| `sun_marker_size` | px (2–12) | `6` | Radius of the sun marker on the timeline. The marker grows with the plot height up to this value and stays at least 2.8 px on flat strips. Applies to the minimal, compact and full view alike |
+| `sun_marker_size` | px (2–12) | `6` | Radius of the sun marker on the timeline. The marker grows with the plot height up to this value and stays at least 2.8 px on flat strips. Applies to the minimal, compact and full view alike; also sets the sun dot in the `clean` card style |
+| `moon_marker_size` | px (2–12) | `6` | Radius of the moon dot in the `clean` card style (px); the sun dot there follows `sun_marker_size`. When the moon sits close to the sun it steps aside |
 | `popup_width` | px (320–1200) | `720` | Width of the minimal variant’s overlay (capped at 92 % of the window width) |
 | `popup_height` | px (260–800) | `460` | Height of the minimal variant’s overlay – independent of `card_height` |
 | `tap_action` | action | opens the overlay | Action when the minimal strip is tapped |

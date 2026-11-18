@@ -29,14 +29,28 @@ export interface CleanChartOptions {
   /** Aktuelle Höhen (Punkte auf der „Jetzt“-Linie). */
   sunAltitude: number;
   moonAltitude: number;
+  /** Radien der „Jetzt“-Punkte von Sonne und Mond in Pixeln. */
+  sunSize: number;
+  moonSize: number;
 }
 
 const f = (value: number): string => String(round(value, 1));
 
 /** Zeichnet den Tagesverlauf im Stil `clean`. */
 export function renderCleanChart(options: CleanChartOptions): TemplateResult {
-  const { profile, events, now, format, showSun, showMoon, moonPath, sunAltitude, moonAltitude } =
-    options;
+  const {
+    profile,
+    events,
+    now,
+    format,
+    showSun,
+    showMoon,
+    moonPath,
+    sunAltitude,
+    moonAltitude,
+    sunSize,
+    moonSize,
+  } = options;
   const t = format.t;
   const width = Math.max(160, options.width);
   const height = Math.max(100, options.height);
@@ -68,6 +82,19 @@ export function renderCleanChart(options: CleanChartOptions): TemplateResult {
       (floor - top);
   const y0 = yOf(0);
   const nowX = xOf(now.getTime());
+
+  // „Jetzt“-Punkte: Liegt der Mond dicht an der Sonne, weicht er seitlich aus
+  // – sonst verschwände er hinter ihr. Eine feine Linie hält den Bezug zur
+  // „Jetzt“-Linie.
+  const sunY = yOf(sunAltitude);
+  const moonY = yOf(moonAltitude);
+  const overlap = showSun && Math.abs(moonY - sunY) < sunSize + moonSize + 2;
+  const step = sunSize + moonSize + 6;
+  const moonX = overlap
+    ? nowX + step + moonSize <= width - right
+      ? nowX + step
+      : nowX - step
+    : nowX;
 
   const pathOf = (points: { time: number; altitude: number }[]): string =>
     points.map((p, i) => `${i ? 'L' : 'M'}${f(xOf(p.time))},${f(yOf(p.altitude))}`).join('');
@@ -116,7 +143,13 @@ export function renderCleanChart(options: CleanChartOptions): TemplateResult {
       }
       ${
         moonSamples.length
-          ? svg`<circle class="clean-moon-now" cx="${f(nowX)}" cy="${f(yOf(moonAltitude))}" r="6">
+          ? svg`${
+              moonX !== nowX
+                ? svg`<line class="clean-moon-link" x1="${f(nowX)}" x2="${f(moonX)}"
+                    y1="${f(moonY)}" y2="${f(moonY)}" />`
+                : svg``
+            }<circle class="clean-moon-now" cx="${f(moonX)}" cy="${f(moonY)}"
+              r="${f(moonSize)}">
               <title>${t('chartMoonNow', {
                 altitude: formatDegrees(moonAltitude, 1, format.locale),
               })}</title>
@@ -125,7 +158,8 @@ export function renderCleanChart(options: CleanChartOptions): TemplateResult {
       }
       ${
         showSun
-          ? svg`<circle class="clean-sun-now" cx="${f(nowX)}" cy="${f(yOf(sunAltitude))}" r="7">
+          ? svg`<circle class="clean-sun-now" cx="${f(nowX)}" cy="${f(sunY)}"
+              r="${f(sunSize)}">
               <title>${t('chartSunNow', {
                 altitude: formatDegrees(sunAltitude, 1, format.locale),
               })}</title>

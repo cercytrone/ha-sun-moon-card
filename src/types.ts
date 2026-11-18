@@ -130,6 +130,11 @@ export interface SunMoonCardConfig {
    * bleibt er kleiner, damit er den Verlauf nicht verdeckt.
    */
   sun_marker_size?: number;
+  /**
+   * Radius des Mondpunkts im Kartenstil `clean` in Pixeln. Die Sonne folgt
+   * dort `sun_marker_size`.
+   */
+  moon_marker_size?: number;
   /** Breite des Overlays der Minimalvariante in Pixeln. */
   popup_width?: number;
   /** Höhe des Overlays der Minimalvariante in Pixeln. */

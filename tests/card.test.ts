@@ -734,8 +734,12 @@ describe('Editor', () => {
       expect(root.querySelector('#show_sky_view')).toBeNull();
       expect(root.querySelector('#show_footer')).toBeNull();
       expect(root.querySelector('#compact')).toBeNull();
-      expect(root.querySelector('#sun-marker')).toBeNull();
+      // Größen von Sonne und Mond gibt es in „Minimalistisch“, nicht in der Szene.
+      expect(root.querySelector('#sun-marker') === null).toBe(style === 'scene');
+      expect(root.querySelector('#moon-marker') === null).toBe(style === 'scene');
     }
+    expect(classic.shadowRoot!.querySelector('#sun-marker')).not.toBeNull();
+    expect(classic.shadowRoot!.querySelector('#moon-marker')).toBeNull();
 
     const editor = await mountEditor({ type: 'custom:sun-moon-card', card_style: 'clean' });
     const events: SunMoonCardConfig[] = [];
@@ -2325,6 +2329,45 @@ describe('Kartenstil „clean“', () => {
     expect(root.querySelector('.clean-info')).toBeNull();
     expect(root.querySelector('.clean-header')).not.toBeNull();
     expect(Number(root.querySelector('svg.clean-chart')!.getAttribute('height'))).toBeGreaterThanOrEqual(110);
+  });
+
+  it('übernimmt die eingestellte Größe von Sonne und Mond', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const radius = async (config: Partial<SunMoonCardConfig>) => {
+      const card = await mountCard(
+        { type: 'custom:sun-moon-card', card_style: 'clean', ...config },
+        { width: 780 },
+      );
+      const root = card.shadowRoot!;
+      return {
+        sun: Number(root.querySelector('.clean-sun-now')!.getAttribute('r')),
+        moon: Number(root.querySelector('.clean-moon-now')!.getAttribute('r')),
+      };
+    };
+    expect(await radius({})).toEqual({ sun: 6, moon: 6 });
+    expect(await radius({ sun_marker_size: 10, moon_marker_size: 4.5 })).toEqual({
+      sun: 10,
+      moon: 4.5,
+    });
+    // Außerhalb des Bereichs wird auf 2–12 px begrenzt.
+    expect(await radius({ moon_marker_size: 40 })).toEqual({ sun: 6, moon: 12 });
+    expect(resolveConfig({ moon_marker_size: 40 }).warnings.length).toBeGreaterThan(0);
+  });
+
+  it('lässt den Mond neben der Sonne ausweichen, statt ihn zu verdecken', async () => {
+    // Um 14:30 stehen Sonne und Mond fast auf derselben Höhe.
+    freeze('2026-11-18T14:30:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_style: 'clean' }, { width: 780 });
+    const root = card.shadowRoot!;
+    const sunX = Number(root.querySelector('.clean-sun-now')!.getAttribute('cx'));
+    const moonX = Number(root.querySelector('.clean-moon-now')!.getAttribute('cx'));
+    expect(Math.abs(moonX - sunX)).toBeGreaterThanOrEqual(6 + 6 + 6);
+    expect(root.querySelector('.clean-moon-link')).not.toBeNull();
+
+    // Mittags liegen sie weit auseinander: kein Ausweichen.
+    freeze('2026-11-18T12:12:00+01:00');
+    const noon = await mountCard({ type: 'custom:sun-moon-card', card_style: 'clean' }, { width: 780 });
+    expect(noon.shadowRoot!.querySelector('.clean-moon-link')).toBeNull();
   });
 
   it('folgt den Schaltern für Sonne und Mond', async () => {

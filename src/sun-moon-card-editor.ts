@@ -23,6 +23,7 @@ import {
   POPUP_HEIGHT_RANGE,
   POPUP_WIDTH_RANGE,
   SUN_MARKER_SIZE_RANGE,
+  MOON_MARKER_SIZE_RANGE,
   cardHeightRange,
   stubConfig,
 } from './const.js';
@@ -307,7 +308,7 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
               ['dark', this._t('editorThemeDark')],
             ])}
             ${this._switch('animations', 'editorAnimations')}
-            ${modern
+            ${style === 'scene' && !minimal
               ? nothing
               : this._numberRow({
                   id: 'sun-marker',
@@ -319,6 +320,18 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                   digits: 1,
                   set: (value) => this._update({ sun_marker_size: value }),
                 })}
+            ${style === 'clean' && !minimal
+              ? this._numberRow({
+                  id: 'moon-marker',
+                  labelKey: 'editorMoonMarkerSize',
+                  value: this._value('moon_marker_size', DEFAULT_CONFIG.moon_marker_size),
+                  min: MOON_MARKER_SIZE_RANGE[0],
+                  max: MOON_MARKER_SIZE_RANGE[1],
+                  step: 0.5,
+                  digits: 1,
+                  set: (value) => this._update({ moon_marker_size: value }),
+                })
+              : nothing}
           `,
         )}
         ${this._group(

@@ -1184,6 +1184,12 @@ export const cardStyles = css`
     stroke-width: 2;
   }
 
+  .clean-chart .clean-moon-link {
+    stroke: var(--smc-clean-moon);
+    stroke-width: 1;
+    opacity: 0.7;
+  }
+
   .clean-divider {
     flex: 0 0 auto;
     height: 1px;

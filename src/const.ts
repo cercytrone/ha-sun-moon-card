@@ -68,6 +68,8 @@ export const MINIMAL_TIMES_MIN_HEIGHT = 36;
  * Der Marker wächst mit der Höhe des Verlaufs bis zur eingestellten Größe.
  */
 export const SUN_MARKER_SIZE_RANGE: [number, number] = [2, 12];
+/** Zulässiger Radius des Mondpunkts (Kartenstil `clean`). */
+export const MOON_MARKER_SIZE_RANGE: [number, number] = [2, 12];
 /** Breite des Overlays der Minimalvariante in Pixeln. */
 export const POPUP_WIDTH_RANGE: [number, number] = [320, 1200];
 /** Höhe des Overlays der Minimalvariante in Pixeln. */
@@ -99,6 +101,7 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   minimal_show_times: true,
   minimal_show_zenith: true,
   sun_marker_size: 6,
+  moon_marker_size: 6,
   popup_width: 720,
   popup_height: 460,
   card_style: 'glass',
