@@ -20,7 +20,8 @@ images, and no additional Home Assistant integration is required.
 [polar night](docs/screenshot-polar-night.png) · [minimal variant](docs/screenshot-minimal.png) ·
 [minimal variant, horizon style](docs/screenshot-minimal-horizon.png) ·
 [English / 12-hour format](docs/screenshot-english.png) ·
-[golden hour with countdown tile](docs/screenshot-golden-hour.png)*
+[golden hour with countdown tile](docs/screenshot-golden-hour.png) ·
+[scene “city”](docs/screenshot-scene.png) · [scene “mountains”, dark](docs/screenshot-scene-mountains.png)*
 
 > **Deutsche Fassung:** [README.md](README.md) – the German README is the full documentation
 > (installation, every YAML option, accuracy, edge cases, development).
@@ -47,6 +48,18 @@ images, and no additional Home Assistant integration is required.
   with the exact value in its tooltip. `card_style: flat` renders all gradients thinner, and
   **`card_style: horizon` fills only the space between curve and horizon** – day as a hill above
   the axis, night as a valley below, with the sky gradient off and glow and moon curve stepped back.
+- **Scene (`card_style: scene`):** a designed sky replaces the chart – morning on the left with
+  pink clouds, day in the middle, night with stars and moon on the right. The sun and moon paths
+  run in front of it (the sun’s past path dashed, the coming part solid, the sun large and
+  glowing), with sunrise, solar noon and sunset times beneath. The horizon fades softly into the
+  day, and a restrained **silhouette** shows the chosen scene: `scene: city` (default),
+  `mountains`, `forest`, `coast` (with a lighthouse) or `none`. The header carries a location pin,
+  place, date, countdown and sky phase; below sit two large tiles for the sun (elevation, azimuth,
+  sunrise and sunset) and the moon (phase, illumination, position, rise and set). Tapping a tile
+  opens the more-info dialog of the sun or moon entity. The background is **design and does not
+  follow the time of day**; paths, times and values are computed as in the other styles. The
+  default height is 460 px; when space runs short, the tiles go first, then the header – the sky
+  stays.
 - **Minimal variant (`minimal_mode: true`):** the card shows the timeline only – the curve with
   sunrise and sunset, the current sun position and the “now” line. Header, times row, details,
   footer and legend are dropped; the design of the timeline is kept, merely stripped down (no grid,
@@ -110,8 +123,8 @@ images, and no additional Home Assistant integration is required.
   the time zone, the twilight limit and the calculation method. Times follow the Home Assistant
   language and 12/24-hour setting.
 - **Robust:** free card height (120–800 px or `auto`, 24–800 px in the minimal variant), every
-  section can be switched off, compact mode, minimal variant, theme mode, three card styles
-  (`glass`, `flat`, `horizon`), animations, visual editor **and** YAML,
+  section can be switched off, compact mode, minimal variant, theme mode, four card styles
+  (`glass`, `flat`, `horizon`, `scene` with selectable scenery), animations, visual editor **and** YAML,
   `setConfig()` / `getCardSize()` / `getGridOptions()` / `getConfigElement()`. Missing entities,
   missing attributes or a missing location never break the card – it shows a hint instead.
 - **Accessible:** colours follow the Home Assistant theme variables; measured WCAG contrast of the
@@ -229,7 +242,8 @@ card_height: 320
 | `tap_action` | action | opens the overlay | Action when the minimal strip is tapped |
 | `hold_action` | action | – | Action when the strip is held (from 400 ms) |
 | `double_tap_action` | action | – | Action on a double tap (within 250 ms). When set, a single tap waits for that window |
-| `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line |
+| `card_style` | `glass` \| `flat` \| `horizon` \| `scene` | `glass` | `glass` draws translucent blurred tiles, `flat` uses solid surfaces without filters (better on weak devices), `horizon` fills only the space between curve and horizon line, `scene` shows a designed sky with a silhouette and two large tiles (default height 460 px) |
+| `scene` | `city` \| `mountains` \| `forest` \| `coast` \| `none` | `city` | Silhouette in the `scene` card style: city, mountains, forest, coast or none |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |
 | `animations` | boolean | `true` | Animations (pulsing “now” marker, transitions) |

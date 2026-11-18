@@ -19,6 +19,7 @@ import { EDITOR_ELEMENT_NAME } from './const.js';
 import {
   CONFIG_CHOICES,
   DEFAULT_CONFIG,
+  SCENE_CARD_HEIGHT,
   MIN_CARD_HEIGHT,
   MINIMAL_MIN_CARD_HEIGHT,
   POPUP_HEIGHT_RANGE,
@@ -110,7 +111,9 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
     // Streifen funktioniert bis 24 px.
     const minimal = this._config.minimal_mode === true;
     const heightRange = cardHeightRange(minimal);
-    const heightNumber = typeof height === 'number' ? height : DEFAULT_CONFIG.card_height;
+    const defaultHeight =
+      this._config.card_style === 'scene' && !minimal ? SCENE_CARD_HEIGHT : DEFAULT_CONFIG.card_height;
+    const heightNumber = typeof height === 'number' ? height : defaultHeight;
     const useHaLocation =
       this._config.latitude === undefined || this._config.latitude === null;
 
@@ -167,7 +170,7 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                     this._update({
                       card_height: (event.target as HTMLInputElement).checked
                         ? 'auto'
-                        : DEFAULT_CONFIG.card_height,
+                        : defaultHeight,
                     })}
                 />
                 <span class="slider"></span>
@@ -215,15 +218,47 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
                     card_style: (event.target as HTMLSelectElement).value as
                       | 'glass'
                       | 'flat'
-                      | 'horizon',
+                      | 'horizon'
+                      | 'scene',
+                    // Beim Wechsel zur Szene wächst die Standardhöhe mit – sonst
+                    // bliebe für Himmel und Kacheln zu wenig Raum.
+                    ...this._sceneHeight((event.target as HTMLSelectElement).value),
                   })}
               >
                 <option value="glass">${this._t('editorCardStyleGlass')}</option>
                 <option value="flat">${this._t('editorCardStyleFlat')}</option>
                 <option value="horizon">${this._t('editorCardStyleHorizon')}</option>
+                <option value="scene">${this._t('editorCardStyleScene')}</option>
               </select>
             </div>
           </div>
+
+          ${this._config?.card_style === 'scene'
+            ? html`<div class="row">
+                <label for="scene">${this._t('editorScene')}</label>
+                <div class="control">
+                  <select
+                    id="scene"
+                    .value=${this._value('scene', 'city')}
+                    @change=${(event: Event) =>
+                      this._update({
+                        scene: (event.target as HTMLSelectElement).value as
+                          | 'city'
+                          | 'mountains'
+                          | 'forest'
+                          | 'coast'
+                          | 'none',
+                      })}
+                  >
+                    <option value="city">${this._t('editorSceneCity')}</option>
+                    <option value="mountains">${this._t('editorSceneMountains')}</option>
+                    <option value="forest">${this._t('editorSceneForest')}</option>
+                    <option value="coast">${this._t('editorSceneCoast')}</option>
+                    <option value="none">${this._t('editorSceneNone')}</option>
+                  </select>
+                </div>
+              </div>`
+            : nothing}
 
           <div class="row">
             <label for="timeformat">${this._t('editorTimeFormat')}</label>
@@ -606,6 +641,22 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Passt die Höhe beim Wechsel des Kartenstils an, solange sie noch auf der
+   * Standardhöhe des bisherigen Stils steht. Eigene Höhen bleiben unberührt.
+   */
+  private _sceneHeight(style: string): { card_height?: number } {
+    const height = this._config?.card_height;
+    if (this._config?.minimal_mode === true) return {};
+    if (style === 'scene' && (height === undefined || height === DEFAULT_CONFIG.card_height)) {
+      return { card_height: SCENE_CARD_HEIGHT };
+    }
+    if (style !== 'scene' && height === SCENE_CARD_HEIGHT) {
+      return { card_height: DEFAULT_CONFIG.card_height as number };
+    }
+    return {};
   }
 
   private _warnings(): TemplateResult | typeof nothing {

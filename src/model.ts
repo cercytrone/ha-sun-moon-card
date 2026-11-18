@@ -53,6 +53,7 @@ import {
   SUPPORTED_ACTIONS,
   cardHeightRange,
   resolveAutoHeight,
+  SCENE_CARD_HEIGHT,
   MOON_FOLK_KEYS,
 } from './const.js';
 import { timeZoneLongName } from './format.js';
@@ -178,7 +179,9 @@ export function resolveConfig(
   const heightRange = cardHeightRange(minimalMode);
 
   // Kartenhöhe
-  let cardHeight: number | 'auto' = DEFAULT_CONFIG.card_height;
+  // Ohne Angabe gilt die Standardhöhe des Kartenstils.
+  let cardHeight: number | 'auto' =
+    input.card_style === 'scene' && !minimalMode ? SCENE_CARD_HEIGHT : DEFAULT_CONFIG.card_height;
   if (typeof input.card_height === 'number' && Number.isFinite(input.card_height)) {
     cardHeight = Math.round(clamp(input.card_height, heightRange[0], heightRange[1]));
     if (cardHeight !== input.card_height) {
@@ -294,6 +297,7 @@ export function resolveConfig(
     hold_action: asAction(input.hold_action, language, warnings),
     double_tap_action: asAction(input.double_tap_action, language, warnings),
     card_style: asChoice(input.card_style, CONFIG_CHOICES.cardStyle, DEFAULT_CONFIG.card_style),
+    scene: asChoice(input.scene, CONFIG_CHOICES.scene, DEFAULT_CONFIG.scene),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
     animations: asBoolean(input.animations, DEFAULT_CONFIG.animations),
     time_format: asChoice(input.time_format, CONFIG_CHOICES.timeFormat, DEFAULT_CONFIG.time_format),
@@ -321,7 +325,7 @@ export function resolveConfig(
 export function resolveCardHeight(config: ResolvedConfig, width: number): number {
   const range = cardHeightRange(config.minimal_mode);
   if (config.card_height === 'auto') {
-    return clamp(resolveAutoHeight(width), range[0], range[1]);
+    return clamp(resolveAutoHeight(width, config.card_style), range[0], range[1]);
   }
   return clamp(config.card_height, range[0], range[1]);
 }

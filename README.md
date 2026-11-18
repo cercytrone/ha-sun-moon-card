@@ -21,7 +21,8 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 [Minimalvariante](docs/screenshot-minimal.png) ·
 [Minimalvariante im Horizontstil](docs/screenshot-minimal-horizon.png) ·
 [Englisch / 12-Stunden-Format](docs/screenshot-english.png) ·
-[Goldene Stunde mit Restzeit-Kachel](docs/screenshot-golden-hour.png)*
+[Goldene Stunde mit Restzeit-Kachel](docs/screenshot-golden-hour.png) ·
+[Szene „Stadt“](docs/screenshot-scene.png) · [Szene „Berge“, dunkel](docs/screenshot-scene-mountains.png)*
 
 > **English version:** [README.en.md](README.en.md)
 
@@ -82,6 +83,19 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
 - **`card_style: horizon`** füllt nur den Raum **zwischen Kurve und Horizont**: Der Tag steht als
   Berg über der Achse, die Nacht als Tal darunter. Der Himmelsverlauf über der Kurve entfällt,
   Horizontglühen und Mondkurve treten zurück – die Fläche trägt die Aussage
+- **`card_style: scene` – die Szene:** Ein gestalteter Himmel ersetzt das Diagramm – links Morgen
+  mit rosa Wolken, in der Mitte Tag, rechts Nacht mit Sternen und Mond. Davor laufen die Bahnen
+  von Sonne und Mond: der vergangene Teil der Sonnenbahn gestrichelt, der kommende durchgezogen,
+  die Sonne groß und leuchtend. Unter dem Himmel stehen Sonnenaufgang, solarer Mittag und
+  Sonnenuntergang mit Uhrzeit. Der Horizont läuft weich in den Tag aus, unten zeigt eine
+  zurückhaltende **Silhouette** die gewählte Szene: `scene: city` (Stadt, Standard),
+  `mountains` (Berge), `forest` (Wald), `coast` (Küste mit Leuchtturm) oder `none`. Die
+  Kopfzeile trägt Ortssymbol, Ort, Datum, Restzeit und Himmelsphase; darunter stehen zwei große
+  Kacheln für Sonne (Höhe, Azimut, Auf- und Untergang) und Mond (Phase, Beleuchtung, Stand,
+  Auf- und Untergang). Ein Tippen auf eine Kachel öffnet die Detailansicht der Sonnen- bzw.
+  Mond-Entität. Der Hintergrund ist **Gestaltung und folgt nicht der Uhrzeit**; Bahnen, Zeiten und
+  Werte sind berechnet wie in den anderen Stilen. Die Standardhöhe beträgt 460 px; reicht die Höhe
+  nicht, entfallen zuerst die Kacheln, dann die Kopfzeile – der Himmel bleibt
 - **`minimal_mode: true` – die Minimalvariante:** Die Karte zeigt ausschließlich den Zeitstrahl,
   also die Kurve mit Auf- und Untergang, dem Sonnenstand und der „Jetzt“-Linie. Kopfzeile,
   Zeitenleiste, Details, Fußzeile und Legende entfallen, das Design des Zeitstrahls bleibt
@@ -180,9 +194,9 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   Minimalvariante von 24 bis 800 px
 - Alle Bereiche einzeln abschaltbar (`show_*`), Kompaktmodus, Minimalvariante, Theme-Modus,
   Animationen
-- Drei Kartenstile: `card_style: glass` (halbtransparente Kacheln, Standard), `flat`
-  (deckende Flächen ohne Weichzeichner – für schwache Geräte) und `horizon`
-  (Fläche nur zwischen Kurve und Horizont)
+- Vier Kartenstile: `card_style: glass` (halbtransparente Kacheln, Standard), `flat`
+  (deckende Flächen ohne Weichzeichner – für schwache Geräte), `horizon`
+  (Fläche nur zwischen Kurve und Horizont) und `scene` (gestalteter Himmel mit Silhouette)
 - Visual Editor **und** YAML; `setConfig()`, `getCardSize()`, `getGridOptions()`,
   `getConfigElement()`, `getStubConfig()`
 - Keine Abstürze bei fehlender Entität, fehlenden Attributen oder fehlendem Standort – stattdessen
@@ -364,7 +378,8 @@ cards:
 | `tap_action` | Aktion | Overlay öffnen | Aktion beim Antippen des Minimalstreifens |
 | `hold_action` | Aktion | – | Aktion beim Gedrückthalten (ab 400 ms) |
 | `double_tap_action` | Aktion | – | Aktion beim doppelten Antippen (innerhalb von 250 ms). Ist sie gesetzt, wartet das einfache Antippen das Zeitfenster ab |
-| `card_style` | `glass` \| `flat` \| `horizon` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie |
+| `card_style` | `glass` \| `flat` \| `horizon` \| `scene` | `glass` | `glass` zeichnet halbtransparente Kacheln mit Weichzeichnung, `flat` deckende Flächen ohne Filter (besser für schwache Geräte), `horizon` füllt im Chart nur den Raum zwischen Kurve und Horizontlinie, `scene` zeigt einen gestalteten Himmel mit Silhouette und zwei großen Kacheln (Standardhöhe 460 px) |
+| `scene` | `city` \| `mountains` \| `forest` \| `coast` \| `none` | `city` | Silhouette im Kartenstil `scene`: Stadt, Berge, Wald, Küste oder keine |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
 | `animations` | `true` / `false` | `true` | Animationen (pulsierender „Jetzt“-Marker, Übergänge) |
@@ -398,7 +413,8 @@ Beim Hinzufügen der Karte öffnet sich der Editor mit vier Gruppen:
 - **Darstellung** – Kartenhöhe (Schieberegler und Zahlenfeld), automatische Höhe, Farbschema,
   Zeitformat, Sprache, Animationen, Kompaktmodus, Minimalvariante mit Auf-/Untergangszeit und
   Zenitzeit, Größe der Sonne, Breite und Höhe des Overlays (beide nur in der Minimalvariante),
-  Dämmerungsgrenze
+  Dämmerungsgrenze, Kartenstil und – nur im Stil `scene` – die Szene. Wer zur Szene wechselt,
+  ohne eine eigene Höhe gesetzt zu haben, bekommt deren Standardhöhe von 460 px
 - **Bereiche** – Schalter für Sonne, Mond, Dämmerung, astronomische Details, Kopfzeile,
   Tagesverlauf, Himmelsansicht, Zeitenleiste, Mondauf-/untergang, Restzeit, Restzeit-Kachel,
   Goldene & Blaue Stunde; dazu die Auswahl, welche Restzeit in der Kopfzeile steht

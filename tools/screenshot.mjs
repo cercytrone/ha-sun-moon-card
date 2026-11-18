@@ -102,6 +102,18 @@ const SHOTS = [
     file: 'screenshot-golden-hour.png',
   },
   {
+    name: 'Szene „Stadt“ (card_style: scene)',
+    url: '/shots.html?preset=scene&loc=berlin&time=2026-11-18T12:12&theme=light&w=780&h=460',
+    selector: 'sun-moon-card',
+    file: 'screenshot-scene.png',
+  },
+  {
+    name: 'Szene „Berge“, dunkel (card_style: scene, scene: mountains)',
+    url: '/shots.html?preset=scene_mountains&loc=berlin&time=2026-11-18T12:12&theme=dark&w=780&h=460',
+    selector: 'sun-moon-card',
+    file: 'screenshot-scene-mountains.png',
+  },
+  {
     name: 'Flache Darstellung (card_style: flat)',
     url: '/shots.html?preset=flat&loc=berlin&time=2026-10-26T18:30&theme=dark&w=620&h=340',
     selector: 'sun-moon-card',
