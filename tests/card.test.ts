@@ -2058,42 +2058,71 @@ describe('Kartenstil „scene“', () => {
     expect(chip?.getAttribute('aria-label')).toMatch(/^Sonnenuntergang in 3 h 5\d min$/);
   });
 
-  it('setzt den Mond auf seine Bahn an der aktuellen Uhrzeit', async () => {
-    const position = async (time: string) => {
+  it('setzt den Mond auf seine Bahn oder zeigt außerhalb eine Randmarke', async () => {
+    const render = async (time: string) => {
       freeze(time);
       const card = await mountCard(
         { type: 'custom:sun-moon-card', card_style: 'scene' },
         { width: 780 },
       );
       const root = card.shadowRoot!;
-      const moon = root.querySelector('.scene-chart .now-moon')!;
+      const moon = root.querySelector('.scene-chart .now-moon');
       // Der Ring um die Scheibe trägt die Position.
-      const ring = [...moon.children].find(
-        (node) => node.tagName.toLowerCase() === 'circle' && node.getAttribute('fill') === 'none',
-      )!;
-      const horizon = Number(root.querySelector('.scene-chart line.horizon')!.getAttribute('y1'));
-      const sun = root.querySelector('.scene-chart .now-sun circle')!;
+      const ring = moon
+        ? [...moon.children].find(
+            (node) =>
+              node.tagName.toLowerCase() === 'circle' && node.getAttribute('fill') === 'none',
+          )
+        : undefined;
+      const edge = root.querySelector('.scene-chart .moon-edge');
       return {
-        x: Number(ring.getAttribute('cx')),
-        y: Number(ring.getAttribute('cy')),
-        sunX: Number(sun.getAttribute('cx')),
-        horizon,
-        title: moon.querySelector('title')?.textContent ?? '',
-        opacity: Number(moon.getAttribute('opacity')),
+        y: ring ? Number(ring.getAttribute('cy')) : null,
+        opacity: moon ? Number(moon.getAttribute('opacity')) : null,
+        horizon: Number(root.querySelector('.scene-chart line.horizon')!.getAttribute('y1')),
+        edge: edge?.getAttribute('data-edge') ?? null,
+        edgeText: edge?.querySelector('text')?.textContent?.trim() ?? '',
+        edgeTitle: edge?.querySelector('title')?.textContent ?? '',
       };
     };
 
-    // Abends steht der Mond hoch am Himmel – auf der „Jetzt“-Position.
-    const evening = await position('2026-11-18T17:40:00+01:00');
-    expect(evening.y).toBeLessThan(evening.horizon);
-    expect(evening.x).toBe(evening.sunX);
-    expect(evening.title).toMatch(/^Mond jetzt: 27,\d°$/);
-    expect(evening.opacity).toBe(1);
+    // Nachmittags steht der Mond im Bild über dem Horizont – auf seiner Bahn.
+    const afternoon = await render('2026-11-18T14:30:00+01:00');
+    expect(afternoon.edge).toBeNull();
+    expect(afternoon.y).toBeLessThan(afternoon.horizon);
+    expect(afternoon.opacity).toBe(1);
 
-    // Mittags ist er unter dem Horizont: sichtbar, aber gedämpft.
-    const noon = await position('2026-11-18T12:12:00+01:00');
+    // Mittags ist er unter dem Horizont, aber noch im Bild: gedämpft.
+    const noon = await render('2026-11-18T12:12:00+01:00');
+    expect(noon.edge).toBeNull();
     expect(noon.y).toBeGreaterThan(noon.horizon);
     expect(noon.opacity).toBeLessThan(1);
+
+    // Abends steht er über dem Sonnenbogen: Randmarke oben statt Scheibe.
+    const evening = await render('2026-11-18T17:40:00+01:00');
+    expect(evening.y).toBeNull();
+    expect(evening.edge).toBe('top');
+    expect(evening.edgeText).toMatch(/^▲ 28°$/);
+    expect(evening.edgeTitle).toMatch(/^Mond jetzt: 27,\d° \(außerhalb/);
+
+    // Früh morgens weit unter dem Horizont: Randmarke unten.
+    const morning = await render('2026-11-20T06:16:00+01:00');
+    expect(morning.edge).toBe('bottom');
+    expect(morning.edgeText).toMatch(/^▼ [−-]31°$/);
+  });
+
+  it('richtet den Höhenbereich nach der Sonne, nicht nach dem Mond', async () => {
+    freeze('2026-11-18T12:12:00+01:00');
+    const card = await mountCard({ type: 'custom:sun-moon-card', card_style: 'scene' }, { width: 780 });
+    const root = card.shadowRoot!;
+    const label = [...root.querySelectorAll('.scene-chart .scene-axis')].find(
+      (node) => node.textContent?.trim() === '20°',
+    )!;
+    const y20 = Number(label.getAttribute('y')) - 4;
+    const horizon = Number(root.querySelector('.scene-chart line.horizon')!.getAttribute('y1'));
+    const plotTop = 14;
+    // Sonne bis 18,2° → oberer Rand bei 26,2°: 20° liegt im oberen Viertel.
+    // Bezöge der Bereich den Mond (bis 34°) ein, läge 20° auf halber Höhe.
+    expect((horizon - y20) / (horizon - plotTop)).toBeGreaterThan(0.7);
   });
 
   it('wechselt die Szene', async () => {
@@ -2140,9 +2169,13 @@ describe('Kartenstil „scene“', () => {
 
   it('zeigt die Kacheln auf schmalen Karten kompakt nebeneinander', async () => {
     freeze('2026-11-18T12:12:00+01:00');
+    // Die Mock-Umgebung setzt sensor.moon nach der echten Uhrzeit, nicht nach
+    // der eingefrorenen – die Phase wird hier deshalb festgelegt.
+    const hass = mockHass();
+    hass.states['sensor.moon'] = { ...hass.states['sensor.moon'], state: 'first_quarter' };
     const card = await mountCard(
       { type: 'custom:sun-moon-card', card_style: 'scene', card_height: 520 },
-      { width: 380 },
+      { width: 380, hass },
     );
     const root = card.shadowRoot!;
     expect(root.querySelector('.scene-tiles.stacked')).toBeNull();
