@@ -1437,9 +1437,44 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
     width: number,
     headerHeight: number,
   ): TemplateResult {
-    const narrow = width < 480;
     const countdown = this._primaryCountdown(model, context);
     const phaseText = context.t(this._phaseKey(model));
+    const title = model.locationName || context.t('title');
+    const date = formatDate(model.now, context);
+
+    /*
+     * Breitenbudget: Ort und Datum haben Vorrang. Reicht der Platz nicht,
+     * entfällt zuerst die Phase, dann wird aus „Aufgang in 13 h 53 min“ nur
+     * „13 h 53 min“; zuletzt entfällt auch dieser Chip. Die Schätzung ist
+     * großzügig, damit auch breitere Ersatzschriften passen.
+     */
+    const padding = width < 480 ? 12 : 16;
+    const innerWidth = width - 2 * padding;
+    const titleWidth =
+      30 + Math.max(title.length * 24 * LABEL_FACTOR, date.length * 13 * TEXT_FACTOR);
+    const chipWidth = (text: string, extra: number): number =>
+      text.length * 13 * LABEL_FACTOR + 28 + extra;
+    const budget = innerWidth - titleWidth - 12;
+    const phaseWidth = chipWidth(phaseText, 17) + 8;
+    const options: Array<{ phase: boolean; text: string | null }> = countdown
+      ? [
+          { phase: true, text: countdown.compact },
+          { phase: false, text: countdown.compact },
+          { phase: true, text: countdown.duration },
+          { phase: false, text: countdown.duration },
+          { phase: false, text: null },
+        ]
+      : [
+          { phase: true, text: null },
+          { phase: false, text: null },
+        ];
+    const choice =
+      options.find(
+        (option) =>
+          (option.phase ? phaseWidth : 0) +
+            (option.text ? chipWidth(option.text, COUNTDOWN_ICON_WIDTH + 6) : 0) <=
+          budget,
+      ) ?? { phase: false, text: null };
     return html`
       <div class="scene-header" style=${styleMap({ height: `${headerHeight}px` })}>
         <div class="scene-place">
@@ -1451,22 +1486,22 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
             <circle cx="11" cy="10.5" r="3.6" fill="var(--smc-scene-pin-hole, #fff)" />
           </svg>
           <div class="scene-place-text">
-            <span class="scene-title">${model.locationName || context.t('title')}</span>
-            <span class="scene-date">${formatDate(model.now, context)}</span>
+            <span class="scene-title">${title}</span>
+            <span class="scene-date">${date}</span>
           </div>
         </div>
         <div class="scene-chips">
-          ${countdown
+          ${countdown && choice.text
             ? html`<span
                 class="scene-chip countdown-chip"
                 data-body=${countdown.body}
                 role="img"
                 aria-label=${countdown.long}
                 title=${countdown.title}
-                >${countdown.icon}<span>${narrow ? countdown.duration : countdown.compact}</span></span
+                >${countdown.icon}<span>${choice.text}</span></span
               >`
             : nothing}
-          ${narrow && countdown
+          ${!choice.phase
             ? nothing
             : html`<span class="scene-chip phase" title=${phaseText}>
                 <span

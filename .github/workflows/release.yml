@@ -1,12 +1,17 @@
 name: Release
 
-# Ablauf:
-#   1. `Vorbereiten` (workflow_dispatch) erhöht die Version in package.json,
-#      committet, setzt den Tag `vX.Y.Z` und pusht ihn.
-#   2. Der Push des Tags startet `Veroeffentlichen`: Tests, Build und das
-#      gebaute Bundle werden an das GitHub-Release gehängt (HACS-Quelle).
-#      Ein von Hand angelegtes Release mit diesem Tag bleibt erhalten; es
-#      bekommt nur die Dateien angehängt.
+# Ablauf beim manuellen Start (workflow_dispatch):
+#   1. „Version vorbereiten“ erhöht die Version in package.json, committet,
+#      setzt den Tag `vX.Y.Z` und pusht Commit und Tag ausdrücklich.
+#   2. „Release veröffentlichen“ läuft direkt danach im selben Lauf: Tests,
+#      Build, und das Bundle wird an das GitHub-Release gehängt (HACS-Quelle).
+#      Ein Tag-Push mit dem GITHUB_TOKEN startet keine weiteren Workflows –
+#      deshalb wartet dieser Job hier nicht auf den Push-Auslöser.
+#
+# Ein von Hand gesetztes Tag (z. B. beim Anlegen eines Releases in der
+# GitHub-Oberfläche) startet „Release veröffentlichen“ ebenfalls. Ein von
+# Hand angelegtes Release bleibt erhalten; es bekommt nur die Dateien
+# angehängt.
 on:
   workflow_dispatch:
     inputs:
@@ -59,15 +64,35 @@ jobs:
           git add package.json package-lock.json dist
           # Kein Commit nötig, wenn sich nichts geändert hat (z. B. dieselbe Version).
           git diff --cached --quiet || git commit -m "chore: release v${{ inputs.version }}"
-          git tag "v${{ inputs.version }}"
-          git push origin main --follow-tags
+          git push origin main
+          # Das Tag ausdrücklich pushen: `--follow-tags` überträgt nur annotierte
+          # Tags, ein einfaches Tag bliebe sonst auf dem Runner liegen.
+          TAG="v${{ inputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "Tag $TAG existiert bereits – es wird nicht neu gesetzt."
+          else
+            git tag "$TAG"
+            git push origin "refs/tags/$TAG"
+          fi
 
   publish:
     name: Release veröffentlichen
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: prepare
+    # Beim manuellen Start nach „Version vorbereiten“, beim Push eines Tags
+    # direkt (dann ist „prepare“ übersprungen).
+    if: >-
+      ${{ !cancelled() && (
+        (github.event_name == 'workflow_dispatch' && needs.prepare.result == 'success') ||
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+      ) }}
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+      PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
 
       - uses: actions/setup-node@v4
         with:
@@ -83,7 +108,6 @@ jobs:
       - name: GitHub-Release erstellen und Bundle anhängen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
         run: |
           # Wurde das Release schon von Hand angelegt (z. B. mit eigenem Text in
           # der GitHub-Oberfläche), werden die Dateien nur angehängt – Titel,
@@ -98,6 +122,7 @@ jobs:
             gh release create "$TAG" \
               --title "$TAG" \
               --generate-notes \
+              $( [ "$PRERELEASE" = "true" ] && echo --prerelease ) \
               dist/sun-moon-card.js \
               dist/sun-moon-card.js.map
           fi
