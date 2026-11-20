@@ -2082,6 +2082,7 @@ describe('Kartenstil „scene“', () => {
         edge: edge?.getAttribute('data-edge') ?? null,
         edgeText: edge?.querySelector('text')?.textContent?.trim() ?? '',
         edgeTitle: edge?.querySelector('title')?.textContent ?? '',
+        edgeIcon: Boolean(edge?.querySelector('svg.moon-disc')),
       };
     };
 
@@ -2102,6 +2103,8 @@ describe('Kartenstil „scene“', () => {
     expect(evening.y).toBeNull();
     expect(evening.edge).toBe('top');
     expect(evening.edgeText).toMatch(/^▲ 28°$/);
+    // Die Marke trägt eine kleine Mondscheibe in der aktuellen Phase.
+    expect(evening.edgeIcon).toBe(true);
     expect(evening.edgeTitle).toMatch(/^Mond jetzt: 27,\d° \(außerhalb/);
 
     // Früh morgens weit unter dem Horizont: Randmarke unten.

@@ -474,7 +474,9 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
     : '';
   const edgeFont = narrow ? 10.5 : 11.5;
   const edgeH = edgeFont + 8;
-  const edgeW = edgeText.length * edgeFont * 0.62 + 14;
+  // Mondscheibe in der aktuellen Phase links in der Marke
+  const edgeIcon = Math.round(edgeFont + 2);
+  const edgeW = edgeText.length * edgeFont * 0.62 + 14 + edgeIcon + 5;
   const edgeY = moonEdge === 'bottom' ? height - bandH - edgeH - 8 : plotTop + 2;
   const edgeOnSun =
     showSun &&
@@ -691,7 +693,21 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
               <rect x="${f(edgeX - edgeW / 2)}" y="${f(edgeY)}" width="${f(edgeW)}"
                 height="${f(edgeH)}" rx="${f(edgeH / 2)}" fill="rgba(22, 26, 64, 0.62)"
                 stroke="rgba(255,255,255,0.55)" stroke-width="0.8" />
-              <text x="${f(edgeX)}" y="${f(edgeY + edgeH / 2 + edgeFont * 0.36)}"
+              <g transform="translate(${f(edgeX - edgeW / 2 + 5)} ${f(
+                edgeY + (edgeH - edgeIcon) / 2,
+              )})">
+                ${renderMoonDisc({
+                  size: edgeIcon,
+                  illumination: moon.illumination,
+                  brightLimbAngle: moon.brightLimbAngle,
+                  litColor: '#f7f8ff',
+                  darkColor: '#3a4280',
+                  texture: false,
+                  uid: `${uid}-edge-moon`,
+                })}
+              </g>
+              <text x="${f(edgeX + (edgeIcon + 5) / 2)}"
+                y="${f(edgeY + edgeH / 2 + edgeFont * 0.36)}"
                 text-anchor="middle" font-size="${edgeFont}" fill="#f2f4ff">${edgeText}</text>
             </g>`
           : svg``
