@@ -785,6 +785,7 @@ export const cardStyles = css`
     align-items: center;
     gap: 10px;
     min-width: 0;
+    flex: 1 1 auto;
   }
 
   .scene-pin {

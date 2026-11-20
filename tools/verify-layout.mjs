@@ -1406,7 +1406,7 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
   // 6) Kartenstil „scene“: Himmel, Kopfzeile und Kacheln passen in die
   //    Kartenhöhe, kein Text ist abgeschnitten – breit, mittel und schmal.
   console.log('\n— Kartenstil „scene“ —');
-  for (const [preset, w, h, theme, font] of [
+  for (const [preset, w, h, theme, timeOrFont, maybeFont] of [
     ['scene', 900, 460, 'light'],
     ['scene', 620, 460, 'dark'],
     ['scene', 360, 520, 'light'],
@@ -1417,9 +1417,16 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
     // Kompakte Kacheln nebeneinander
     ['scene', 380, 520, 'light'],
     ['scene', 320, 520, 'dark'],
+    // Kopfzeile mit langer Phase („Astronomische Dämmerung“) bei mittlerer Breite
+    ['scene_mountains', 500, 300, 'dark', '2026-11-20T17:45'],
+    ['scene_mountains', 500, 300, 'dark', '2026-11-20T12:12'],
   ].flatMap((entry) => [[...entry, null], [...entry, WIDE_FONT]])) {
+    // Fünftes Feld: optionale Uhrzeit; die Schrift steht dann an sechster Stelle.
+    const hasTime = typeof timeOrFont === 'string' && /^\d{4}-/.test(timeOrFont);
+    const time = hasTime ? timeOrFont : '2026-11-18T12:12';
+    const font = hasTime ? maybeFont : timeOrFont;
     const url =
-      `${baseUrl}/shots.html?loc=berlin&time=2026-11-18T12:12&theme=${theme}&h=${h}&w=${w}` +
+      `${baseUrl}/shots.html?loc=berlin&time=${time}&theme=${theme}&h=${h}&w=${w}` +
       `&preset=${preset}`;
     await page.goto(url, { waitUntil: 'networkidle0' });
     if (font) await useFont(page, font);
@@ -1433,6 +1440,10 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
       const card = root.querySelector('ha-card').getBoundingClientRect();
       const parts = [...root.querySelectorAll('.scene-header, .scene-wrap, .scene-tiles')];
       const overflow = parts.some((node) => node.getBoundingClientRect().bottom > card.bottom + 0.6);
+      // Chips dürfen den Ort nicht überdecken.
+      const place = root.querySelector('.scene-place-text')?.getBoundingClientRect();
+      const firstChip = root.querySelector('.scene-chip')?.getBoundingClientRect();
+      const headerOverlap = Boolean(place && firstChip && firstChip.left < place.right - 0.5);
       const clipped = [
         ...root.querySelectorAll('.scene-tile-body > span, .scene-title, .scene-chip, .scene-tile-times b'),
       ]
@@ -1440,13 +1451,13 @@ console.log('\n— Kontrast der Beschriftungen (WCAG) —');
         .map((node) => node.textContent.trim());
       return {
         overflow,
-        clipped,
+        clipped: headerOverlap ? [...clipped, 'Kopfzeile: Chips über dem Ort'] : clipped,
         tiles: root.querySelectorAll('.scene-tile').length,
         scene: root.querySelector('.silhouette')?.getAttribute('data-scene') ?? 'none',
       };
     });
     record(
-      `Szene ${preset} ${w}×${h}px ${theme}${font ? ` (${font})` : ''} (${data.tiles} Kacheln, Silhouette ${data.scene})`,
+      `Szene ${preset} ${w}×${h}px ${theme}${hasTime ? ` ${time.slice(11)}` : ''}${font ? ` (${font})` : ''} (${data.tiles} Kacheln, Silhouette ${data.scene})`,
       !data.overflow && data.clipped.length === 0,
       data.overflow ? 'Inhalt ragt aus der Karte' : data.clipped.length ? `abgeschnitten: ${data.clipped.join(' | ')}` : '',
     );

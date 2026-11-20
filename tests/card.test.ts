@@ -2190,7 +2190,7 @@ describe('Kartenstil „scene“', () => {
     expect(root.querySelector('.scene-tile.moon .scene-tile-label')?.textContent?.trim()).toBe(
       'Erstes Viertel',
     );
-    expect(root.querySelector('.scene-chip.phase')).toBeNull();
+    // Mittags passt das kurze „Tag“ noch neben die gekürzte Restzeit.
     expect((root.querySelector('.countdown-chip')?.textContent ?? '').trim()).toMatch(/^\d+ h \d+ min$/);
     expect(root.querySelector('.scene-label')?.textContent?.trim()).toBe('Aufgang');
 
@@ -2200,6 +2200,35 @@ describe('Kartenstil „scene“', () => {
       { width: 290 },
     );
     expect(tiny.shadowRoot!.querySelector('.scene-tiles.stacked')).not.toBeNull();
+  });
+
+  it('gibt dem Ort in der Kopfzeile Vorrang vor den Chips', async () => {
+    // Abends mit langem Phasentext („Astronomische Dämmerung“): Bei 500 px
+    // entfällt die Phase, statt den Ortsnamen zu verdrängen.
+    freeze('2026-11-20T17:45:00+01:00');
+    const chips = async (width: number) => {
+      const card = await mountCard(
+        { type: 'custom:sun-moon-card', card_style: 'scene', scene: 'mountains', card_height: 300 },
+        { width },
+      );
+      const root = card.shadowRoot!;
+      return {
+        phase: root.querySelector('.scene-chip.phase')?.textContent?.trim() ?? null,
+        countdown: root.querySelector('.scene-chip.countdown-chip')?.textContent?.trim() ?? null,
+      };
+    };
+    expect(await chips(500)).toEqual({
+      phase: null,
+      countdown: expect.stringMatching(/^Aufgang in 13 h \d+ min$/),
+    });
+    expect(await chips(380)).toEqual({
+      phase: null,
+      countdown: expect.stringMatching(/^13 h \d+ min$/),
+    });
+    expect(await chips(780)).toEqual({
+      phase: 'Astronomische Dämmerung',
+      countdown: expect.stringMatching(/^Aufgang in 13 h \d+ min$/),
+    });
   });
 
   it('blendet die Infofelder einzeln aus', async () => {
