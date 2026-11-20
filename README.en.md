@@ -53,7 +53,8 @@ images, and no additional Home Assistant integration is required.
   pink clouds, day in the middle, night with stars on the right. The sun and moon paths
   run in front of it (the sun’s past path dashed, the coming part solid, the sun large and
   glowing; sun and moon – in its current phase – sit on their paths at the current time, the moon
-  dimmed while below the horizon), with sunrise, solar noon and sunset times beneath. The horizon fades softly into the
+  dimmed while below the horizon; the elevation range follows the sun, and when the moon sits
+  above or below it an **edge marker** shows its altitude, e.g. “▲ 28°” or “▼ −31°”), with sunrise, solar noon and sunset times beneath. The horizon fades softly into the
   day, and a restrained **silhouette** shows the chosen scene: `scene: city` (default),
   `mountains`, `forest`, `coast` (with a lighthouse) or `none`. The header carries a location pin,
   place, date, countdown and sky phase; below sit two large tiles for the sun (elevation, azimuth,

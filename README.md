@@ -88,7 +88,9 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   mit rosa Wolken, in der Mitte Tag, rechts Nacht mit Sternen. Davor laufen die Bahnen
   von Sonne und Mond: der vergangene Teil der Sonnenbahn gestrichelt, der kommende durchgezogen,
   die Sonne groß und leuchtend. Sonne und Mond (in seiner aktuellen Phase) stehen auf ihren Bahnen
-  an der aktuellen Uhrzeit; unter dem Horizont bleibt der Mond gedämpft sichtbar. Unter dem Himmel stehen Sonnenaufgang, solarer Mittag und
+  an der aktuellen Uhrzeit; unter dem Horizont bleibt der Mond gedämpft sichtbar. Der Höhenbereich
+  richtet sich nach der Sonne; steht der Mond darüber oder darunter, zeigt eine **Randmarke** am
+  oberen bzw. unteren Rand seine Höhe („▲ 28°“, „▼ −31°“). Unter dem Himmel stehen Sonnenaufgang, solarer Mittag und
   Sonnenuntergang mit Uhrzeit. Der Horizont läuft weich in den Tag aus, unten zeigt eine
   zurückhaltende **Silhouette** die gewählte Szene: `scene: city` (Stadt, Standard),
   `mountains` (Berge), `forest` (Wald), `coast` (Küste mit Leuchtturm) oder `none`. Die

@@ -344,15 +344,11 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
   const span = Math.max(1, t1 - t0);
   const xOf = (time: number): number => ((time - t0) / span) * width;
 
-  // Höhenbereich: Sonne und Mond stehen ganz im Bild, −16° liegen am unteren
-  // Rand des Plots. Tiefer reichende Teile der Bahnen verschwinden unter dem
-  // Streifen. Der Mond zählt mit, damit seine Scheibe auch am höchsten Punkt
-  // auf ihrer Bahn sitzt.
-  const moonMax =
-    showMoon && moonPath?.profile.samples.length
-      ? Math.max(...moonPath.profile.samples.map((sample) => sample.altitude))
-      : -90;
-  const domainTop = Math.max(12, profile.maxAltitude + 8, moonMax + 6);
+  // Höhenbereich: Er richtet sich nach der Sonne, damit ihr Bogen die volle
+  // Höhe nutzt; −16° liegen am unteren Rand des Plots. Die Mondbahn darf oben
+  // und unten hinauslaufen – steht der Mond außerhalb, zeigt eine Randmarke
+  // seine Höhe (siehe unten).
+  const domainTop = Math.max(12, profile.maxAltitude + 8);
   const domainBottom = -16;
   const yOf = (altitude: number): number =>
     plotTop + ((domainTop - altitude) / (domainTop - domainBottom)) * (plotBottom - plotTop);
@@ -451,14 +447,18 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
   const sunR = narrow ? 11 : 15;
   const moonR = narrow ? 9 : 12;
   // Der Mond steht auf seiner Bahn an der aktuellen Uhrzeit. Unter dem
-  // Horizont bleibt er sichtbar, aber gedämpft; reicht er unter den Plot,
-  // sitzt er an dessen Unterkante. Liegt er dicht an der Sonne, weicht er
-  // seitlich aus, damit sich die Scheiben nicht verdecken.
+  // Horizont bleibt er sichtbar, aber gedämpft. Liegt er dicht an der Sonne,
+  // weicht er seitlich aus, damit sich die Scheiben nicht verdecken.
   const moonAltitude = moon?.altitude ?? 0;
-  const moonCy = clamp(yOf(moonAltitude), plotTop + moonR + 2, height - bandH - moonR - 4);
+  const moonMinY = plotTop + moonR + 2;
+  const moonMaxY = height - bandH - moonR - 4;
+  const moonRawY = yOf(moonAltitude);
+  // Außerhalb des Bildes gäbe es keinen Punkt der Bahn, auf dem die Scheibe
+  // sitzen könnte: Dann steht statt ihrer eine Randmarke mit Pfeil und Höhe.
+  const moonEdge: 'top' | 'bottom' | null =
+    moonRawY > moonMaxY ? 'bottom' : moonRawY < moonMinY ? 'top' : null;
+  const moonCy = clamp(moonRawY, moonMinY, moonMaxY);
   const moonUp = moonAltitude > 0;
-  const moonClamped =
-    yOf(moonAltitude) > height - bandH - moonR - 4 || yOf(moonAltitude) < plotTop + moonR + 2;
   const moonStep = sunR + moonR + 6;
   const moonCx =
     showSun && Math.abs(moonCy - sunY) < sunR + moonR + 4
@@ -466,6 +466,27 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
         ? nowX + moonStep
         : nowX - moonStep
       : nowX;
+
+  // Randmarke: „▼ −31°“ am unteren bzw. „▲ 64°“ am oberen Rand, auf der
+  // „Jetzt“-Linie. Läge sie auf der Sonne, rückt sie zur Seite.
+  const edgeText = moonEdge
+    ? `${moonEdge === 'bottom' ? '▼' : '▲'} ${formatDegrees(moonAltitude, 0, format.locale)}`
+    : '';
+  const edgeFont = narrow ? 10.5 : 11.5;
+  const edgeH = edgeFont + 8;
+  // Mondscheibe in der aktuellen Phase links in der Marke
+  const edgeIcon = Math.round(edgeFont + 2);
+  const edgeW = edgeText.length * edgeFont * 0.62 + 14 + edgeIcon + 5;
+  const edgeY = moonEdge === 'bottom' ? height - bandH - edgeH - 8 : plotTop + 2;
+  const edgeOnSun =
+    showSun &&
+    Math.abs(sunY - (edgeY + edgeH / 2)) < sunR + edgeH / 2 + 2;
+  const edgeShift = sunR + edgeW / 2 + 6;
+  const edgeX = clamp(
+    edgeOnSun ? (nowX + edgeShift + edgeW / 2 <= width - 4 ? nowX + edgeShift : nowX - edgeShift) : nowX,
+    edgeW / 2 + 4,
+    width - edgeW / 2 - 4,
+  );
 
   const fadeAt = clamp(y0 / height, 0, 1);
 
@@ -664,11 +685,40 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
       }
 
       ${
-        showMoon && moon
-          ? svg`<g class="now-moon" opacity="${moonUp ? 1 : moonClamped ? 0.5 : 0.7}">
+        showMoon && moon && moonEdge
+          ? svg`<g class="moon-edge" data-edge="${moonEdge}">
               <title>${t('chartMoonNow', {
                 altitude: formatDegrees(moonAltitude, 1, format.locale),
-              })}${moonClamped ? ` ${t('chartOutside')}` : ''}</title>
+              })} ${t('chartOutside')}</title>
+              <rect x="${f(edgeX - edgeW / 2)}" y="${f(edgeY)}" width="${f(edgeW)}"
+                height="${f(edgeH)}" rx="${f(edgeH / 2)}" fill="rgba(22, 26, 64, 0.62)"
+                stroke="rgba(255,255,255,0.55)" stroke-width="0.8" />
+              <g transform="translate(${f(edgeX - edgeW / 2 + 5)} ${f(
+                edgeY + (edgeH - edgeIcon) / 2,
+              )})">
+                ${renderMoonDisc({
+                  size: edgeIcon,
+                  illumination: moon.illumination,
+                  brightLimbAngle: moon.brightLimbAngle,
+                  litColor: '#f7f8ff',
+                  darkColor: '#3a4280',
+                  texture: false,
+                  uid: `${uid}-edge-moon`,
+                })}
+              </g>
+              <text x="${f(edgeX + (edgeIcon + 5) / 2)}"
+                y="${f(edgeY + edgeH / 2 + edgeFont * 0.36)}"
+                text-anchor="middle" font-size="${edgeFont}" fill="#f2f4ff">${edgeText}</text>
+            </g>`
+          : svg``
+      }
+
+      ${
+        showMoon && moon && !moonEdge
+          ? svg`<g class="now-moon" opacity="${moonUp ? 1 : 0.7}">
+              <title>${t('chartMoonNow', {
+                altitude: formatDegrees(moonAltitude, 1, format.locale),
+              })}</title>
               ${
                 moonUp
                   ? svg`<circle cx="${f(moonCx)}" cy="${f(moonCy)}" r="${moonR * 2.1}"
