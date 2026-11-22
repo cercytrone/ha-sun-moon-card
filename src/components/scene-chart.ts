@@ -34,6 +34,11 @@ export interface SceneChartOptions {
   showMoon: boolean;
   moonPath: MoonPath | null;
   /**
+   * Höhenbereich bis zum Höchststand des Mondes, damit seine Bahn oben
+   * vollständig im Bild bleibt (`scene_full_moon_path`).
+   */
+  fullMoonPath?: boolean;
+  /**
    * Aktueller Mond: Phase und Höhe. Die Scheibe sitzt auf der Mondbahn an der
    * aktuellen Uhrzeit – wie die Sonne auf ihrer.
    */
@@ -329,6 +334,7 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
     currentAltitude,
     animations,
     uid,
+    fullMoonPath = false,
   } = options;
   const t = format.t;
   const width = Math.max(160, options.width);
@@ -347,8 +353,13 @@ export function renderSceneChart(options: SceneChartOptions): TemplateResult {
   // Höhenbereich: Er richtet sich nach der Sonne, damit ihr Bogen die volle
   // Höhe nutzt; −16° liegen am unteren Rand des Plots. Die Mondbahn darf oben
   // und unten hinauslaufen – steht der Mond außerhalb, zeigt eine Randmarke
-  // seine Höhe (siehe unten).
-  const domainTop = Math.max(12, profile.maxAltitude + 8);
+  // seine Höhe (siehe unten). Auf Wunsch (`fullMoonPath`) reicht der Bereich
+  // bis zum Höchststand des Mondes; sein Bogen bleibt dann oben ganz im Bild.
+  const moonMax =
+    fullMoonPath && showMoon && moonPath?.profile.samples.length
+      ? Math.max(...moonPath.profile.samples.map((sample) => sample.altitude))
+      : -90;
+  const domainTop = Math.max(12, profile.maxAltitude + 8, moonMax + 6);
   const domainBottom = -16;
   const yOf = (altitude: number): number =>
     plotTop + ((domainTop - altitude) / (domainTop - domainBottom)) * (plotBottom - plotTop);

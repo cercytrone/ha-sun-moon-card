@@ -1066,6 +1066,7 @@ export class SunMoonCard extends LitElement implements LovelaceCard {
                   showSun: config.show_sun,
                   showMoon: config.show_moon,
                   moonPath: model.moonPath,
+                  fullMoonPath: config.scene_full_moon_path,
                   moon: config.show_moon
                     ? {
                         illumination: model.moon.phase.illumination,

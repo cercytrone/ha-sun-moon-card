@@ -54,7 +54,8 @@ images, and no additional Home Assistant integration is required.
   run in front of it (the sun’s past path dashed, the coming part solid, the sun large and
   glowing; sun and moon – in its current phase – sit on their paths at the current time, the moon
   dimmed while below the horizon; the elevation range follows the sun, and when the moon sits
-  above or below it an **edge marker** shows its altitude, e.g. “▲ 28°” or “▼ −31°”), with sunrise, solar noon and sunset times beneath. The horizon fades softly into the
+  above or below it an **edge marker** shows its altitude, e.g. “▲ 28°” or “▼ −31°”; with
+  `scene_full_moon_path: true` the range extends to the moon’s highest point instead), with sunrise, solar noon and sunset times beneath. The horizon fades softly into the
   day, and a restrained **silhouette** shows the chosen scene: `scene: city` (default),
   `mountains`, `forest`, `coast` (with a lighthouse) or `none`. The header carries a location pin,
   place, date, countdown and sky phase; below sit two large tiles for the sun (elevation, azimuth,
@@ -265,6 +266,7 @@ card_height: 320
 | `scene` | `city` \| `mountains` \| `forest` \| `coast` \| `none` | `city` | Silhouette in the `scene` card style: city, mountains, forest, coast or none |
 | `show_sun_info` | boolean | `true` | Sun position panel in the `scene` and `clean` styles; the sun path stays |
 | `show_moon_info` | boolean | `true` | Moon panel in the `scene` and `clean` styles; the moon path stays |
+| `scene_full_moon_path` | boolean | `false` | `scene` card style only: the elevation range extends to the moon’s highest point, so its path stays fully in view and the disc sits on it; the sun’s arc gets flatter. Without it the range follows the sun and a moon above it shows as an edge marker |
 | `show_footer` | boolean | `true` | Footer with time zone, twilight limit and calculation method |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` follows the Home Assistant theme |
 | `animations` | boolean | `true` | Animations (pulsing “now” marker, transitions) |

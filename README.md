@@ -90,7 +90,8 @@ Bilder nachgeladen und keine zusätzlichen Home-Assistant-Integrationen benötig
   die Sonne groß und leuchtend. Sonne und Mond (in seiner aktuellen Phase) stehen auf ihren Bahnen
   an der aktuellen Uhrzeit; unter dem Horizont bleibt der Mond gedämpft sichtbar. Der Höhenbereich
   richtet sich nach der Sonne; steht der Mond darüber oder darunter, zeigt eine **Randmarke** am
-  oberen bzw. unteren Rand seine Höhe („▲ 28°“, „▼ −31°“). Unter dem Himmel stehen Sonnenaufgang, solarer Mittag und
+  oberen bzw. unteren Rand seine Höhe („▲ 28°“, „▼ −31°“). Mit `scene_full_moon_path: true`
+  (im Editor „Mondbahn vollständig zeigen“) reicht der Bereich bis zum Höchststand des Mondes. Unter dem Himmel stehen Sonnenaufgang, solarer Mittag und
   Sonnenuntergang mit Uhrzeit. Der Horizont läuft weich in den Tag aus, unten zeigt eine
   zurückhaltende **Silhouette** die gewählte Szene: `scene: city` (Stadt, Standard),
   `mountains` (Berge), `forest` (Wald), `coast` (Küste mit Leuchtturm) oder `none`. Die
@@ -401,6 +402,7 @@ cards:
 | `scene` | `city` \| `mountains` \| `forest` \| `coast` \| `none` | `city` | Silhouette im Kartenstil `scene`: Stadt, Berge, Wald, Küste oder keine |
 | `show_sun_info` | `true` / `false` | `true` | Infofeld „Sonnenstand“ in den Stilen `scene` und `clean`; die Sonnenbahn bleibt |
 | `show_moon_info` | `true` / `false` | `true` | Infofeld zum Mond in den Stilen `scene` und `clean`; die Mondbahn bleibt |
+| `scene_full_moon_path` | `true` / `false` | `false` | Nur im Kartenstil `scene`: Der Höhenbereich reicht bis zum Höchststand des Mondes, sodass seine Bahn oben vollständig im Bild bleibt und die Scheibe auf ihr sitzt; der Sonnenbogen wird dadurch flacher. Ohne die Option richtet sich der Bereich nach der Sonne, ein Mond darüber erscheint als Randmarke |
 | `show_footer` | `true` / `false` | `true` | Fußzeile mit Zeitzone, Dämmerungsgrenze und Berechnungsverfahren |
 | `theme_mode` | `auto` \| `light` \| `dark` | `auto` | `auto` folgt dem Home-Assistant-Theme |
 | `animations` | `true` / `false` | `true` | Animationen (pulsierender „Jetzt“-Marker, Übergänge) |
