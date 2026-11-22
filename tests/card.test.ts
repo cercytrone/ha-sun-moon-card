@@ -731,6 +731,8 @@ describe('Editor', () => {
       expect(root.querySelector<HTMLSelectElement>('#cardstyle')!.value).toBe(style);
       expect(root.querySelector('#show_sun_info')).not.toBeNull();
       expect(root.querySelector('#show_moon_info')).not.toBeNull();
+      // „Mondbahn vollständig zeigen“ gibt es nur in der Szene.
+      expect(root.querySelector('#scene_full_moon_path') === null).toBe(style !== 'scene');
       expect(root.querySelector('#show_sky_view')).toBeNull();
       expect(root.querySelector('#show_footer')).toBeNull();
       expect(root.querySelector('#compact')).toBeNull();
@@ -2126,6 +2128,45 @@ describe('Kartenstil „scene“', () => {
     // Sonne bis 18,2° → oberer Rand bei 26,2°: 20° liegt im oberen Viertel.
     // Bezöge der Bereich den Mond (bis 34°) ein, läge 20° auf halber Höhe.
     expect((horizon - y20) / (horizon - plotTop)).toBeGreaterThan(0.7);
+  });
+
+  it('zeigt die Mondbahn auf Wunsch vollständig', async () => {
+    // Abends steht der Mond (27,7°) über dem Sonnenbogen (bis 18,2°).
+    freeze('2026-11-18T17:40:00+01:00');
+    const render = async (config: Partial<SunMoonCardConfig>) => {
+      const card = await mountCard(
+        { type: 'custom:sun-moon-card', card_style: 'scene', ...config },
+        { width: 780 },
+      );
+      const root = card.shadowRoot!;
+      const label = [...root.querySelectorAll('.scene-chart .scene-axis')].find(
+        (node) => node.textContent?.trim() === '20°',
+      )!;
+      const horizon = Number(root.querySelector('.scene-chart line.horizon')!.getAttribute('y1'));
+      return {
+        disc: root.querySelector('.scene-chart .now-moon') !== null,
+        edge: root.querySelector('.scene-chart .moon-edge')?.getAttribute('data-edge') ?? null,
+        // Lage der 20°-Marke zwischen Horizont (0) und oberem Rand (1)
+        level: (horizon - (Number(label.getAttribute('y')) - 4)) / (horizon - 14),
+      };
+    };
+
+    // Standard: Bereich nach der Sonne, der Mond erscheint als Randmarke.
+    const standard = await render({});
+    expect(standard.disc).toBe(false);
+    expect(standard.edge).toBe('top');
+
+    // Mit Option: Bereich bis zum Höchststand des Mondes – die Scheibe sitzt
+    // auf ihrer Bahn, der Sonnenbogen wird flacher (20° rückt tiefer).
+    const full = await render({ scene_full_moon_path: true });
+    expect(full.disc).toBe(true);
+    expect(full.edge).toBeNull();
+    expect(full.level).toBeLessThan(standard.level);
+
+    // Unter dem Bild bleibt es bei der Randmarke.
+    freeze('2026-11-20T06:16:00+01:00');
+    const morning = await render({ scene_full_moon_path: true });
+    expect(morning.edge).toBe('bottom');
   });
 
   it('wechselt die Szene', async () => {

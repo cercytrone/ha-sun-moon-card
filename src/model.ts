@@ -311,6 +311,10 @@ export function resolveConfig(
     scene: asChoice(input.scene, CONFIG_CHOICES.scene, DEFAULT_CONFIG.scene),
     show_sun_info: asBoolean(input.show_sun_info, DEFAULT_CONFIG.show_sun_info),
     show_moon_info: asBoolean(input.show_moon_info, DEFAULT_CONFIG.show_moon_info),
+    scene_full_moon_path: asBoolean(
+      input.scene_full_moon_path,
+      DEFAULT_CONFIG.scene_full_moon_path,
+    ),
     theme_mode: asChoice(input.theme_mode, CONFIG_CHOICES.themeMode, DEFAULT_CONFIG.theme_mode),
     animations: asBoolean(input.animations, DEFAULT_CONFIG.animations),
     time_format: asChoice(input.time_format, CONFIG_CHOICES.timeFormat, DEFAULT_CONFIG.time_format),

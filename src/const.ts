@@ -108,6 +108,7 @@ export const DEFAULT_CONFIG: Omit<ResolvedConfig, 'type'> = {
   scene: 'city',
   show_sun_info: true,
   show_moon_info: true,
+  scene_full_moon_path: false,
   theme_mode: 'auto',
   animations: true,
   time_format: 'auto',

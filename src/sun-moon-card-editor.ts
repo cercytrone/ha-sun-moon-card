@@ -233,6 +233,11 @@ export class SunMoonCardEditor extends LitElement implements LovelaceCardEditor 
         ? ([
             ['show_sun_info', 'editorSunInfo'],
             ['show_moon_info', 'editorMoonInfo'],
+            ...(style === 'scene'
+              ? ([['scene_full_moon_path', 'editorFullMoonPath']] as Array<
+                  [keyof SunMoonCardConfig, StringKey]
+                >)
+              : []),
             ['show_header', 'editorShowHeader'],
             ['show_day_chart', 'editorShowDayChart'],
           ] as Array<[keyof SunMoonCardConfig, StringKey]>)

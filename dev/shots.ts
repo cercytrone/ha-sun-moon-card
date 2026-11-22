@@ -60,6 +60,7 @@ const PRESETS: Record<string, Omit<SunMoonCardConfig, 'type'>> = {
   nextevent: { remaining_time_focus: 'next' },
   golden: { show_golden_hour: true, show_countdown_tile: true },
   scene: { card_style: 'scene' },
+  scene_fullmoon: { card_style: 'scene', scene_full_moon_path: true },
   scene_mountains: { card_style: 'scene', scene: 'mountains' },
   scene_forest: { card_style: 'scene', scene: 'forest' },
   scene_coast: { card_style: 'scene', scene: 'coast' },

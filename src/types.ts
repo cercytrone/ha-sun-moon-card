@@ -107,6 +107,13 @@ export interface SunMoonCardConfig {
 
   /** Infofeld zum Mond in den Stilen `scene` und `clean`. */
   show_moon_info?: boolean;
+
+  /**
+   * Kartenstil `scene`: Der Höhenbereich bezieht den Höchststand des Mondes
+   * ein, sodass seine Bahn oben vollständig im Bild bleibt. Der Sonnenbogen
+   * wird dadurch flacher. Standard: aus (Bereich nach der Sonne).
+   */
+  scene_full_moon_path?: boolean;
   /**
    * Minimalmodus: zeigt ausschließlich den Zeitstrahl – keine Kopfzeile,
    * keine Ereignisleiste, keine Details, keine Fußzeile, keine Legende.
